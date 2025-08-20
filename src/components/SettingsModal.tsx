@@ -1,4 +1,6 @@
 import { YahooConnectionCard } from './YahooConnectionCard';
+import { YahooLeagueSelector } from './YahooLeagueSelector';
+import { YahooRateLimitStatus } from './YahooRateLimitStatus';
 import { useYahooOAuth } from '../hooks/useYahooOAuth';
 import { useState, useEffect } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from './ui/dialog';
@@ -340,6 +342,7 @@ export const SettingsModal = ({ open, onOpenChange, onMockEvent }: SettingsModal
 
           <TabsContent value="leagues" className="space-y-4">
             <YahooConnectionCard />
+            <YahooLeagueSelector />
             
             <Card>
               <CardHeader>
@@ -638,6 +641,8 @@ export const SettingsModal = ({ open, onOpenChange, onMockEvent }: SettingsModal
                 debug: { ...prev.debug, enabled }
               }))}
             />
+            
+            <YahooRateLimitStatus />
           </TabsContent>
 
           <TabsContent value="data" className="space-y-4">

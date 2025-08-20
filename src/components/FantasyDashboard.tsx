@@ -13,6 +13,7 @@ import { OfflineBanner } from './OfflineBanner';
 import { AccessibilityProvider, useKeyboardNavigation } from './AccessibilityProvider';
 import { ConnectionIndicator } from './ConnectionIndicator';
 import { useConfig } from '../hooks/useConfig';
+import { useYahooData } from '../hooks/useYahooData';
 import { useSleeperData } from '../hooks/useSleeperData';
 import { usePolling } from '../hooks/usePolling';
 import { useNetworkStatus } from '../hooks/useNetworkStatus';
@@ -31,6 +32,11 @@ import { RefreshCw as RefreshIcon } from 'lucide-react';
 const DashboardContent = () => {
   const { config } = useConfig();
   const { leagues: sleeperLeagues, loading, error, lastUpdated, refetch } = useSleeperData(config.leagues);
+  
+  // Yahoo leagues
+  const yahooLeagueIds = config.leagues.filter(l => l.platform === 'Yahoo').map(l => l.leagueId);
+  const { leagues: yahooLeagues, isLoading: yahooLoading, error: yahooError, refreshData: refreshYahooData } = useYahooData(yahooLeagueIds);
+  
   const { isOnline } = useNetworkStatus();
   const { demoLeague, triggerManualEvent } = useDemoLeague({ 
     enabled: config.demoMode.enabled,
@@ -49,21 +55,29 @@ const DashboardContent = () => {
   // Use keyboard navigation
   useKeyboardNavigation();
 
-  // Combine demo league with real leagues
+  // Combine all leagues from different platforms
   const allLeagues = [];
   if (demoLeague) {
     allLeagues.push(demoLeague);
   }
-  // Always add real leagues if they exist
+  // Add Sleeper leagues
   if (sleeperLeagues.length > 0) {
     allLeagues.push(...sleeperLeagues);
   }
+  // Add Yahoo leagues
+  if (yahooLeagues.length > 0) {
+    allLeagues.push(...yahooLeagues);
+  }
   // Show mock data only if no real leagues configured, no demo league, and no loaded leagues
-  if (config.leagues.length === 0 && !demoLeague && sleeperLeagues.length === 0) {
+  if (config.leagues.length === 0 && !demoLeague && sleeperLeagues.length === 0 && yahooLeagues.length === 0) {
     allLeagues.push(...mockLeagueData);
   }
 
   const displayLeagues = allLeagues;
+
+  // Combine loading and error states from both platforms
+  const combinedLoading = loading || yahooLoading;
+  const combinedError = error || yahooError;
 
   // EMERGENCY: Disable polling to stop the infinite loop
   const { startPolling, stopPolling, isPolling } = usePolling({
@@ -76,7 +90,11 @@ const DashboardContent = () => {
   const { containerRef, isRefreshing: isPullRefreshing, pullDistance } = usePullToRefresh({
     onRefresh: async () => {
       if (hasHaptics) navigator.vibrate?.(50);
-      await refetch();
+      // Refresh both platforms
+      await Promise.allSettled([
+        refetch(),
+        refreshYahooData()
+      ]);
     },
     threshold: 120,
     distanceToRefresh: 80,
@@ -113,7 +131,11 @@ const DashboardContent = () => {
   const handleRefresh = async () => {
     setIsRefreshing(true);
     try {
-      await refetch();
+      // Refresh both Sleeper and Yahoo data in parallel
+      await Promise.allSettled([
+        refetch(),
+        refreshYahooData()
+      ]);
     } finally {
       setIsRefreshing(false);
     }
@@ -124,7 +146,7 @@ const DashboardContent = () => {
   };
 
   // Show loading screen on initial load
-  if (loading && !displayLeagues.length) {
+  if (combinedLoading && !displayLeagues.length) {
     return (
       <LoadingScreen 
         isLoading={true}
@@ -233,7 +255,7 @@ const DashboardContent = () => {
                 <span>Last updated: {formatLastUpdate(lastUpdated)}</span>
                 <ConnectionIndicator 
                   lastUpdated={lastUpdated} 
-                  isPolling={loading} 
+                  isPolling={combinedLoading} 
                 />
               </div>
             )}
@@ -302,11 +324,11 @@ const DashboardContent = () => {
 
       {/* Main content */}
       <main className="dashboard-grid animate-fade-in-up" role="main" aria-label="Fantasy league dashboard">
-        {error ? (
+        {combinedError ? (
           <div className="col-span-full flex justify-center items-center p-8">
             <Alert variant="destructive" className="max-w-md">
               <AlertDescription>
-                {getUserFriendlyErrorMessage(error)}
+                {getUserFriendlyErrorMessage(combinedError)}
               </AlertDescription>
             </Alert>
           </div>
