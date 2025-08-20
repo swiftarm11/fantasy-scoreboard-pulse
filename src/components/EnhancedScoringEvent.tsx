@@ -4,9 +4,10 @@ import { User, TrendingUp, TrendingDown, Target } from 'lucide-react';
 interface EnhancedScoringEventProps {
   event: ScoringEventType;
   isRecent?: boolean;
+  compact?: boolean;
 }
 
-export const EnhancedScoringEvent = ({ event, isRecent = false }: EnhancedScoringEventProps) => {
+export const EnhancedScoringEvent = ({ event, isRecent = false, compact = false }: EnhancedScoringEventProps) => {
   const getImpactBadgeStyle = () => {
     if (event.scoreImpact > 0) {
       return 'bg-green-500/20 text-green-400 border border-green-500/30';
@@ -41,6 +42,32 @@ export const EnhancedScoringEvent = ({ event, isRecent = false }: EnhancedScorin
   const playerNameClasses = isRecent 
     ? 'font-bold text-white' 
     : 'font-medium text-white/90';
+
+  if (compact) {
+    return (
+      <div className={`scoring-event transition-all duration-300 ${eventClasses}`}>
+        <div className="flex items-center gap-2">
+          <div className="w-4 h-4 rounded-full bg-primary/20 flex items-center justify-center text-primary">
+            {getPositionIcon()}
+          </div>
+          
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center justify-between">
+              <p className="text-xs font-medium text-white truncate">
+                {event.playerName}
+              </p>
+              <span className={`text-xs font-bold px-1.5 py-0.5 rounded-full ${getImpactBadgeStyle()}`}>
+                {event.scoreImpact > 0 ? '+' : ''}{event.scoreImpact}
+              </span>
+            </div>
+            <p className="text-xs text-white/60 truncate">
+              {event.action}
+            </p>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className={`scoring-event transition-all duration-300 ${eventClasses}`}>

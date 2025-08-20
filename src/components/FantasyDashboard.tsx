@@ -1,7 +1,10 @@
 import { useState } from 'react';
 import { LeagueBlock } from './LeagueBlock';
+import { MobileLeagueCard } from './MobileLeagueCard';
+import { CompactLeagueSummary } from './CompactLeagueSummary';
+import { MobileSettingsModal } from './MobileSettingsModal';
 import { LeagueData } from '../types/fantasy';
-import { Settings, RefreshCw, Plus, Share2 } from 'lucide-react';
+import { Settings, RefreshCw, Plus, Share2, Menu } from 'lucide-react';
 import { Button } from './ui/button';
 import { SettingsModal } from './SettingsModal';
 import { ExportShareModal } from './ExportShareModal';
@@ -14,12 +17,16 @@ import { useSleeperData } from '../hooks/useSleeperData';
 import { usePolling } from '../hooks/usePolling';
 import { useNetworkStatus } from '../hooks/useNetworkStatus';
 import { useDemoLeague } from '../hooks/useDemoLeague';
+import { useIsMobile, useResponsiveBreakpoint, useDeviceCapabilities } from '../hooks/use-mobile';
+import { usePullToRefresh } from '../hooks/usePullToRefresh';
 import { mockLeagueData } from '../data/mockData';
 import { Skeleton } from './ui/skeleton';
 import { Alert, AlertDescription } from './ui/alert';
 import { Card } from './ui/card';
 import { LoadingOverlay } from './LoadingOverlay';
 import { enhancedAPIHandler, getUserFriendlyErrorMessage } from '../utils/enhancedErrorHandling';
+import { useSwipeable } from 'react-swipeable';
+import { RefreshCw as RefreshIcon } from 'lucide-react';
 
 const DashboardContent = () => {
   const { config } = useConfig();
@@ -32,6 +39,12 @@ const DashboardContent = () => {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [exportShareOpen, setExportShareOpen] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [currentLeagueIndex, setCurrentLeagueIndex] = useState(0);
+  
+  // Mobile and responsive hooks
+  const isMobile = useIsMobile();
+  const breakpoint = useResponsiveBreakpoint();
+  const { hasHaptics, isTouch } = useDeviceCapabilities();
   
   // Use keyboard navigation
   useKeyboardNavigation();
@@ -59,8 +72,41 @@ const DashboardContent = () => {
     enabled: false, // DISABLED until dependency loop is fixed
   });
 
+  // Pull to refresh for mobile
+  const { containerRef, isRefreshing: isPullRefreshing, pullDistance } = usePullToRefresh({
+    onRefresh: async () => {
+      if (hasHaptics) navigator.vibrate?.(50);
+      await refetch();
+    },
+    threshold: 120,
+    distanceToRefresh: 80,
+  });
+
+  // Swipe navigation for mobile
+  const swipeHandlers = useSwipeable({
+    onSwipedLeft: () => {
+      if (isMobile && displayLeagues.length > 1) {
+        setCurrentLeagueIndex((prev) => 
+          prev < displayLeagues.length - 1 ? prev + 1 : 0
+        );
+        if (hasHaptics) navigator.vibrate?.(25);
+      }
+    },
+    onSwipedRight: () => {
+      if (isMobile && displayLeagues.length > 1) {
+        setCurrentLeagueIndex((prev) => 
+          prev > 0 ? prev - 1 : displayLeagues.length - 1
+        );
+        if (hasHaptics) navigator.vibrate?.(25);
+      }
+    },
+    trackMouse: false,
+    preventScrollOnSwipe: true,
+  });
+
   const handleLeagueClick = (league: LeagueData) => {
     console.log('League clicked:', league.leagueName);
+    if (hasHaptics) navigator.vibrate?.(50);
     // TODO: Implement detailed view modal
   };
 
@@ -95,8 +141,56 @@ const DashboardContent = () => {
     lastUpdated,
   };
 
+  const renderLeagueCards = () => {
+    if (isMobile) {
+      return displayLeagues.map((league, index) => (
+        <div
+          key={league.id}
+          className="animate-slide-in-right"
+          style={{ animationDelay: `${index * 0.1}s` }}
+        >
+          <MobileLeagueCard
+            league={league}
+            onClick={() => handleLeagueClick(league)}
+            onLongPress={() => {
+              console.log('Long press on league:', league.leagueName);
+              // TODO: Show quick actions menu
+            }}
+          />
+        </div>
+      ));
+    }
+
+    return displayLeagues.map((league, index) => (
+      <div
+        key={league.id}
+        className="animate-slide-in-right"
+        style={{ animationDelay: `${index * 0.1}s` }}
+        tabIndex={0}
+        role="region"
+        aria-label={`${league.leagueName} league information`}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            handleLeagueClick(league);
+          }
+        }}
+      >
+        <LeagueBlock
+          league={league}
+          onClick={() => handleLeagueClick(league)}
+        />
+      </div>
+    ));
+  };
+
   return (
-    <div className="min-h-screen bg-background text-foreground dashboard-container" id="main-content">
+    <div 
+      ref={containerRef}
+      className="min-h-screen bg-background text-foreground dashboard-container" 
+      id="main-content"
+      {...(isMobile ? swipeHandlers : {})}
+    >
       {/* Skip to content link for accessibility */}
       <a 
         href="#main-content" 
@@ -106,56 +200,102 @@ const DashboardContent = () => {
         Skip to main content
       </a>
       
+      {/* Pull to refresh indicator */}
+      {isPullRefreshing && (
+        <div 
+          className="pull-to-refresh-indicator flex items-center justify-center p-4"
+          style={{ transform: `translateY(${Math.min(pullDistance, 60)}px)` }}
+        >
+          <RefreshIcon className="h-6 w-6 animate-spin text-primary" />
+        </div>
+      )}
+      
       {/* Offline banner */}
       <OfflineBanner onRetry={handleRefresh} />
 
+      {/* Compact summary for mobile */}
+      {isMobile && displayLeagues.length > 0 && (
+        <CompactLeagueSummary 
+          leagues={displayLeagues} 
+          onLeagueSelect={handleLeagueClick}
+        />
+      )}
+
       {/* Header */}
-      <header className="p-6 border-b border-border/50" role="banner">
+      <header className={`${isMobile ? 'mobile-header' : 'p-6'} border-b border-border/50`} role="banner">
         <div className="max-w-7xl mx-auto flex items-center justify-between">
           <div className="space-y-1">
-            <h1 className="text-3xl font-bold text-foreground">
-              Fantasy Football Dashboard
+            <h1 className={`${isMobile ? 'text-2xl' : 'text-3xl'} font-bold text-foreground`}>
+              {isMobile ? 'Fantasy Dashboard' : 'Fantasy Football Dashboard'}
             </h1>
-            <div className="flex items-center gap-4 text-sm text-muted-foreground">
-              <span>Last updated: {formatLastUpdate(lastUpdated)}</span>
-              <ConnectionIndicator 
-                lastUpdated={lastUpdated} 
-                isPolling={loading} 
-              />
-            </div>
+            {!isMobile && (
+              <div className="flex items-center gap-4 text-sm text-muted-foreground">
+                <span>Last updated: {formatLastUpdate(lastUpdated)}</span>
+                <ConnectionIndicator 
+                  lastUpdated={lastUpdated} 
+                  isPolling={loading} 
+                />
+              </div>
+            )}
           </div>
           
-          <div className="flex items-center gap-2">
-            <Button
-              variant="outline"
-              onClick={handleRefresh}
-              disabled={isRefreshing || !isOnline}
-              className="animate-scale-in"
-              aria-label="Refresh dashboard data"
-            >
-              <RefreshCw className={`h-4 w-4 mr-2 ${isRefreshing ? 'animate-spin' : ''}`} />
-              Refresh
-            </Button>
-            
-            <Button
-              variant="outline"
-              onClick={() => setExportShareOpen(true)}
-              className="animate-scale-in"
-              aria-label="Export and share dashboard"
-            >
-              <Share2 className="h-4 w-4 mr-2" />
-              Export & Share
-            </Button>
+          <div className={`flex items-center ${isMobile ? 'mobile-header-controls' : 'gap-2'}`}>
+            {!isMobile && (
+              <>
+                <Button
+                  variant="outline"
+                  onClick={handleRefresh}
+                  disabled={isRefreshing || !isOnline}
+                  className="animate-scale-in"
+                  aria-label="Refresh dashboard data"
+                >
+                  <RefreshCw className={`h-4 w-4 mr-2 ${isRefreshing ? 'animate-spin' : ''}`} />
+                  Refresh
+                </Button>
+                
+                <Button
+                  variant="outline"
+                  onClick={() => setExportShareOpen(true)}
+                  className="animate-scale-in"
+                  aria-label="Export and share dashboard"
+                >
+                  <Share2 className="h-4 w-4 mr-2" />
+                  Export & Share
+                </Button>
+              </>
+            )}
 
-            <Button
-              variant="outline"
-              onClick={() => setSettingsOpen(true)}
-              className="animate-scale-in"
-              aria-label="Open dashboard settings"
-            >
-              <Settings className="h-4 w-4 mr-2" />
-              Settings
-            </Button>
+            {isMobile ? (
+              <MobileSettingsModal>
+                <Button
+                  variant="ghost"
+                  className="w-full justify-start mobile-touch-target"
+                  onClick={handleRefresh}
+                  disabled={isRefreshing || !isOnline}
+                >
+                  <RefreshCw className={`h-4 w-4 mr-2 ${isRefreshing ? 'animate-spin' : ''}`} />
+                  Refresh
+                </Button>
+                <Button
+                  variant="ghost"
+                  className="w-full justify-start mobile-touch-target"
+                  onClick={() => setExportShareOpen(true)}
+                >
+                  <Share2 className="h-4 w-4 mr-2" />
+                  Export & Share
+                </Button>
+              </MobileSettingsModal>
+            ) : (
+              <Button
+                variant="outline"
+                onClick={() => setSettingsOpen(true)}
+                className="animate-scale-in"
+                aria-label="Open dashboard settings"
+              >
+                <Settings className="h-4 w-4 mr-2" />
+                Settings
+              </Button>
+            )}
           </div>
         </div>
       </header>
@@ -171,32 +311,11 @@ const DashboardContent = () => {
             </Alert>
           </div>
         ) : displayLeagues.length > 0 ? (
-          displayLeagues.map((league, index) => (
-            <div
-              key={league.id}
-              className="animate-slide-in-right"
-              style={{ animationDelay: `${index * 0.1}s` }}
-              tabIndex={0}
-              role="region"
-              aria-label={`${league.leagueName} league information`}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' || e.key === ' ') {
-                  e.preventDefault();
-                  handleLeagueClick(league);
-                }
-              }}
-            >
-              <LeagueBlock
-                key={league.id}
-                league={league}
-                onClick={() => handleLeagueClick(league)}
-              />
-            </div>
-          ))
+          renderLeagueCards()
         ) : (
           // Loading skeletons
-          Array.from({ length: 6 }).map((_, i) => (
-            <Card key={i} className="league-block animate-pulse">
+          Array.from({ length: isMobile ? 3 : 6 }).map((_, i) => (
+            <Card key={i} className={`${isMobile ? 'mobile-league-card' : 'league-block'} animate-pulse`}>
               <div className="league-content">
                 <div className="space-y-4">
                   <Skeleton className="h-4 w-3/4" />
@@ -214,7 +333,7 @@ const DashboardContent = () => {
         {/* Add new league placeholder */}
         {config.leagues.length < 10 && (
           <Card 
-            className="league-block border-dashed border-2 hover:border-primary/50 transition-colors cursor-pointer animate-scale-in"
+            className={`${isMobile ? 'mobile-league-card' : 'league-block'} border-dashed border-2 hover:border-primary/50 transition-colors cursor-pointer animate-scale-in`}
             onClick={() => setSettingsOpen(true)}
             role="button"
             tabIndex={0}
@@ -228,7 +347,7 @@ const DashboardContent = () => {
           >
             <div className="league-content flex items-center justify-center text-muted-foreground">
               <div className="text-center space-y-2">
-                <Plus className="h-12 w-12 mx-auto opacity-50" />
+                <Plus className={`${isMobile ? 'h-8 w-8' : 'h-12 w-12'} mx-auto opacity-50`} />
                 <p className="font-medium">Add League</p>
                 <p className="text-sm">Connect another fantasy league</p>
               </div>
@@ -237,20 +356,22 @@ const DashboardContent = () => {
         )}
       </main>
 
-      {/* Footer */}
-      <footer className="p-6 border-t border-border/50 text-center text-sm text-muted-foreground" role="contentinfo">
-        <div className="max-w-7xl mx-auto">
-          {config.leagues.length > 0 ? (
-            <p>
-              Tracking {config.leagues.length} league{config.leagues.length !== 1 ? 's' : ''} • 
-              Polling every {config.polling.updateFrequency} seconds
-              {config.polling.smartPolling && ' • Smart polling enabled'}
-            </p>
-          ) : (
-            <p>Add your first league to get started!</p>
-          )}
-        </div>
-      </footer>
+      {/* Footer - Hidden on mobile */}
+      {!isMobile && (
+        <footer className="p-6 border-t border-border/50 text-center text-sm text-muted-foreground" role="contentinfo">
+          <div className="max-w-7xl mx-auto">
+            {config.leagues.length > 0 ? (
+              <p>
+                Tracking {config.leagues.length} league{config.leagues.length !== 1 ? 's' : ''} • 
+                Polling every {config.polling.updateFrequency} seconds
+                {config.polling.smartPolling && ' • Smart polling enabled'}
+              </p>
+            ) : (
+              <p>Add your first league to get started!</p>
+            )}
+          </div>
+        </footer>
+      )}
 
       {/* Modals */}
       <SettingsModal 
@@ -265,10 +386,10 @@ const DashboardContent = () => {
       />
 
       {/* Loading overlay */}
-      {isRefreshing && (
+      {(isRefreshing || isPullRefreshing) && (
         <LoadingOverlay 
           isVisible={true}
-          message="Refreshing data..." 
+          message={isPullRefreshing ? "Pull to refresh..." : "Refreshing data..."} 
         />
       )}
     </div>

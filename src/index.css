@@ -172,19 +172,109 @@ All colors MUST be HSL.
 }
 
 @layer utilities {
+  /* Grid layouts and responsive design */
   .dashboard-grid {
     display: grid;
-    grid-template-columns: repeat(5, 320px);
-    grid-template-rows: repeat(2, 450px);
-    gap: 16px;
-    justify-content: center;
-    padding: 24px;
+    gap: 1.5rem;
+    padding: 1.5rem;
+    max-width: 1400px;
+    margin: 0 auto;
+    
+    /* Desktop: 5x2 grid */
+    grid-template-columns: repeat(5, 1fr);
   }
-  
-  @media (max-width: 1700px) {
+
+  /* Responsive breakpoints */
+  @media (max-width: 1199px) {
     .dashboard-grid {
-      grid-template-columns: repeat(3, 320px);
-      grid-template-rows: repeat(4, 450px);
+      /* Laptop: 4x3 grid */
+      grid-template-columns: repeat(4, 1fr);
+      gap: 1.25rem;
+      padding: 1.25rem;
+    }
+  }
+
+  @media (max-width: 991px) {
+    .dashboard-grid {
+      /* Tablet: 3x4 grid */
+      grid-template-columns: repeat(3, 1fr);
+      gap: 1rem;
+      padding: 1rem;
+    }
+  }
+
+  @media (max-width: 767px) {
+    .dashboard-grid {
+      /* Mobile: 1 column */
+      grid-template-columns: 1fr;
+      gap: 1rem;
+      padding: 0.5rem;
+    }
+  }
+
+  /* Mobile-specific league cards */
+  .mobile-league-card {
+    min-height: 300px;
+    border-radius: 16px;
+    background: linear-gradient(135deg, var(--gradient-primary));
+    border: 1px solid var(--border);
+    position: relative;
+    overflow: hidden;
+    transform: translateZ(0);
+    will-change: transform;
+  }
+
+  .mobile-league-card .league-overlay {
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(135deg, rgba(0, 0, 0, 0.1), rgba(0, 0, 0, 0.3));
+    pointer-events: none;
+  }
+
+  .mobile-league-card .league-content {
+    position: relative;
+    z-index: 1;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* Touch targets - minimum 44px */
+  .mobile-touch-target {
+    min-height: 44px;
+    min-width: 44px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  /* Pull to refresh indicator */
+  .pull-to-refresh-indicator {
+    position: absolute;
+    top: 0;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 1000;
+    transition: all 0.3s ease;
+  }
+
+  /* Mobile header adjustments */
+  @media (max-width: 767px) {
+    .mobile-header {
+      padding: 1rem;
+      border-bottom: 1px solid var(--border);
+    }
+    
+    .mobile-header h1 {
+      font-size: 1.5rem;
+    }
+    
+    .mobile-header-controls {
+      gap: 0.5rem;
+    }
+    
+    .mobile-header-controls button {
+      padding: 0.5rem;
     }
   }
   
