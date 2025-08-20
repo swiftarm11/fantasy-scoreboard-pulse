@@ -8,35 +8,54 @@ All colors MUST be HSL.
 
 @layer base {
   :root {
-    --background: 0 0% 100%;
-    --foreground: 222.2 84% 4.9%;
+    /* Fantasy Football Dashboard Design System */
+    --background: 222.2 84% 4.9%; /* slate-900 dark theme */
+    --foreground: 210 40% 98%;
 
-    --card: 0 0% 100%;
-    --card-foreground: 222.2 84% 4.9%;
+    --card: 224 71.4% 4.1%; /* slate-800 */
+    --card-foreground: 210 40% 98%;
 
-    --popover: 0 0% 100%;
-    --popover-foreground: 222.2 84% 4.9%;
+    --popover: 224 71.4% 4.1%;
+    --popover-foreground: 210 40% 98%;
 
-    --primary: 222.2 47.4% 11.2%;
-    --primary-foreground: 210 40% 98%;
+    --primary: 217.2 91.2% 59.8%; /* blue-400 */
+    --primary-foreground: 222.2 84% 4.9%;
 
-    --secondary: 210 40% 96.1%;
-    --secondary-foreground: 222.2 47.4% 11.2%;
+    --secondary: 215.4 16.3% 46.9%; /* slate-500 */
+    --secondary-foreground: 210 40% 98%;
 
-    --muted: 210 40% 96.1%;
-    --muted-foreground: 215.4 16.3% 46.9%;
+    --muted: 215 27.9% 16.9%; /* slate-700 */
+    --muted-foreground: 217.9 10.6% 64.9%; /* slate-400 */
 
-    --accent: 210 40% 96.1%;
-    --accent-foreground: 222.2 47.4% 11.2%;
+    --accent: 217.2 32.6% 17.5%;
+    --accent-foreground: 210 40% 98%;
 
     --destructive: 0 84.2% 60.2%;
     --destructive-foreground: 210 40% 98%;
 
-    --border: 214.3 31.8% 91.4%;
-    --input: 214.3 31.8% 91.4%;
-    --ring: 222.2 84% 4.9%;
+    --border: 215 27.9% 16.9%;
+    --input: 215 27.9% 16.9%;
+    --ring: 217.2 91.2% 59.8%;
 
-    --radius: 0.5rem;
+    /* Fantasy Football Custom Variables */
+    --fantasy-win: 142.1 76.2% 36.3%; /* green-600 */
+    --fantasy-win-light: 142.1 70.6% 45.3%; /* green-500 */
+    --fantasy-loss: 0 84.2% 60.2%; /* red-500 */
+    --fantasy-loss-light: 0 72.2% 50.6%; /* red-600 */
+    --fantasy-neutral: 217.2 32.6% 17.5%; /* slate-600 */
+    
+    /* Gradients */
+    --gradient-win: linear-gradient(135deg, hsl(var(--fantasy-win)) 0%, hsl(var(--fantasy-win-light)) 100%);
+    --gradient-loss: linear-gradient(135deg, hsl(var(--fantasy-loss)) 0%, hsl(var(--fantasy-loss-light)) 100%);
+    --gradient-neutral: linear-gradient(135deg, hsl(var(--fantasy-neutral)) 0%, hsl(var(--muted)) 100%);
+    
+    /* Platform Brand Colors */
+    --sleeper-brand: 255 81% 58%; /* sleeper orange */
+    --yahoo-brand: 273 100% 50%; /* yahoo purple */
+    --nfl-brand: 223 94% 48%; /* nfl blue */
+    --espn-brand: 0 100% 50%; /* espn red */
+    
+    --radius: 0.75rem;
 
     --sidebar-background: 0 0% 98%;
 
@@ -56,41 +75,9 @@ All colors MUST be HSL.
   }
 
   .dark {
+    /* Dark mode already integrated into root */
     --background: 222.2 84% 4.9%;
     --foreground: 210 40% 98%;
-
-    --card: 222.2 84% 4.9%;
-    --card-foreground: 210 40% 98%;
-
-    --popover: 222.2 84% 4.9%;
-    --popover-foreground: 210 40% 98%;
-
-    --primary: 210 40% 98%;
-    --primary-foreground: 222.2 47.4% 11.2%;
-
-    --secondary: 217.2 32.6% 17.5%;
-    --secondary-foreground: 210 40% 98%;
-
-    --muted: 217.2 32.6% 17.5%;
-    --muted-foreground: 215 20.2% 65.1%;
-
-    --accent: 217.2 32.6% 17.5%;
-    --accent-foreground: 210 40% 98%;
-
-    --destructive: 0 62.8% 30.6%;
-    --destructive-foreground: 210 40% 98%;
-
-    --border: 217.2 32.6% 17.5%;
-    --input: 217.2 32.6% 17.5%;
-    --ring: 212.7 26.8% 83.9%;
-    --sidebar-background: 240 5.9% 10%;
-    --sidebar-foreground: 240 4.8% 95.9%;
-    --sidebar-primary: 224.3 76.3% 48%;
-    --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 240 3.7% 15.9%;
-    --sidebar-accent-foreground: 240 4.8% 95.9%;
-    --sidebar-border: 240 3.7% 15.9%;
-    --sidebar-ring: 217.2 91.2% 59.8%;
   }
 }
 
@@ -101,5 +88,129 @@ All colors MUST be HSL.
 
   body {
     @apply bg-background text-foreground;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  }
+}
+
+@layer components {
+  /* Fantasy Football Dashboard Components */
+  .league-block {
+    @apply relative overflow-hidden rounded-xl transition-all duration-500 ease-in-out;
+    width: 320px;
+    height: 450px;
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.3);
+  }
+  
+  .league-block:hover {
+    @apply scale-[1.02];
+    box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.4);
+  }
+  
+  .league-block-winning {
+    background: var(--gradient-win);
+  }
+  
+  .league-block-losing {
+    background: var(--gradient-loss);
+  }
+  
+  .league-block-neutral {
+    background: var(--gradient-neutral);
+  }
+  
+  .league-overlay {
+    @apply absolute inset-0 bg-black/20;
+  }
+  
+  .league-content {
+    @apply relative z-10 p-4 h-full flex flex-col text-white;
+  }
+  
+  .platform-badge {
+    @apply px-2 py-1 rounded-md text-xs font-semibold text-white;
+  }
+  
+  .platform-sleeper {
+    background-color: hsl(var(--sleeper-brand));
+  }
+  
+  .platform-yahoo {
+    background-color: hsl(var(--yahoo-brand));
+  }
+  
+  .platform-nfl {
+    background-color: hsl(var(--nfl-brand));
+  }
+  
+  .platform-espn {
+    background-color: hsl(var(--espn-brand));
+  }
+  
+  .scoring-event {
+    @apply p-3 rounded-md mb-2 transition-all duration-300;
+    background: rgba(255, 255, 255, 0.1);
+    backdrop-filter: blur(4px);
+  }
+  
+  .scoring-event-recent {
+    @apply border border-white/30;
+    background: rgba(255, 255, 255, 0.15);
+    animation: pulse-subtle 2s ease-in-out infinite;
+  }
+  
+  .scoring-event-old {
+    @apply opacity-80;
+  }
+  
+  .score-impact-positive {
+    @apply text-green-300 font-semibold;
+  }
+  
+  .score-impact-negative {
+    @apply text-red-300 font-semibold;
+  }
+}
+
+@layer utilities {
+  .dashboard-grid {
+    display: grid;
+    grid-template-columns: repeat(5, 320px);
+    grid-template-rows: repeat(2, 450px);
+    gap: 16px;
+    justify-content: center;
+    padding: 24px;
+  }
+  
+  @media (max-width: 1700px) {
+    .dashboard-grid {
+      grid-template-columns: repeat(3, 320px);
+      grid-template-rows: repeat(4, 450px);
+    }
+  }
+  
+  @media (max-width: 1024px) {
+    .dashboard-grid {
+      grid-template-columns: repeat(2, 320px);
+      grid-template-rows: repeat(5, 450px);
+    }
+  }
+  
+  @media (max-width: 768px) {
+    .dashboard-grid {
+      grid-template-columns: 320px;
+      grid-template-rows: repeat(10, 450px);
+      padding: 16px;
+    }
+  }
+}
+
+@keyframes pulse-subtle {
+  0%, 100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.9;
+    transform: scale(1.01);
   }
 }
