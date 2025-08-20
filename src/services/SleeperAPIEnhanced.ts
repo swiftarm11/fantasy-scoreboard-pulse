@@ -64,51 +64,68 @@ export interface SleeperState {
   leg: number;
 }
 
-export class SleeperAPI {
-  private static instance: SleeperAPI;
+export class SleeperAPIEnhanced {
+  private static instance: SleeperAPIEnhanced;
   private playersCache: Record<string, SleeperPlayer> | null = null;
   private playersCacheTimestamp: number = 0;
   private readonly CACHE_DURATION = 24 * 60 * 60 * 1000; // 24 hours
 
-  static getInstance(): SleeperAPI {
-    if (!SleeperAPI.instance) {
-      SleeperAPI.instance = new SleeperAPI();
+  static getInstance(): SleeperAPIEnhanced {
+    if (!SleeperAPIEnhanced.instance) {
+      SleeperAPIEnhanced.instance = new SleeperAPIEnhanced();
     }
-    return SleeperAPI.instance;
+    return SleeperAPIEnhanced.instance;
   }
 
   private async callAPI(endpoint: string, params: Record<string, string> = {}): Promise<any> {
+    const startTime = Date.now();
     const urlParams = new URLSearchParams({
       endpoint,
       ...params,
     });
 
-    const { data, error } = await supabase.functions.invoke('sleeper-api', {
-      body: {},
-      method: 'GET',
-    });
+    const url = `https://doyquitecogdnvbyiszt.supabase.co/functions/v1/sleeper-api?${urlParams}`;
+    
+    debugLogger.logAPICall(url, 'GET', startTime);
 
-    if (error) {
-      throw new Error(`Sleeper API call failed: ${error.message}`);
-    }
+    try {
+      const { data: supabaseData, error } = await supabase.functions.invoke('sleeper-api', {
+        body: {},
+        method: 'GET',
+      });
 
-    // Make the actual HTTP call to our edge function
-    const response = await fetch(
-      `https://doyquitecogdnvbyiszt.supabase.co/functions/v1/sleeper-api?${urlParams}`,
-      {
+      if (error) {
+        debugLogger.logAPIError(new Error(`Supabase function error: ${error.message}`));
+        throw new Error(`Sleeper API call failed: ${error.message}`);
+      }
+
+      // Make the actual HTTP call to our edge function
+      const response = await fetch(url, {
         headers: {
-          'Authorization': `Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRveXF1aXRlY29nZG52Ynlpc3p0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTU2ODg0OTMsImV4cCI6MjA3MTI2NDQ5M30.63TmTlCTK_jVJnG_4vuZWUwS--UcyNgOSem5tI7q_1w`,
+          'Authorization': 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRveXF1aXRlY29nZG52Ynlpc3p0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTU2ODg0OTMsImV4cCI6MjA3MTI2NDQ5M30.63TmTlCTK_jVJnG_4vuZWUwS--UcyNgOSem5tI7q_1w',
           'apikey': 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRveXF1aXRlY29nZG52Ynlpc3p0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTU2ODg0OTMsImV4cCI6MjA3MTI2NDQ5M30.63TmTlCTK_jVJnG_4vuZWUwS--UcyNgOSem5tI7q_1w',
         },
+      });
+
+      const responseTime = Date.now() - startTime;
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        const error = new Error(errorData.error || `HTTP ${response.status}: ${response.statusText}`);
+        debugLogger.logAPIError(error, errorData, responseTime);
+        throw error;
       }
-    );
 
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}));
-      throw new Error(errorData.error || `HTTP ${response.status}: ${response.statusText}`);
+      const responseData = await response.json();
+      debugLogger.logAPIResponse(response.status, response.statusText, responseData, responseTime);
+      
+      return responseData;
+      
+    } catch (error) {
+      const responseTime = Date.now() - startTime;
+      debugLogger.logAPIError(error as Error, undefined, responseTime);
+      throw error;
     }
-
-    return response.json();
   }
 
   async getLeague(leagueId: string): Promise<SleeperLeague> {
@@ -237,4 +254,4 @@ export class SleeperAPI {
   }
 }
 
-export const sleeperAPI = SleeperAPI.getInstance();
+export const sleeperAPIEnhanced = SleeperAPIEnhanced.getInstance();

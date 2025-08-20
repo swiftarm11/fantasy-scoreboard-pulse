@@ -21,10 +21,16 @@ export interface NotificationConfig {
   playSound: boolean;
 }
 
+export interface DebugConfig {
+  enabled: boolean;
+  showInProduction: boolean;
+}
+
 export interface DashboardConfig {
   leagues: LeagueConfig[];
   polling: PollingConfig;
   notifications: NotificationConfig;
+  debug: DebugConfig;
   version: string;
 }
 
@@ -40,6 +46,10 @@ export const DEFAULT_CONFIG: DashboardConfig = {
     winProbabilityChanges: true,
     gameStartReminders: false,
     playSound: false,
+  },
+  debug: {
+    enabled: false,
+    showInProduction: false,
   },
   version: '1.0.0',
 };

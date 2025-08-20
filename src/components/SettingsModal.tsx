@@ -12,11 +12,13 @@ import { toast } from './ui/use-toast';
 import { Trash2, Plus, Download, Upload, Loader2, GripVertical, Check, Zap } from 'lucide-react';
 import { DashboardConfig, LeagueConfig, DEFAULT_CONFIG } from '../types/config';
 import { Platform } from '../types/fantasy';
-import { sleeperAPI } from '../services/SleeperAPI';
+import { sleeperAPIEnhanced } from '../services/SleeperAPIEnhanced';
 import { useConfig } from '../hooks/useConfig';
 import { DraggableLeagueItem } from './DraggableLeagueItem';
 import { generateMockScoringEvent } from '../utils/mockEventGenerator';
 import { TestingTab } from './TestingTab';
+import { debugLogger } from '../utils/debugLogger';
+import { DebugConsole } from './DebugConsole';
 import {
   DndContext,
   closestCenter,
@@ -66,7 +68,7 @@ export const SettingsModal = ({ open, onOpenChange, onMockEvent }: SettingsModal
 
     try {
       if (newLeaguePlatform === 'Sleeper') {
-        const isValid = await sleeperAPI.validateLeagueId(leagueId);
+        const isValid = await sleeperAPIEnhanced.validateLeagueId(leagueId);
         setIsValidLeague(isValid);
       } else {
         // For other platforms, assume valid for now
@@ -91,12 +93,12 @@ export const SettingsModal = ({ open, onOpenChange, onMockEvent }: SettingsModal
     
     try {
       if (newLeaguePlatform === 'Sleeper') {
-        const isValid = await sleeperAPI.validateLeagueId(newLeagueId);
+        const isValid = await sleeperAPIEnhanced.validateLeagueId(newLeagueId);
         if (!isValid) {
           throw new Error('Invalid league ID');
         }
         
-        const league = await sleeperAPI.getLeague(newLeagueId);
+        const league = await sleeperAPIEnhanced.getLeague(newLeagueId);
         
         const newLeague: LeagueConfig = {
           id: `league_${Date.now()}`,
@@ -253,10 +255,11 @@ export const SettingsModal = ({ open, onOpenChange, onMockEvent }: SettingsModal
         </DialogHeader>
 
         <Tabs defaultValue="leagues" className="w-full">
-          <TabsList className="grid w-full grid-cols-5">
+          <TabsList className="grid w-full grid-cols-6">
             <TabsTrigger value="leagues">Leagues</TabsTrigger>
             <TabsTrigger value="polling">Polling</TabsTrigger>
             <TabsTrigger value="notifications">Notifications</TabsTrigger>
+            <TabsTrigger value="debug">Debug</TabsTrigger>
             <TabsTrigger value="data">Data</TabsTrigger>
             <TabsTrigger value="testing">Testing</TabsTrigger>
           </TabsList>
@@ -509,7 +512,59 @@ export const SettingsModal = ({ open, onOpenChange, onMockEvent }: SettingsModal
             </Card>
           </TabsContent>
 
-          <TabsContent value="data" className="space-y-4">
+          <TabsContent value="debug" className="space-y-4">
+            <Card>
+              <CardHeader>
+                <CardTitle>Debug Settings</CardTitle>
+                <CardDescription>
+                  Configure debug logging and diagnostics
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <Label>Enable Debug Logging</Label>
+                    <p className="text-sm text-muted-foreground">
+                      Show detailed API calls, validation steps, and error information
+                    </p>
+                  </div>
+                  <Switch
+                    checked={localConfig.debug.enabled}
+                    onCheckedChange={(enabled) => setLocalConfig(prev => ({
+                      ...prev,
+                      debug: { ...prev.debug, enabled }
+                    }))}
+                  />
+                </div>
+
+                <div className="flex items-center justify-between">
+                  <div>
+                    <Label>Show in Production</Label>
+                    <p className="text-sm text-muted-foreground">
+                      Display debug console in production builds (not recommended)
+                    </p>
+                  </div>
+                  <Switch
+                    checked={localConfig.debug.showInProduction}
+                    onCheckedChange={(showInProduction) => setLocalConfig(prev => ({
+                      ...prev,
+                      debug: { ...prev.debug, showInProduction }
+                    }))}
+                  />
+                </div>
+              </CardContent>
+            </Card>
+
+            <DebugConsole
+              debugMode={localConfig.debug.enabled}
+              onToggleDebug={(enabled) => setLocalConfig(prev => ({
+                ...prev,
+                debug: { ...prev.debug, enabled }
+              }))}
+            />
+          </TabsContent>
+
+          <TabsContent value="data" className="space-y-4">{/* existing data content */}
             <Card>
               <CardHeader>
                 <CardTitle>Data Management</CardTitle>
