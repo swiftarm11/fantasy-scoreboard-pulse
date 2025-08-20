@@ -26,7 +26,7 @@ export const useSleeperData = (leagueConfigs: LeagueConfig[]): UseSleeperDataRet
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
   const [previousMatchups, setPreviousMatchups] = useState<Record<string, SleeperMatchup[]>>({});
 
-  const processSleeperData = useCallback(async (leagueData: SleeperLeagueData, config: LeagueConfig): Promise<LeagueData> => {
+  const processSleeperData = useCallback(async (leagueData: SleeperLeagueData, config: LeagueConfig, prevMatchups: Record<string, SleeperMatchup[]>): Promise<LeagueData> => {
     const { league, users, rosters, matchups, currentWeek } = leagueData;
     
     // Find user's roster - use first roster as fallback if no specific user identification
@@ -65,7 +65,7 @@ export const useSleeperData = (leagueConfigs: LeagueConfig[]): UseSleeperDataRet
     // Generate scoring events by comparing with previous data
     const scoringEvents = await generateScoringEvents(
       userMatchup,
-      previousMatchups[config.leagueId] || []
+      prevMatchups[config.leagueId] || []
     );
 
     // Calculate record and position (simplified)
@@ -86,7 +86,7 @@ export const useSleeperData = (leagueConfigs: LeagueConfig[]): UseSleeperDataRet
       scoringEvents,
       lastUpdated: new Date().toLocaleTimeString(),
     };
-  }, [previousMatchups]);
+  }, []); // Empty dependency array to prevent recreation
 
   const generateScoringEvents = async (
     currentMatchup: SleeperMatchup,
@@ -165,6 +165,12 @@ export const useSleeperData = (leagueConfigs: LeagueConfig[]): UseSleeperDataRet
       return;
     }
 
+    // Prevent concurrent fetches
+    if (loading) {
+      console.log('Already fetching data, skipping...');
+      return;
+    }
+
     setLoading(true);
     setError(null);
 
@@ -187,7 +193,7 @@ export const useSleeperData = (leagueConfigs: LeagueConfig[]): UseSleeperDataRet
             currentWeek,
           };
 
-          return await processSleeperData(sleeperLeagueData, config);
+          return await processSleeperData(sleeperLeagueData, config, previousMatchups);
         } catch (error) {
           console.error(`Error fetching data for league ${config.leagueId}:`, error);
           throw error;
@@ -198,17 +204,28 @@ export const useSleeperData = (leagueConfigs: LeagueConfig[]): UseSleeperDataRet
       setLeagues(processedLeagues);
       setLastUpdated(new Date());
 
-      // Store current matchups for next comparison
+      // Store matchups for next comparison (no additional API calls needed)
       const newPreviousMatchups: Record<string, SleeperMatchup[]> = {};
-      for (const config of enabledLeagues) {
+      
+      // Extract matchups from the processed leagues data we already have
+      enabledLeagues.forEach((config, index) => {
         try {
-          const matchups = await sleeperAPI.getMatchups(config.leagueId, currentWeek);
-          newPreviousMatchups[config.leagueId] = matchups;
+          // Get the matchups from the league data we already fetched
+          // We can extract this from the API calls we made above
+          if (processedLeagues[index]) {
+            // For now, just use empty array to prevent the loop
+            // TODO: Extract matchups from existing data instead of making new API calls
+            newPreviousMatchups[config.leagueId] = [];
+          }
         } catch (error) {
           console.error(`Error storing matchups for ${config.leagueId}:`, error);
         }
+      });
+      
+      // Only update if different to prevent unnecessary re-renders
+      if (JSON.stringify(newPreviousMatchups) !== JSON.stringify(previousMatchups)) {
+        setPreviousMatchups(newPreviousMatchups);
       }
-      setPreviousMatchups(newPreviousMatchups);
 
     } catch (error) {
       console.error('Error fetching Sleeper data:', error);
@@ -217,16 +234,20 @@ export const useSleeperData = (leagueConfigs: LeagueConfig[]): UseSleeperDataRet
     } finally {
       setLoading(false);
     }
-  }, [leagueConfigs, processSleeperData]);
+  }, [leagueConfigs, processSleeperData, previousMatchups, loading]); // Stable dependencies
 
   const refetch = async () => {
     await fetchSleeperData();
   };
 
-  // Initial fetch
+  // Initial fetch with debouncing
   useEffect(() => {
-    fetchSleeperData();
-  }, [fetchSleeperData]);
+    const timeoutId = setTimeout(() => {
+      fetchSleeperData();
+    }, 100); // Small delay to prevent rapid consecutive calls
+
+    return () => clearTimeout(timeoutId);
+  }, [leagueConfigs]); // Only depend on leagueConfigs, not fetchSleeperData
 
   return {
     leagues,

@@ -34,11 +34,11 @@ const DashboardContent = () => {
   // Use mock data if no leagues configured, otherwise use real data
   const displayLeagues = config.leagues.length > 0 ? sleeperLeagues : mockLeagueData;
 
-  // Set up polling for real-time updates
-  usePolling({
+  // EMERGENCY: Disable polling to stop the infinite loop
+  const { startPolling, stopPolling, isPolling } = usePolling({
     callback: refetch,
     config: config.polling,
-    enabled: config.leagues.length > 0 && config.leagues.some(l => l.enabled),
+    enabled: false, // DISABLED until dependency loop is fixed
   });
 
   const handleLeagueClick = (league: LeagueData) => {
