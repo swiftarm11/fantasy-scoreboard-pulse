@@ -298,7 +298,7 @@ export const SettingsModal = ({ open, onOpenChange, onMockEvent }: SettingsModal
                           setNewLeagueId(e.target.value);
                           validateLeagueId(e.target.value);
                         }}
-                        placeholder="Enter league ID"
+                        placeholder="Example: 1207878742588792832"
                         className={isValidLeague && newLeagueId ? 'pr-8' : ''}
                       />
                       {isValidLeague && newLeagueId && (

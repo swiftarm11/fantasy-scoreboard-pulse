@@ -194,17 +194,22 @@ export class SleeperAPIEnhanced {
         return false;
       }
       
-      // Format validation
-      if (!/^\d{18}$/.test(cleanedId)) {
-        debugLogger.logValidationStep(`Format invalid: expected 18 digits, got ${cleanedId.length} characters`, false, {
+      // Format validation - Accept 15-20 digit league IDs
+      if (!/^\d{15,20}$/.test(cleanedId)) {
+        debugLogger.logValidationStep(`Format invalid: expected 15-20 digits, got ${cleanedId.length} characters`, false, {
           value: cleanedId,
           length: cleanedId.length,
-          pattern: '18 digits numeric only'
+          pattern: '15-20 digits numeric only',
+          regexTest: `/^\d{15,20}$/.test('${cleanedId}') = ${/^\d{15,20}$/.test(cleanedId)}`
         });
         return false;
       }
       
-      debugLogger.logValidationStep(`Format valid: 18 digits, numeric only`, true, { value: cleanedId });
+      debugLogger.logValidationStep(`Format valid: ${cleanedId.length} digits, numeric only`, true, { 
+        value: cleanedId,
+        length: cleanedId.length,
+        regexTest: `/^\d{15,20}$/.test('${cleanedId}') = ${/^\d{15,20}$/.test(cleanedId)}`
+      });
       
       // API validation
       debugLogger.info('LEAGUE_VALIDATION', 'Attempting to fetch league data');
