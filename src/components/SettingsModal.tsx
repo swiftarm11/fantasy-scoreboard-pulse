@@ -242,6 +242,8 @@ export const SettingsModal = ({ open, onOpenChange, onMockEvent }: SettingsModal
       try {
         const imported = JSON.parse(e.target?.result as string);
         setLocalConfig({ ...DEFAULT_CONFIG, ...imported });
+        updateConfig({ ...DEFAULT_CONFIG, ...imported }); // Auto-save to localStorage
+        
         toast({
           title: 'Success',
           description: 'Configuration imported',
@@ -255,6 +257,16 @@ export const SettingsModal = ({ open, onOpenChange, onMockEvent }: SettingsModal
       }
     };
     reader.readAsText(file);
+  };
+
+  const resetToDefaults = () => {
+    setLocalConfig(DEFAULT_CONFIG);
+    updateConfig(DEFAULT_CONFIG); // Auto-save to localStorage
+    
+    toast({
+      title: 'Settings Reset',
+      description: 'All settings have been restored to defaults',
+    });
   };
 
   return (
@@ -574,43 +586,83 @@ export const SettingsModal = ({ open, onOpenChange, onMockEvent }: SettingsModal
             />
           </TabsContent>
 
-          <TabsContent value="data" className="space-y-4">{/* existing data content */}
+          <TabsContent value="data" className="space-y-4">
             <Card>
               <CardHeader>
-                <CardTitle>Data Management</CardTitle>
+                <CardTitle>Configuration Backup</CardTitle>
                 <CardDescription>
-                  Import and export your configuration
+                  Export, import, or reset your dashboard configuration
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
-                <div className="flex gap-4">
-                  <Button onClick={exportConfig} variant="outline">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <Button onClick={exportConfig} variant="outline" className="w-full">
                     <Download className="h-4 w-4 mr-2" />
                     Export Config
                   </Button>
-                  
-                  <div>
-                    <Input
-                      type="file"
-                      accept=".json"
-                      onChange={importConfig}
-                      className="hidden"
-                      id="import-config"
-                    />
+
+                  <div className="relative">
                     <Button 
-                      variant="outline"
-                      onClick={() => document.getElementById('import-config')?.click()}
+                      variant="outline" 
+                      className="w-full"
+                      onClick={() => document.getElementById('config-import')?.click()}
                     >
                       <Upload className="h-4 w-4 mr-2" />
                       Import Config
                     </Button>
+                    <input
+                      id="config-import"
+                      type="file"
+                      accept=".json"
+                      onChange={importConfig}
+                      className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                    />
                   </div>
+
+                  <Button 
+                    onClick={resetToDefaults} 
+                    variant="destructive"
+                    className="w-full"
+                  >
+                    <Zap className="h-4 w-4 mr-2" />
+                    Reset to Defaults
+                  </Button>
                 </div>
                 
-                <div className="text-sm text-muted-foreground">
-                  <p>Export your configuration to back up your settings.</p>
-                  <p>Import a previously exported configuration file.</p>
+                <div className="text-sm text-muted-foreground space-y-2">
+                  <p><strong>Export:</strong> Download your current settings as a JSON file</p>
+                  <p><strong>Import:</strong> Load settings from a previously exported file</p>
+                  <p><strong>Reset:</strong> Restore all settings to their default values</p>
                 </div>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle>Configuration Info</CardTitle>
+                <CardDescription>
+                  Current configuration details
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <dl className="space-y-2">
+                  <div className="flex justify-between">
+                    <dt className="font-medium">Version:</dt>
+                    <dd className="text-muted-foreground">{localConfig.version}</dd>
+                  </div>
+                  <div className="flex justify-between">
+                    <dt className="font-medium">Connected Leagues:</dt>
+                    <dd className="text-muted-foreground">{localConfig.leagues.length}</dd>
+                  </div>
+                  <div className="flex justify-between">
+                    <dt className="font-medium">Update Frequency:</dt>
+                    <dd className="text-muted-foreground">{localConfig.polling.updateFrequency}s</dd>
+                  </div>
+                  <div className="flex justify-between">
+                    <dt className="font-medium">Smart Polling:</dt>
+                    <dd className="text-muted-foreground">{localConfig.polling.smartPolling ? 'Enabled' : 'Disabled'}</dd>
+                  </div>
+                </dl>
               </CardContent>
             </Card>
           </TabsContent>
