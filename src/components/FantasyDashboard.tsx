@@ -41,13 +41,13 @@ const DashboardContent = () => {
   if (demoLeague) {
     allLeagues.push(demoLeague);
   }
-  if (config.leagues.length > 0) {
+  // Always add real leagues if they exist
+  if (sleeperLeagues.length > 0) {
     allLeagues.push(...sleeperLeagues);
-  } else {
-    // Show mock data only if no real leagues and no demo league
-    if (!demoLeague) {
-      allLeagues.push(...mockLeagueData);
-    }
+  }
+  // Show mock data only if no real leagues configured, no demo league, and no loaded leagues
+  if (config.leagues.length === 0 && !demoLeague && sleeperLeagues.length === 0) {
+    allLeagues.push(...mockLeagueData);
   }
 
   const displayLeagues = allLeagues;
