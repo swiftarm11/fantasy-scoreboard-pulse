@@ -240,10 +240,16 @@ All colors MUST be HSL.
   0%, 100% { 
     box-shadow: 0 0 0 0 rgba(34, 197, 94, 0);
     border-color: transparent;
+    background: var(--gradient-win);
   }
   50% { 
     box-shadow: 0 0 20px 5px rgba(34, 197, 94, 0.4);
     border-color: rgba(34, 197, 94, 0.6);
+    background: linear-gradient(135deg, 
+      rgba(34, 197, 94, 0.3), 
+      hsl(var(--fantasy-win)),
+      rgba(34, 197, 94, 0.2)
+    );
   }
 }
 
@@ -251,10 +257,16 @@ All colors MUST be HSL.
   0%, 100% { 
     box-shadow: 0 0 0 0 rgba(239, 68, 68, 0);
     border-color: transparent;
+    background: var(--gradient-loss);
   }
   50% { 
     box-shadow: 0 0 20px 5px rgba(239, 68, 68, 0.4);
     border-color: rgba(239, 68, 68, 0.6);
+    background: linear-gradient(135deg, 
+      rgba(239, 68, 68, 0.3), 
+      hsl(var(--fantasy-loss)),
+      rgba(239, 68, 68, 0.2)
+    );
   }
 }
 
@@ -262,10 +274,16 @@ All colors MUST be HSL.
   0%, 100% { 
     box-shadow: 0 0 0 0 rgba(59, 130, 246, 0);
     border-color: transparent;
+    background: var(--gradient-neutral);
   }
   50% { 
     box-shadow: 0 0 20px 5px rgba(59, 130, 246, 0.4);
     border-color: rgba(59, 130, 246, 0.6);
+    background: linear-gradient(135deg, 
+      rgba(59, 130, 246, 0.3), 
+      hsl(var(--fantasy-neutral)),
+      rgba(59, 130, 246, 0.2)
+    );
   }
 }
 
