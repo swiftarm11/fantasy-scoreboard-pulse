@@ -13,6 +13,7 @@ import { useConfig } from '../hooks/useConfig';
 import { useSleeperData } from '../hooks/useSleeperData';
 import { usePolling } from '../hooks/usePolling';
 import { useNetworkStatus } from '../hooks/useNetworkStatus';
+import { useDemoLeague } from '../hooks/useDemoLeague';
 import { mockLeagueData } from '../data/mockData';
 import { Skeleton } from './ui/skeleton';
 import { Alert, AlertDescription } from './ui/alert';
@@ -24,6 +25,10 @@ const DashboardContent = () => {
   const { config } = useConfig();
   const { leagues: sleeperLeagues, loading, error, lastUpdated, refetch } = useSleeperData(config.leagues);
   const { isOnline } = useNetworkStatus();
+  const { demoLeague, triggerManualEvent } = useDemoLeague({ 
+    enabled: config.demoMode.enabled,
+    updateInterval: config.demoMode.updateInterval 
+  });
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [exportShareOpen, setExportShareOpen] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -31,8 +36,21 @@ const DashboardContent = () => {
   // Use keyboard navigation
   useKeyboardNavigation();
 
-  // Use mock data if no leagues configured, otherwise use real data
-  const displayLeagues = config.leagues.length > 0 ? sleeperLeagues : mockLeagueData;
+  // Combine demo league with real leagues
+  const allLeagues = [];
+  if (demoLeague) {
+    allLeagues.push(demoLeague);
+  }
+  if (config.leagues.length > 0) {
+    allLeagues.push(...sleeperLeagues);
+  } else {
+    // Show mock data only if no real leagues and no demo league
+    if (!demoLeague) {
+      allLeagues.push(...mockLeagueData);
+    }
+  }
+
+  const displayLeagues = allLeagues;
 
   // EMERGENCY: Disable polling to stop the infinite loop
   const { startPolling, stopPolling, isPolling } = usePolling({

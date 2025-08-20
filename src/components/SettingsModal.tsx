@@ -269,6 +269,20 @@ export const SettingsModal = ({ open, onOpenChange, onMockEvent }: SettingsModal
     });
   };
 
+  const toggleDemoLeague = (enabled: boolean) => {
+    setLocalConfig(prev => ({
+      ...prev,
+      demoMode: { ...prev.demoMode, enabled }
+    }));
+    
+    // Auto-save when demo mode is toggled
+    const updatedConfig = {
+      ...localConfig,
+      demoMode: { ...localConfig.demoMode, enabled }
+    };
+    updateConfig(updatedConfig);
+  };
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
@@ -667,10 +681,62 @@ export const SettingsModal = ({ open, onOpenChange, onMockEvent }: SettingsModal
             </Card>
           </TabsContent>
           <TabsContent value="testing" className="space-y-4">
-            <TestingTab 
-              leagues={localConfig.leagues}
-              onMockEvent={onMockEvent || (() => {})}
-            />
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Zap className="h-5 w-5" />
+                  Demo League
+                </CardTitle>
+                <CardDescription>
+                  Enable a live demo league with realistic scoring events for testing UI animations
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <Label>Enable Demo League</Label>
+                    <p className="text-sm text-muted-foreground">
+                      Shows a fake league with auto-updating scoring events
+                    </p>
+                  </div>
+                  <Switch
+                    checked={localConfig.demoMode.enabled}
+                    onCheckedChange={toggleDemoLeague}
+                  />
+                </div>
+
+                {localConfig.demoMode.enabled && (
+                  <div className="p-4 bg-muted/50 rounded-lg space-y-2">
+                    <h4 className="font-medium text-sm">Demo League Features:</h4>
+                    <ul className="text-sm text-muted-foreground space-y-1">
+                      <li>• Auto-generates scoring events every 15-30 seconds</li>
+                      <li>• Shows realistic player names and actions</li>
+                      <li>• Demonstrates all UI animations and transitions</li>
+                      <li>• Updates scores and league position dynamically</li>
+                      <li>• Perfect for testing without affecting real leagues</li>
+                    </ul>
+                  </div>
+                )}
+
+                <div className="text-sm text-muted-foreground">
+                  <p><strong>Note:</strong> The demo league appears as the first league in your dashboard when enabled. It's clearly marked with a 🎮 icon to distinguish it from real leagues.</p>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle>Manual Event Testing</CardTitle>
+                <CardDescription>
+                  Generate test events for debugging specific scenarios
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <p className="text-sm text-muted-foreground">
+                  Enable the demo league above to access manual event generation and live testing features.
+                </p>
+              </CardContent>
+            </Card>
           </TabsContent>
         </Tabs>
 

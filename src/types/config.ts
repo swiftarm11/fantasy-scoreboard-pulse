@@ -26,11 +26,17 @@ export interface DebugConfig {
   showInProduction: boolean;
 }
 
+export interface DemoModeConfig {
+  enabled: boolean;
+  updateInterval: number; // seconds
+}
+
 export interface DashboardConfig {
   leagues: LeagueConfig[];
   polling: PollingConfig;
   notifications: NotificationConfig;
   debug: DebugConfig;
+  demoMode: DemoModeConfig;
   version: string;
 }
 
@@ -50,6 +56,10 @@ export const DEFAULT_CONFIG: DashboardConfig = {
   debug: {
     enabled: false,
     showInProduction: false,
+  },
+  demoMode: {
+    enabled: false,
+    updateInterval: 20, // 20 seconds
   },
   version: '1.0.0',
 };
