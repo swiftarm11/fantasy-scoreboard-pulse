@@ -9,12 +9,14 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from './ui/tabs';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
 import { Separator } from './ui/separator';
 import { toast } from './ui/use-toast';
-import { Trash2, Plus, Download, Upload, Loader2, GripVertical, Check } from 'lucide-react';
+import { Trash2, Plus, Download, Upload, Loader2, GripVertical, Check, Zap } from 'lucide-react';
 import { DashboardConfig, LeagueConfig, DEFAULT_CONFIG } from '../types/config';
 import { Platform } from '../types/fantasy';
 import { sleeperAPI } from '../services/SleeperAPI';
 import { useConfig } from '../hooks/useConfig';
 import { DraggableLeagueItem } from './DraggableLeagueItem';
+import { generateMockScoringEvent } from '../utils/mockEventGenerator';
+import { TestingTab } from './TestingTab';
 import {
   DndContext,
   closestCenter,
@@ -34,9 +36,10 @@ import {
 interface SettingsModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  onMockEvent?: (leagueId: string, event: any) => void;
 }
 
-export const SettingsModal = ({ open, onOpenChange }: SettingsModalProps) => {
+export const SettingsModal = ({ open, onOpenChange, onMockEvent }: SettingsModalProps) => {
   const { config, updateConfig } = useConfig();
   const [localConfig, setLocalConfig] = useState<DashboardConfig>(config);
   const [validatingLeague, setValidatingLeague] = useState<string | null>(null);
@@ -250,11 +253,12 @@ export const SettingsModal = ({ open, onOpenChange }: SettingsModalProps) => {
         </DialogHeader>
 
         <Tabs defaultValue="leagues" className="w-full">
-          <TabsList className="grid w-full grid-cols-4">
+          <TabsList className="grid w-full grid-cols-5">
             <TabsTrigger value="leagues">Leagues</TabsTrigger>
             <TabsTrigger value="polling">Polling</TabsTrigger>
             <TabsTrigger value="notifications">Notifications</TabsTrigger>
             <TabsTrigger value="data">Data</TabsTrigger>
+            <TabsTrigger value="testing">Testing</TabsTrigger>
           </TabsList>
 
           <TabsContent value="leagues" className="space-y-4">
@@ -544,6 +548,12 @@ export const SettingsModal = ({ open, onOpenChange }: SettingsModalProps) => {
                 </div>
               </CardContent>
             </Card>
+          </TabsContent>
+          <TabsContent value="testing" className="space-y-4">
+            <TestingTab 
+              leagues={localConfig.leagues}
+              onMockEvent={onMockEvent || (() => {})}
+            />
           </TabsContent>
         </Tabs>
 

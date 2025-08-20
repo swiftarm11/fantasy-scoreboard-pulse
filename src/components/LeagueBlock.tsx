@@ -1,5 +1,7 @@
 import { LeagueData } from '../types/fantasy';
-import { ScoringEvent } from './ScoringEvent';
+import { EnhancedScoringEvent } from './EnhancedScoringEvent';
+import { useEventAnimations } from '../hooks/useEventAnimations';
+import { useEffect, useRef } from 'react';
 
 interface LeagueBlockProps {
   league: LeagueData;
@@ -7,6 +9,9 @@ interface LeagueBlockProps {
 }
 
 export const LeagueBlock = ({ league, onClick }: LeagueBlockProps) => {
+  const { triggerPulseAnimation } = useEventAnimations();
+  const prevEventsRef = useRef<string[]>([]);
+
   const getStatusClass = () => {
     switch (league.status) {
       case 'winning':
@@ -22,18 +27,56 @@ export const LeagueBlock = ({ league, onClick }: LeagueBlockProps) => {
     return `platform-${league.platform.toLowerCase().replace('.com', '')}`;
   };
 
-  // Sort events to show most recent first, limit to 4
+  // Sort events: most recent first, then by timestamp
   const sortedEvents = [...league.scoringEvents]
     .sort((a, b) => {
+      // First, prioritize recent events
       if (a.isRecent && !b.isRecent) return -1;
       if (!a.isRecent && b.isRecent) return 1;
-      return 0;
+      
+      // Then sort by timestamp (newer first)
+      const timeA = new Date(`1970/01/01 ${a.timestamp}`).getTime();
+      const timeB = new Date(`1970/01/01 ${b.timestamp}`).getTime();
+      return timeB - timeA;
     })
     .slice(0, 4);
 
+  // Detect new events and trigger animations
+  useEffect(() => {
+    const currentEventIds = league.scoringEvents.map(e => e.id);
+    const prevEventIds = prevEventsRef.current;
+    
+    // Find new events
+    const newEvents = currentEventIds.filter(id => !prevEventIds.includes(id));
+    
+    if (newEvents.length > 0) {
+      // Find the most recent new event
+      const recentEvent = league.scoringEvents.find(e => 
+        newEvents.includes(e.id) && e.isRecent
+      );
+      
+      if (recentEvent) {
+        // Determine animation color based on score impact
+        let color: 'green' | 'red' | 'blue' = 'blue';
+        if (recentEvent.scoreImpact > 0) color = 'green';
+        else if (recentEvent.scoreImpact < 0) color = 'red';
+        
+        // Trigger pulse animation on the league block
+        triggerPulseAnimation(`league-block-${league.id}`, { 
+          color, 
+          pulseCount: 2, 
+          duration: 1000 
+        });
+      }
+    }
+    
+    prevEventsRef.current = currentEventIds;
+  }, [league.scoringEvents, league.id, triggerPulseAnimation]);
+
   return (
     <div 
-      className={`league-block ${getStatusClass()} cursor-pointer`}
+      id={`league-block-${league.id}`}
+      className={`league-block ${getStatusClass()} cursor-pointer transition-all duration-300`}
       onClick={onClick}
     >
       <div className="league-overlay" />
@@ -100,9 +143,27 @@ export const LeagueBlock = ({ league, onClick }: LeagueBlockProps) => {
             Recent Activity
           </h4>
           <div className="flex-1 overflow-y-auto space-y-2">
-            {sortedEvents.map((event) => (
-              <ScoringEvent key={event.id} event={event} />
+            {sortedEvents.map((event, index) => (
+              <EnhancedScoringEvent 
+                key={event.id} 
+                event={event} 
+                isRecent={index === 0 && event.isRecent}
+              />
             ))}
+            
+            {/* Show placeholder if less than 4 events */}
+            {sortedEvents.length < 4 && (
+              <>
+                {Array.from({ length: 4 - sortedEvents.length }).map((_, i) => (
+                  <div key={`placeholder-${i}`} className="opacity-30 text-xs text-white/40 p-2">
+                    <div className="flex items-center gap-2">
+                      <div className="w-5 h-5 rounded-full bg-white/10"></div>
+                      <span>No recent activity</span>
+                    </div>
+                  </div>
+                ))}
+              </>
+            )}
           </div>
           
           {/* Last Updated */}

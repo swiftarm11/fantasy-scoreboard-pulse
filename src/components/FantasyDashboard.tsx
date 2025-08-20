@@ -182,6 +182,10 @@ export const FantasyDashboard = () => {
       <SettingsModal
         open={settingsOpen}
         onOpenChange={setSettingsOpen}
+        onMockEvent={(leagueId, event) => {
+          // Handle mock event - in a real app this would update the league data
+          console.log('Mock event generated:', { leagueId, event });
+        }}
       />
     </div>
   );
