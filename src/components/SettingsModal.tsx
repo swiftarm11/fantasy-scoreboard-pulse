@@ -1,3 +1,5 @@
+import { YahooConnectionCard } from './YahooConnectionCard';
+import { useYahooOAuth } from '../hooks/useYahooOAuth';
 import { useState, useEffect } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from './ui/dialog';
 import { Button } from './ui/button';
@@ -43,6 +45,7 @@ interface SettingsModalProps {
 
 export const SettingsModal = ({ open, onOpenChange, onMockEvent }: SettingsModalProps) => {
   const { config, updateConfig } = useConfig();
+  const { isConnected: isYahooConnected } = useYahooOAuth();
   const [localConfig, setLocalConfig] = useState<DashboardConfig>(config);
   const [validatingLeague, setValidatingLeague] = useState<string | null>(null);
   const [newLeagueId, setNewLeagueId] = useState('');
@@ -70,6 +73,14 @@ export const SettingsModal = ({ open, onOpenChange, onMockEvent }: SettingsModal
       if (newLeaguePlatform === 'Sleeper') {
         const isValid = await sleeperAPIEnhanced.validateLeagueId(leagueId);
         setIsValidLeague(isValid);
+      } else if (newLeaguePlatform === 'Yahoo') {
+        // For Yahoo, check if user is connected first
+        if (!isYahooConnected) {
+          setIsValidLeague(false);
+          return;
+        }
+        // For now, assume valid if connected (actual validation would require Yahoo API call)
+        setIsValidLeague(true);
       } else {
         // For other platforms, assume valid for now
         setIsValidLeague(true);
@@ -119,6 +130,33 @@ export const SettingsModal = ({ open, onOpenChange, onMockEvent }: SettingsModal
         toast({
           title: 'Success',
           description: `Added league: ${league.name}`,
+        });
+      } else if (newLeaguePlatform === 'Yahoo') {
+        // For Yahoo, check if user is connected first
+        if (!isYahooConnected) {
+          throw new Error('Please connect your Yahoo account first');
+        }
+        
+        // For now, just add without full validation (actual validation would require Yahoo API call)
+        const newLeague: LeagueConfig = {
+          id: `league_${Date.now()}`,
+          leagueId: newLeagueId,
+          platform: newLeaguePlatform,
+          enabled: true,
+          customTeamName: `Yahoo League ${newLeagueId}`,
+        };
+
+        setLocalConfig(prev => ({
+          ...prev,
+          leagues: [...prev.leagues, newLeague],
+        }));
+
+        setNewLeagueId('');
+        setIsValidLeague(false);
+        
+        toast({
+          title: 'Success',
+          description: `Added Yahoo league: ${newLeagueId}`,
         });
       } else {
         // For other platforms, just add without validation for now
@@ -301,6 +339,8 @@ export const SettingsModal = ({ open, onOpenChange, onMockEvent }: SettingsModal
           </TabsList>
 
           <TabsContent value="leagues" className="space-y-4">
+            <YahooConnectionCard />
+            
             <Card>
               <CardHeader>
                 <CardTitle>Add New League</CardTitle>
@@ -318,7 +358,7 @@ export const SettingsModal = ({ open, onOpenChange, onMockEvent }: SettingsModal
                       </SelectTrigger>
                       <SelectContent>
                         <SelectItem value="Sleeper">Sleeper</SelectItem>
-                        <SelectItem value="Yahoo">Yahoo (Coming Soon)</SelectItem>
+                        <SelectItem value="Yahoo">Yahoo</SelectItem>
                         <SelectItem value="NFL.com">NFL.com (Coming Soon)</SelectItem>
                         <SelectItem value="ESPN">ESPN (Coming Soon)</SelectItem>
                       </SelectContent>
