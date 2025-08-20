@@ -58,17 +58,21 @@ export const LeagueBlock = ({ league, onClick }: LeagueBlockProps) => {
         </div>
 
         {/* Score Section - 100px */}
-        <div className="h-[100px] flex flex-col justify-center items-center mb-4 relative">
-          <div className="absolute top-0 right-0 text-right">
-            <div className="text-xs font-semibold text-white/90">
-              {league.record}
-            </div>
-            <div className="text-xs text-white/70">
-              {league.leaguePosition}
+        <div className="h-[100px] flex flex-col mb-4">
+          {/* Record and position at top */}
+          <div className="flex justify-end mb-2">
+            <div className="text-right">
+              <div className="text-xs font-semibold text-white/90">
+                {league.record}
+              </div>
+              <div className="text-xs text-white/70">
+                {league.leaguePosition}
+              </div>
             </div>
           </div>
           
-          <div className="flex items-center justify-center gap-4">
+          {/* Scores centered */}
+          <div className="flex-1 flex items-center justify-center gap-4">
             <div className="text-center">
               <div className="text-4xl font-bold text-white">
                 {league.myScore}
@@ -84,7 +88,8 @@ export const LeagueBlock = ({ league, onClick }: LeagueBlockProps) => {
             </div>
           </div>
           
-          <div className="text-xs text-white/70 mt-2 text-center">
+          {/* Opponent name at bottom */}
+          <div className="text-xs text-white/70 text-center">
             vs {league.opponentName}
           </div>
         </div>
