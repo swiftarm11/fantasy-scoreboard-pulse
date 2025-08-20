@@ -89,17 +89,7 @@ export class SleeperAPIEnhanced {
     debugLogger.logAPICall(url, 'GET', startTime);
 
     try {
-      const { data: supabaseData, error } = await supabase.functions.invoke('sleeper-api', {
-        body: {},
-        method: 'GET',
-      });
-
-      if (error) {
-        debugLogger.logAPIError(new Error(`Supabase function error: ${error.message}`));
-        throw new Error(`Sleeper API call failed: ${error.message}`);
-      }
-
-      // Make the actual HTTP call to our edge function
+      // Make the HTTP call to our edge function
       const response = await fetch(url, {
         headers: {
           'Authorization': 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRveXF1aXRlY29nZG52Ynlpc3p0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTU2ODg0OTMsImV4cCI6MjA3MTI2NDQ5M30.63TmTlCTK_jVJnG_4vuZWUwS--UcyNgOSem5tI7q_1w',
