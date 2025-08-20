@@ -52,8 +52,9 @@ export const useDemoLeague = ({ enabled, updateInterval = 15 }: UseDemoLeagueOpt
       const scoreDiff = newScore - prev.opponentScore;
       
       let newStatus: 'winning' | 'losing' | 'neutral' = 'neutral';
-      if (scoreDiff > 5) newStatus = 'winning';
-      else if (scoreDiff < -5) newStatus = 'losing';
+      if (scoreDiff >= 10) newStatus = 'winning';
+      else if (scoreDiff <= -10) newStatus = 'losing';
+      else newStatus = 'neutral';
 
       // Add new event and keep only the 4 most recent
       const updatedEvents = [newEvent, ...prev.scoringEvents.map(e => ({ ...e, isRecent: false }))]

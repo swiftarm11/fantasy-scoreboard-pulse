@@ -13,14 +13,13 @@ export const LeagueBlock = ({ league, onClick }: LeagueBlockProps) => {
   const prevEventsRef = useRef<string[]>([]);
 
   const getStatusClass = () => {
-    switch (league.status) {
-      case 'winning':
-        return 'league-block-winning';
-      case 'losing':
-        return 'league-block-losing';
-      default:
-        return 'league-block-neutral';
-    }
+    const scoreDiff = league.myScore - league.opponentScore;
+    
+    if (scoreDiff >= 25) return 'league-block-winning-big';
+    if (scoreDiff >= 10) return 'league-block-winning';
+    if (scoreDiff >= -5) return 'league-block-close';
+    if (scoreDiff >= -15) return 'league-block-losing';
+    return 'league-block-losing-badly';
   };
 
   const getPlatformClass = () => {

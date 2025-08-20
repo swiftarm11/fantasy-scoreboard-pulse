@@ -37,17 +37,22 @@ All colors MUST be HSL.
     --input: 215 27.9% 16.9%;
     --ring: 217.2 91.2% 59.8%;
 
-    /* Fantasy Football Custom Variables */
-    --fantasy-win: 142.1 76.2% 36.3%; /* green-600 */
-    --fantasy-win-light: 142.1 70.6% 45.3%; /* green-500 */
-    --fantasy-loss: 0 84.2% 60.2%; /* red-500 */
-    --fantasy-loss-light: 0 72.2% 50.6%; /* red-600 */
-    --fantasy-neutral: 217.2 32.6% 17.5%; /* slate-600 */
+    /* Fantasy Football Gradient System */
+    --fantasy-red: 0 84.2% 60.2%; /* red-500 - losing badly */
+    --fantasy-red-dark: 0 72.2% 50.6%; /* red-600 */
+    --fantasy-orange: 25 95% 53%; /* orange-500 - losing */
+    --fantasy-orange-dark: 20 91% 48%; /* orange-600 */
+    --fantasy-yellow: 48 96% 53%; /* yellow-400 - close */
+    --fantasy-yellow-dark: 45 93% 47%; /* yellow-500 */
+    --fantasy-green: 142.1 76.2% 36.3%; /* green-600 - winning */
+    --fantasy-green-bright: 120 60% 50%; /* bright green - winning comfortably */
     
-    /* Gradients */
-    --gradient-win: linear-gradient(135deg, hsl(var(--fantasy-win)) 0%, hsl(var(--fantasy-win-light)) 100%);
-    --gradient-loss: linear-gradient(135deg, hsl(var(--fantasy-loss)) 0%, hsl(var(--fantasy-loss-light)) 100%);
-    --gradient-neutral: linear-gradient(135deg, hsl(var(--fantasy-neutral)) 0%, hsl(var(--muted)) 100%);
+    /* Score-based Gradients */
+    --gradient-losing-badly: linear-gradient(135deg, hsl(var(--fantasy-red)) 0%, hsl(var(--fantasy-red-dark)) 100%);
+    --gradient-losing: linear-gradient(135deg, hsl(var(--fantasy-orange)) 0%, hsl(var(--fantasy-orange-dark)) 100%);
+    --gradient-close: linear-gradient(135deg, hsl(var(--fantasy-yellow)) 0%, hsl(var(--fantasy-yellow-dark)) 100%);
+    --gradient-winning: linear-gradient(135deg, hsl(var(--fantasy-green)) 0%, hsl(var(--fantasy-green-bright)) 100%);
+    --gradient-winning-big: linear-gradient(135deg, hsl(var(--fantasy-green-bright)) 0%, hsl(120 70% 45%) 100%);
     
     /* Platform Brand Colors */
     --sleeper-brand: 255 81% 58%; /* sleeper orange */
@@ -106,16 +111,24 @@ All colors MUST be HSL.
     box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.4);
   }
   
-  .league-block-winning {
-    background: var(--gradient-win);
+  .league-block-losing-badly {
+    background: var(--gradient-losing-badly);
   }
   
   .league-block-losing {
-    background: var(--gradient-loss);
+    background: var(--gradient-losing);
   }
   
-  .league-block-neutral {
-    background: var(--gradient-neutral);
+  .league-block-close {
+    background: var(--gradient-close);
+  }
+  
+  .league-block-winning {
+    background: var(--gradient-winning);
+  }
+  
+  .league-block-winning-big {
+    background: var(--gradient-winning-big);
   }
   
   .league-overlay {

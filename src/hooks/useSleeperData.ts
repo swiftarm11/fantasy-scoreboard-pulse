@@ -57,10 +57,12 @@ export const useSleeperData = (leagueConfigs: LeagueConfig[]): UseSleeperDataRet
     const totalScore = myScore + opponentScore;
     const winProbability = totalScore > 0 ? (myScore / totalScore) * 100 : 50;
 
-    // Determine status
+    // Determine status based on score difference
+    const scoreDiff = myScore - opponentScore;
     let status: 'winning' | 'losing' | 'neutral' = 'neutral';
-    if (myScore > opponentScore) status = 'winning';
-    else if (myScore < opponentScore) status = 'losing';
+    if (scoreDiff >= 10) status = 'winning';
+    else if (scoreDiff <= -10) status = 'losing';
+    else status = 'neutral';
 
     // Generate scoring events by comparing with previous data
     const scoringEvents = await generateScoringEvents(
