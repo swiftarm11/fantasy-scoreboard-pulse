@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { LeagueBlock } from './LeagueBlock';
 import { LeagueData } from '../types/fantasy';
-import { Settings, RefreshCw } from 'lucide-react';
+import { Settings, RefreshCw, Plus } from 'lucide-react';
 import { Button } from './ui/button';
 import { SettingsModal } from './SettingsModal';
 import { ConnectionIndicator } from './ConnectionIndicator';
@@ -11,6 +11,8 @@ import { usePolling } from '../hooks/usePolling';
 import { mockLeagueData } from '../data/mockData';
 import { Skeleton } from './ui/skeleton';
 import { Alert, AlertDescription } from './ui/alert';
+import { Card } from './ui/card';
+import { LoadingOverlay } from './LoadingOverlay';
 
 export const FantasyDashboard = () => {
   const { config } = useConfig();
@@ -110,14 +112,41 @@ export const FantasyDashboard = () => {
           </>
         )}
 
-        {displayLeagues.map((league) => (
-          <LeagueBlock
-            key={league.id}
-            league={league}
-            onClick={() => handleLeagueClick(league)}
-          />
+        {/* Render actual leagues with position numbers */}
+        {displayLeagues.map((league, index) => (
+          <div key={league.id} className="relative">
+            <LeagueBlock
+              league={league}
+              onClick={() => handleLeagueClick(league)}
+            />
+            <div className="absolute bottom-2 left-2 bg-background/80 backdrop-blur-sm rounded-full w-6 h-6 flex items-center justify-center text-xs font-medium text-muted-foreground">
+              {index + 1}
+            </div>
+          </div>
         ))}
 
+        {/* Empty state placeholders for remaining slots up to 10 */}
+        {config.leagues.length > 0 && displayLeagues.length < 10 && (
+          <>
+            {Array.from({ length: 10 - displayLeagues.length }).map((_, i) => (
+              <Card 
+                key={`placeholder-${i}`} 
+                className="league-block border-dashed border-2 border-muted-foreground/20 bg-muted/10 hover:bg-muted/20 transition-colors cursor-pointer relative"
+                onClick={() => setSettingsOpen(true)}
+              >
+                <div className="h-full flex flex-col items-center justify-center text-center p-6">
+                  <Plus className="h-8 w-8 text-muted-foreground mb-2" />
+                  <p className="text-sm font-medium text-muted-foreground">Add League</p>
+                </div>
+                <div className="absolute bottom-2 left-2 bg-background/80 backdrop-blur-sm rounded-full w-6 h-6 flex items-center justify-center text-xs font-medium text-muted-foreground">
+                  {displayLeagues.length + i + 1}
+                </div>
+              </Card>
+            ))}
+          </>
+        )}
+
+        {/* No leagues connected state */}
         {!loading && displayLeagues.length === 0 && !error && (
           <div className="col-span-full flex flex-col items-center justify-center py-12 text-center">
             <Settings className="h-12 w-12 text-muted-foreground mb-4" />
@@ -132,6 +161,9 @@ export const FantasyDashboard = () => {
           </div>
         )}
       </main>
+
+      {/* Loading Overlay */}
+      <LoadingOverlay isVisible={isRefreshing} message="Refreshing league data..." />
 
       {/* Footer */}
       <footer className="border-t border-border/40 bg-card/50 backdrop-blur-sm mt-8">

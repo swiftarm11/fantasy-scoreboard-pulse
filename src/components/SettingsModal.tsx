@@ -9,11 +9,27 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from './ui/tabs';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
 import { Separator } from './ui/separator';
 import { toast } from './ui/use-toast';
-import { Trash2, Plus, Download, Upload, Loader2 } from 'lucide-react';
+import { Trash2, Plus, Download, Upload, Loader2, GripVertical, Check } from 'lucide-react';
 import { DashboardConfig, LeagueConfig, DEFAULT_CONFIG } from '../types/config';
 import { Platform } from '../types/fantasy';
 import { sleeperAPI } from '../services/SleeperAPI';
 import { useConfig } from '../hooks/useConfig';
+import { DraggableLeagueItem } from './DraggableLeagueItem';
+import {
+  DndContext,
+  closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  DragEndEvent,
+} from '@dnd-kit/core';
+import {
+  arrayMove,
+  SortableContext,
+  sortableKeyboardCoordinates,
+  verticalListSortingStrategy,
+} from '@dnd-kit/sortable';
 
 interface SettingsModalProps {
   open: boolean;
@@ -26,10 +42,37 @@ export const SettingsModal = ({ open, onOpenChange }: SettingsModalProps) => {
   const [validatingLeague, setValidatingLeague] = useState<string | null>(null);
   const [newLeagueId, setNewLeagueId] = useState('');
   const [newLeaguePlatform, setNewLeaguePlatform] = useState<Platform>('Sleeper');
+  const [isValidLeague, setIsValidLeague] = useState(false);
+
+  const sensors = useSensors(
+    useSensor(PointerSensor),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    })
+  );
 
   useEffect(() => {
     setLocalConfig(config);
   }, [config]);
+
+  const validateLeagueId = async (leagueId: string) => {
+    if (!leagueId.trim()) {
+      setIsValidLeague(false);
+      return;
+    }
+
+    try {
+      if (newLeaguePlatform === 'Sleeper') {
+        const isValid = await sleeperAPI.validateLeagueId(leagueId);
+        setIsValidLeague(isValid);
+      } else {
+        // For other platforms, assume valid for now
+        setIsValidLeague(true);
+      }
+    } catch (error) {
+      setIsValidLeague(false);
+    }
+  };
 
   const validateAndAddLeague = async () => {
     if (!newLeagueId.trim()) {
@@ -66,6 +109,7 @@ export const SettingsModal = ({ open, onOpenChange }: SettingsModalProps) => {
         }));
 
         setNewLeagueId('');
+        setIsValidLeague(false);
         
         toast({
           title: 'Success',
@@ -86,6 +130,7 @@ export const SettingsModal = ({ open, onOpenChange }: SettingsModalProps) => {
         }));
 
         setNewLeagueId('');
+        setIsValidLeague(false);
         
         toast({
           title: 'Success',
@@ -122,6 +167,27 @@ export const SettingsModal = ({ open, onOpenChange }: SettingsModalProps) => {
         l.id === leagueId ? { ...l, ...updates } : l
       ),
     }));
+  };
+
+  const handleDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event;
+
+    if (over && active.id !== over.id) {
+      setLocalConfig(prev => {
+        const oldIndex = prev.leagues.findIndex(l => l.id === active.id);
+        const newIndex = prev.leagues.findIndex(l => l.id === over.id);
+
+        return {
+          ...prev,
+          leagues: arrayMove(prev.leagues, oldIndex, newIndex),
+        };
+      });
+
+      toast({
+        title: 'Success',
+        description: 'League order updated',
+      });
+    }
   };
 
   const saveConfig = () => {
@@ -215,14 +281,23 @@ export const SettingsModal = ({ open, onOpenChange }: SettingsModalProps) => {
                       </SelectContent>
                     </Select>
                   </div>
-                  <div>
+                  <div className="relative">
                     <Label htmlFor="leagueId">League ID</Label>
-                    <Input
-                      id="leagueId"
-                      value={newLeagueId}
-                      onChange={(e) => setNewLeagueId(e.target.value)}
-                      placeholder="Enter league ID"
-                    />
+                    <div className="relative">
+                      <Input
+                        id="leagueId"
+                        value={newLeagueId}
+                        onChange={(e) => {
+                          setNewLeagueId(e.target.value);
+                          validateLeagueId(e.target.value);
+                        }}
+                        placeholder="Enter league ID"
+                        className={isValidLeague && newLeagueId ? 'pr-8' : ''}
+                      />
+                      {isValidLeague && newLeagueId && (
+                        <Check className="absolute right-2 top-1/2 transform -translate-y-1/2 h-4 w-4 text-green-500" />
+                      )}
+                    </div>
                   </div>
                   <div className="flex items-end">
                     <Button 
@@ -251,7 +326,7 @@ export const SettingsModal = ({ open, onOpenChange }: SettingsModalProps) => {
               <CardHeader>
                 <CardTitle>Connected Leagues</CardTitle>
                 <CardDescription>
-                  Manage your connected fantasy leagues
+                  Manage and reorder your connected fantasy leagues
                 </CardDescription>
               </CardHeader>
               <CardContent>
@@ -260,44 +335,27 @@ export const SettingsModal = ({ open, onOpenChange }: SettingsModalProps) => {
                     No leagues connected yet. Add a league above to get started.
                   </p>
                 ) : (
-                  <div className="space-y-4">
-                    {localConfig.leagues.map((league) => (
-                      <div key={league.id} className="flex items-center justify-between p-4 border rounded-lg">
-                        <div className="space-y-2 flex-1">
-                          <div className="flex items-center gap-2">
-                            <span className={`px-2 py-1 rounded text-xs font-semibold text-white platform-${league.platform.toLowerCase()}`}>
-                              {league.platform}
-                            </span>
-                            <span className="font-medium">{league.leagueId}</span>
-                          </div>
-                          <div className="grid grid-cols-2 gap-4">
-                            <div>
-                              <Label>Custom Team Name</Label>
-                              <Input
-                                value={league.customTeamName || ''}
-                                onChange={(e) => updateLeague(league.id, { customTeamName: e.target.value })}
-                                placeholder="Custom team name"
-                              />
-                            </div>
-                            <div className="flex items-center space-x-2 pt-6">
-                              <Switch
-                                checked={league.enabled}
-                                onCheckedChange={(enabled) => updateLeague(league.id, { enabled })}
-                              />
-                              <Label>Enabled</Label>
-                            </div>
-                          </div>
-                        </div>
-                        <Button
-                          variant="destructive"
-                          size="sm"
-                          onClick={() => removeLeague(league.id)}
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
+                  <DndContext
+                    sensors={sensors}
+                    collisionDetection={closestCenter}
+                    onDragEnd={handleDragEnd}
+                  >
+                    <SortableContext
+                      items={localConfig.leagues.map(l => l.id)}
+                      strategy={verticalListSortingStrategy}
+                    >
+                      <div className="space-y-4">
+                        {localConfig.leagues.map((league) => (
+                          <DraggableLeagueItem
+                            key={league.id}
+                            league={league}
+                            onUpdate={updateLeague}
+                            onRemove={removeLeague}
+                          />
+                        ))}
                       </div>
-                    ))}
-                  </div>
+                    </SortableContext>
+                  </DndContext>
                 )}
               </CardContent>
             </Card>
