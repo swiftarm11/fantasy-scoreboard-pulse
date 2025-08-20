@@ -129,13 +129,18 @@ export const SettingsModal = ({ open, onOpenChange, onMockEvent }: SettingsModal
           enabled: true,
         };
 
-        setLocalConfig(prev => ({
-          ...prev,
-          leagues: [...prev.leagues, newLeague],
-        }));
+        const updatedConfig = {
+          ...localConfig,
+          leagues: [...localConfig.leagues, newLeague],
+        };
+        
+        setLocalConfig(updatedConfig);
+        updateConfig(updatedConfig); // Auto-save to localStorage
 
         setNewLeagueId('');
         setIsValidLeague(false);
+        
+        console.log('League added and saved:', newLeague);
         
         toast({
           title: 'Success',
@@ -154,10 +159,15 @@ export const SettingsModal = ({ open, onOpenChange, onMockEvent }: SettingsModal
   };
 
   const removeLeague = (leagueId: string) => {
-    setLocalConfig(prev => ({
-      ...prev,
-      leagues: prev.leagues.filter(l => l.id !== leagueId),
-    }));
+    const updatedConfig = {
+      ...localConfig,
+      leagues: localConfig.leagues.filter(l => l.id !== leagueId),
+    };
+    
+    setLocalConfig(updatedConfig);
+    updateConfig(updatedConfig); // Auto-save to localStorage
+    
+    console.log('League removed and saved:', leagueId);
     
     toast({
       title: 'Success',

@@ -29,10 +29,11 @@ export const useSleeperData = (leagueConfigs: LeagueConfig[]): UseSleeperDataRet
   const processSleeperData = useCallback(async (leagueData: SleeperLeagueData, config: LeagueConfig): Promise<LeagueData> => {
     const { league, users, rosters, matchups, currentWeek } = leagueData;
     
-    // Find user's roster and opponent
-    const userRoster = rosters.find(r => r.owner_id === users[0]?.user_id); // This would need user identification
+    // Find user's roster - use first roster as fallback if no specific user identification
+    // TODO: Implement proper user identification based on login/team selection
+    const userRoster = rosters[0]; // For now, use first roster in league
     if (!userRoster) {
-      throw new Error('Could not find user roster');
+      throw new Error('Could not find user roster - league has no rosters');
     }
 
     const userMatchup = matchups.find(m => m.roster_id === userRoster.roster_id);
@@ -211,6 +212,7 @@ export const useSleeperData = (leagueConfigs: LeagueConfig[]): UseSleeperDataRet
 
     } catch (error) {
       console.error('Error fetching Sleeper data:', error);
+      console.log('Active leagues attempting to fetch:', enabledLeagues.map(l => ({ id: l.id, leagueId: l.leagueId })));
       setError(error.message || 'Failed to fetch league data');
     } finally {
       setLoading(false);
