@@ -155,17 +155,23 @@ const DashboardContent = () => {
         ) : displayLeagues.length > 0 ? (
           displayLeagues.map((league, index) => (
             <div
-              key={league.leagueId}
+              key={league.id}
               className="animate-slide-in-right"
               style={{ animationDelay: `${index * 0.1}s` }}
+              tabIndex={0}
+              role="region"
+              aria-label={`${league.leagueName} league information`}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault();
+                  handleLeagueClick(league);
+                }
+              }}
             >
               <LeagueBlock
-                key={league.leagueId}
+                key={league.id}
                 league={league}
                 onClick={() => handleLeagueClick(league)}
-                tabIndex={0}
-                role="region"
-                aria-label={`${league.leagueName} league information`}
               />
             </div>
           ))
@@ -242,7 +248,10 @@ const DashboardContent = () => {
 
       {/* Loading overlay */}
       {isRefreshing && (
-        <LoadingOverlay message="Refreshing data..." />
+        <LoadingOverlay 
+          isVisible={true}
+          message="Refreshing data..." 
+        />
       )}
     </div>
   );
