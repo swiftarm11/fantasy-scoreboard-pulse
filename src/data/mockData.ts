@@ -19,7 +19,7 @@ export const mockLeagueData: LeagueData[] = [
         position: 'WR',
         weeklyPoints: 18.6,
         action: '45-yard receiving TD',
-        scoreImpact: 8.2,
+        scoreImpact: 6.0,
         timestamp: '2:14 PM'
       },
       {
@@ -27,8 +27,8 @@ export const mockLeagueData: LeagueData[] = [
         playerName: 'J. Allen',
         position: 'QB',
         weeklyPoints: 24.8,
-        action: '2 passing TDs',
-        scoreImpact: 12.4,
+        action: '12-yard rushing TD',
+        scoreImpact: 6.0,
         timestamp: '1:47 PM',
         isRecent: true
       },
@@ -37,8 +37,8 @@ export const mockLeagueData: LeagueData[] = [
         playerName: 'D. Cook',
         position: 'RB',
         weeklyPoints: 11.2,
-        action: '67 rushing yards',
-        scoreImpact: 6.7,
+        action: '23-yard rush',
+        scoreImpact: 2.3,
         timestamp: '1:23 PM'
       },
       {
@@ -46,8 +46,8 @@ export const mockLeagueData: LeagueData[] = [
         playerName: 'T. Kelce',
         position: 'TE',
         weeklyPoints: 15.4,
-        action: '89 receiving yards',
-        scoreImpact: 8.9,
+        action: '34-yard reception',
+        scoreImpact: 3.4,
         timestamp: '12:58 PM'
       }
     ],
@@ -70,7 +70,7 @@ export const mockLeagueData: LeagueData[] = [
         playerName: 'C. McCaffrey',
         position: 'RB',
         weeklyPoints: 8.3,
-        action: 'Fumble lost',
+        action: 'Fumble lost at midfield',
         scoreImpact: -2.0,
         timestamp: '3:21 PM'
       },
@@ -79,8 +79,8 @@ export const mockLeagueData: LeagueData[] = [
         playerName: 'M. Evans',
         position: 'WR',
         weeklyPoints: 5.7,
-        action: '34 receiving yards',
-        scoreImpact: 3.4,
+        action: '19-yard reception',
+        scoreImpact: 1.9,
         timestamp: '2:45 PM'
       },
       {
@@ -88,7 +88,7 @@ export const mockLeagueData: LeagueData[] = [
         playerName: 'L. Jackson',
         position: 'QB',
         weeklyPoints: 19.2,
-        action: '1 rushing TD',
+        action: '8-yard rushing TD',
         scoreImpact: 6.0,
         timestamp: '2:12 PM',
         isRecent: true
@@ -98,8 +98,8 @@ export const mockLeagueData: LeagueData[] = [
         playerName: 'Cowboys DEF',
         position: 'DEF',
         weeklyPoints: 2.0,
-        action: '28 points allowed',
-        scoreImpact: -3.0,
+        action: 'QB sack for 7-yard loss',
+        scoreImpact: 1.0,
         timestamp: '1:55 PM'
       }
     ],
@@ -122,7 +122,7 @@ export const mockLeagueData: LeagueData[] = [
         playerName: 'A. Ekeler',
         position: 'RB',
         weeklyPoints: 14.6,
-        action: '1 receiving TD',
+        action: '15-yard receiving TD',
         scoreImpact: 6.0,
         timestamp: '4:12 PM',
         isRecent: true
@@ -132,8 +132,8 @@ export const mockLeagueData: LeagueData[] = [
         playerName: 'D. Adams',
         position: 'WR',
         weeklyPoints: 12.8,
-        action: '78 receiving yards',
-        scoreImpact: 7.8,
+        action: '42-yard reception',
+        scoreImpact: 4.2,
         timestamp: '3:34 PM'
       },
       {
@@ -141,8 +141,8 @@ export const mockLeagueData: LeagueData[] = [
         playerName: 'P. Mahomes',
         position: 'QB',
         weeklyPoints: 21.4,
-        action: '3 passing TDs',
-        scoreImpact: 18.0,
+        action: '28-yard passing TD',
+        scoreImpact: 4.0,
         timestamp: '3:01 PM'
       },
       {
@@ -150,8 +150,8 @@ export const mockLeagueData: LeagueData[] = [
         playerName: 'J. Tucker',
         position: 'K',
         weeklyPoints: 8.0,
-        action: '2 field goals made',
-        scoreImpact: 6.0,
+        action: '47-yard field goal',
+        scoreImpact: 3.0,
         timestamp: '2:47 PM'
       }
     ],
@@ -174,8 +174,8 @@ export const mockLeagueData: LeagueData[] = [
         playerName: 'T. Hill',
         position: 'WR',
         weeklyPoints: 22.1,
-        action: '2 receiving TDs',
-        scoreImpact: 12.0,
+        action: '67-yard receiving TD',
+        scoreImpact: 6.0,
         timestamp: '3:45 PM'
       },
       {
@@ -183,8 +183,8 @@ export const mockLeagueData: LeagueData[] = [
         playerName: 'J. Hurts',
         position: 'QB',
         weeklyPoints: 28.6,
-        action: '1 rushing, 2 passing TDs',
-        scoreImpact: 18.0,
+        action: '3-yard rushing TD',
+        scoreImpact: 6.0,
         timestamp: '3:18 PM',
         isRecent: true
       },
@@ -193,8 +193,8 @@ export const mockLeagueData: LeagueData[] = [
         playerName: 'C. Kupp',
         position: 'WR',
         weeklyPoints: 16.9,
-        action: '103 receiving yards',
-        scoreImpact: 10.3,
+        action: '38-yard reception',
+        scoreImpact: 3.8,
         timestamp: '2:56 PM'
       },
       {
@@ -202,8 +202,8 @@ export const mockLeagueData: LeagueData[] = [
         playerName: 'N. Chubb',
         position: 'RB',
         weeklyPoints: 19.7,
-        action: '127 rushing yards',
-        scoreImpact: 12.7,
+        action: '52-yard rush',
+        scoreImpact: 5.2,
         timestamp: '2:29 PM'
       }
     ],
@@ -226,7 +226,7 @@ export const mockLeagueData: LeagueData[] = [
         playerName: 'B. Robinson',
         position: 'RB',
         weeklyPoints: 13.2,
-        action: '1 rushing TD',
+        action: '5-yard rushing TD',
         scoreImpact: 6.0,
         timestamp: '4:01 PM'
       },
@@ -235,8 +235,8 @@ export const mockLeagueData: LeagueData[] = [
         playerName: 'G. Wilson',
         position: 'WR',
         weeklyPoints: 9.8,
-        action: '62 receiving yards',
-        scoreImpact: 6.2,
+        action: '31-yard reception',
+        scoreImpact: 3.1,
         timestamp: '3:29 PM',
         isRecent: true
       },
@@ -245,8 +245,8 @@ export const mockLeagueData: LeagueData[] = [
         playerName: 'K. Murray',
         position: 'QB',
         weeklyPoints: 16.1,
-        action: '251 passing yards',
-        scoreImpact: 10.1,
+        action: '18-yard completion',
+        scoreImpact: 0.7,
         timestamp: '3:07 PM'
       },
       {
@@ -254,8 +254,8 @@ export const mockLeagueData: LeagueData[] = [
         playerName: '49ers DEF',
         position: 'DEF',
         weeklyPoints: 12.0,
-        action: '2 sacks, 1 INT',
-        scoreImpact: 8.0,
+        action: 'Interception return',
+        scoreImpact: 2.0,
         timestamp: '2:41 PM'
       }
     ],
@@ -278,8 +278,8 @@ export const mockLeagueData: LeagueData[] = [
         playerName: 'S. Barkley',
         position: 'RB',
         weeklyPoints: 26.4,
-        action: '2 rushing TDs',
-        scoreImpact: 12.0,
+        action: '18-yard rushing TD',
+        scoreImpact: 6.0,
         timestamp: '4:23 PM',
         isRecent: true
       },
@@ -288,7 +288,7 @@ export const mockLeagueData: LeagueData[] = [
         playerName: 'M. Andrews',
         position: 'TE',
         weeklyPoints: 18.7,
-        action: '1 receiving TD',
+        action: '22-yard receiving TD',
         scoreImpact: 6.0,
         timestamp: '3:52 PM'
       },
@@ -297,8 +297,8 @@ export const mockLeagueData: LeagueData[] = [
         playerName: 'A. Brown',
         position: 'WR',
         weeklyPoints: 15.3,
-        action: '91 receiving yards',
-        scoreImpact: 9.1,
+        action: '44-yard reception',
+        scoreImpact: 4.4,
         timestamp: '3:15 PM'
       },
       {
@@ -306,8 +306,8 @@ export const mockLeagueData: LeagueData[] = [
         playerName: 'D. Prescott',
         position: 'QB',
         weeklyPoints: 23.9,
-        action: '2 passing TDs',
-        scoreImpact: 12.0,
+        action: '35-yard passing TD',
+        scoreImpact: 4.0,
         timestamp: '2:58 PM'
       }
     ],
@@ -330,8 +330,8 @@ export const mockLeagueData: LeagueData[] = [
         playerName: 'A. Jones',
         position: 'RB',
         weeklyPoints: 4.2,
-        action: '23 rushing yards',
-        scoreImpact: 2.3,
+        action: '8-yard rush',
+        scoreImpact: 0.8,
         timestamp: '4:15 PM'
       },
       {
@@ -339,8 +339,8 @@ export const mockLeagueData: LeagueData[] = [
         playerName: 'D. Johnson',
         position: 'WR',
         weeklyPoints: 3.8,
-        action: '28 receiving yards',
-        scoreImpact: 2.8,
+        action: '14-yard reception',
+        scoreImpact: 1.4,
         timestamp: '3:43 PM',
         isRecent: true
       },
@@ -349,8 +349,8 @@ export const mockLeagueData: LeagueData[] = [
         playerName: 'R. Wilson',
         position: 'QB',
         weeklyPoints: 12.7,
-        action: '189 passing yards',
-        scoreImpact: 7.6,
+        action: '22-yard completion',
+        scoreImpact: 0.9,
         timestamp: '3:22 PM'
       },
       {
@@ -358,7 +358,7 @@ export const mockLeagueData: LeagueData[] = [
         playerName: 'Eagles DEF',
         position: 'DEF',
         weeklyPoints: 6.0,
-        action: '1 fumble recovery',
+        action: 'Fumble recovery',
         scoreImpact: 2.0,
         timestamp: '2:33 PM'
       }
@@ -382,7 +382,7 @@ export const mockLeagueData: LeagueData[] = [
         playerName: 'D. Henry',
         position: 'RB',
         weeklyPoints: 21.8,
-        action: '1 rushing TD',
+        action: '27-yard rushing TD',
         scoreImpact: 6.0,
         timestamp: '4:08 PM'
       },
@@ -391,8 +391,8 @@ export const mockLeagueData: LeagueData[] = [
         playerName: 'J. Chase',
         position: 'WR',
         weeklyPoints: 17.4,
-        action: '116 receiving yards',
-        scoreImpact: 11.6,
+        action: '58-yard reception',
+        scoreImpact: 5.8,
         timestamp: '3:35 PM',
         isRecent: true
       },
@@ -401,8 +401,8 @@ export const mockLeagueData: LeagueData[] = [
         playerName: 'J. Burrow',
         position: 'QB',
         weeklyPoints: 25.2,
-        action: '3 passing TDs',
-        scoreImpact: 18.0,
+        action: '41-yard passing TD',
+        scoreImpact: 4.0,
         timestamp: '3:11 PM'
       },
       {
@@ -410,8 +410,8 @@ export const mockLeagueData: LeagueData[] = [
         playerName: 'G. Kittle',
         position: 'TE',
         weeklyPoints: 13.9,
-        action: '84 receiving yards',
-        scoreImpact: 8.4,
+        action: '26-yard reception',
+        scoreImpact: 2.6,
         timestamp: '2:49 PM'
       }
     ],
@@ -434,7 +434,7 @@ export const mockLeagueData: LeagueData[] = [
         playerName: 'B. Young',
         position: 'QB',
         weeklyPoints: 8.9,
-        action: '1 interception',
+        action: 'Interception at goal line',
         scoreImpact: -2.0,
         timestamp: '4:31 PM'
       },
@@ -443,8 +443,8 @@ export const mockLeagueData: LeagueData[] = [
         playerName: 'J. Addison',
         position: 'WR',
         weeklyPoints: 11.6,
-        action: '73 receiving yards',
-        scoreImpact: 7.3,
+        action: '29-yard reception',
+        scoreImpact: 2.9,
         timestamp: '3:54 PM',
         isRecent: true
       },
@@ -453,8 +453,8 @@ export const mockLeagueData: LeagueData[] = [
         playerName: 'K. Walker',
         position: 'RB',
         weeklyPoints: 14.2,
-        action: '88 rushing yards',
-        scoreImpact: 8.8,
+        action: '33-yard rush',
+        scoreImpact: 3.3,
         timestamp: '3:27 PM'
       },
       {
@@ -462,8 +462,8 @@ export const mockLeagueData: LeagueData[] = [
         playerName: 'D. Waller',
         position: 'TE',
         weeklyPoints: 7.1,
-        action: '45 receiving yards',
-        scoreImpact: 4.5,
+        action: '17-yard reception',
+        scoreImpact: 1.7,
         timestamp: '2:51 PM'
       }
     ],
@@ -486,7 +486,7 @@ export const mockLeagueData: LeagueData[] = [
         playerName: 'D. Swift',
         position: 'RB',
         weeklyPoints: 16.8,
-        action: '1 receiving TD',
+        action: '11-yard receiving TD',
         scoreImpact: 6.0,
         timestamp: '4:17 PM'
       },
@@ -495,8 +495,8 @@ export const mockLeagueData: LeagueData[] = [
         playerName: 'C. Lamb',
         position: 'WR',
         weeklyPoints: 19.3,
-        action: '124 receiving yards',
-        scoreImpact: 12.4,
+        action: '56-yard reception',
+        scoreImpact: 5.6,
         timestamp: '3:41 PM',
         isRecent: true
       },
@@ -505,8 +505,8 @@ export const mockLeagueData: LeagueData[] = [
         playerName: 'A. Rodgers',
         position: 'QB',
         weeklyPoints: 22.1,
-        action: '2 passing TDs',
-        scoreImpact: 12.0,
+        action: '24-yard passing TD',
+        scoreImpact: 4.0,
         timestamp: '3:09 PM'
       },
       {
@@ -514,8 +514,8 @@ export const mockLeagueData: LeagueData[] = [
         playerName: 'Bills DEF',
         position: 'DEF',
         weeklyPoints: 14.0,
-        action: '3 sacks, 1 TD',
-        scoreImpact: 12.0,
+        action: 'Pick-6 interception TD',
+        scoreImpact: 6.0,
         timestamp: '2:37 PM'
       }
     ],

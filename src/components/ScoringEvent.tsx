@@ -7,30 +7,59 @@ interface ScoringEventProps {
 export const ScoringEvent = ({ event }: ScoringEventProps) => {
   const isPositive = event.scoreImpact > 0;
   
-  return (
-    <div className={`scoring-event ${event.isRecent ? 'scoring-event-recent' : 'scoring-event-old'}`}>
-      <div className="flex justify-between items-start mb-1">
-        <div className="flex-1">
-          <div className="flex justify-between items-center">
-            <span className="text-sm font-bold text-white">
-              {event.playerName} {event.position}
-            </span>
-            <span className="text-sm text-white/90">
-              {event.weeklyPoints} pts
-            </span>
+  if (event.isRecent) {
+    // Full-size recent event
+    return (
+      <div className="scoring-event scoring-event-recent">
+        <div className="flex justify-between items-start mb-1">
+          <div className="flex-1">
+            <div className="flex justify-between items-center">
+              <span className="text-sm font-bold text-white">
+                {event.playerName} {event.position}
+              </span>
+              <span className="text-sm text-white/90">
+                {event.weeklyPoints} pts
+              </span>
+            </div>
+            <p className="text-xs text-white/70 mt-1">
+              {event.action}
+            </p>
           </div>
-          <p className="text-xs text-white/70 mt-1">
-            {event.action}
-          </p>
+        </div>
+        <div className="flex justify-between items-center text-xs">
+          <span className="text-white/60">
+            {event.timestamp}
+          </span>
+          <span className={isPositive ? "score-impact-positive" : "score-impact-negative"}>
+            {isPositive ? "+" : ""}{event.scoreImpact}
+          </span>
         </div>
       </div>
-      <div className="flex justify-between items-center text-xs">
-        <span className="text-white/60">
-          {event.timestamp}
-        </span>
-        <span className={isPositive ? 'score-impact-positive' : 'score-impact-negative'}>
-          {isPositive ? '+' : ''}{event.scoreImpact}
-        </span>
+    );
+  }
+  
+  // Condensed older event
+  return (
+    <div className="scoring-event scoring-event-old py-1.5">
+      <div className="flex justify-between items-center">
+        <div className="flex-1">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-semibold text-white/90">
+              {event.playerName} {event.position}
+            </span>
+            <span className="text-xs text-white/70">
+              {event.timestamp}
+            </span>
+          </div>
+          <div className="flex items-center justify-between mt-0.5">
+            <p className="text-xs text-white/60 truncate pr-2">
+              {event.action}
+            </p>
+            <span className={`text-xs font-medium ${isPositive ? "text-green-300" : "text-red-300"}`}>
+              {isPositive ? "+" : ""}{event.scoreImpact}
+            </span>
+          </div>
+        </div>
       </div>
     </div>
   );
