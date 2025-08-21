@@ -79,57 +79,60 @@ export const LeagueBlock = React.memo(({ league, onClick }: LeagueBlockProps) =>
       className={`league-block ${statusClass} ${platformClass} cursor-pointer transition-all duration-300 hover-scale animate-fade-in`}
       onClick={onClick}
     >
-      <div className="league-overlay">
-        <div className="league-header">
-          <div className="league-info">
-            <h2 className="league-name">{league.leagueName}</h2>
-            <div className="league-details">
-              <span className="team-name">{league.teamName}</span>
-              <span className="record">{league.record}</span>
-              <span className="position">{league.leaguePosition}</span>
+      <div className="league-overlay" />
+      <div className="league-content">
+        {/* Header */}
+        <div className="flex justify-between items-start mb-4">
+          <div className="flex-1 min-w-0">
+            <h2 className="text-xl font-bold text-white mb-1 truncate">{league.leagueName}</h2>
+            <div className="flex items-center gap-2 text-sm text-white/90">
+              <span className="truncate">{league.teamName}</span>
+              <span>•</span>
+              <span>{league.record}</span>
+              <span>•</span>
+              <span>{league.leaguePosition}</span>
             </div>
           </div>
-          <div className="platform-badge">
-            <span className="platform-name">{league.platform}</span>
+          <div className={`platform-badge ${platformClass}`}>
+            <span className="text-xs font-semibold">{league.platform}</span>
           </div>
         </div>
 
-        <div className="scores-container">
-          <div className="score-display">
-            <div className="my-score">
-              <span className="score-label">My Team</span>
-              <span className="score-value">{league.myScore.toFixed(1)}</span>
-            </div>
-            <div className="vs-divider">VS</div>
-            <div className="opponent-score">
-              <span className="score-label">{league.opponentName}</span>
-              <span className="score-value">{league.opponentScore.toFixed(1)}</span>
-            </div>
+        {/* Scores */}
+        <div className="flex items-center justify-between mb-4 bg-white/10 rounded-lg p-4 backdrop-blur-sm">
+          <div className="text-center">
+            <div className="text-sm text-white/80">My Team</div>
+            <div className="text-2xl font-bold text-white">{league.myScore.toFixed(1)}</div>
+          </div>
+          <div className="text-white/60 font-bold text-lg">VS</div>
+          <div className="text-center">
+            <div className="text-sm text-white/80">{league.opponentName}</div>
+            <div className="text-2xl font-bold text-white">{league.opponentScore.toFixed(1)}</div>
           </div>
         </div>
 
-        <div className="events-container">
-          <div className="events-header">
-            <h3>Recent Activity</h3>
-            <span className="events-count">{league.scoringEvents.length} events</span>
+        {/* Recent Activity */}
+        <div className="flex-1 overflow-hidden">
+          <div className="flex justify-between items-center mb-3">
+            <h3 className="text-lg font-semibold text-white">Recent Activity</h3>
+            <span className="text-xs text-white/60">{league.scoringEvents.length} events</span>
           </div>
-          <div className="events-list">
+          <div className="space-y-2 max-h-[180px] overflow-y-auto">
             {sortedEvents.length > 0 ? (
               sortedEvents.map((event) => (
                 <EnhancedScoringEvent key={event.id} event={event} />
               ))
             ) : (
-              <div className="no-events">
-                <span>No recent scoring events</span>
+              <div className="text-center py-4 text-white/60 text-sm">
+                No recent scoring events
               </div>
             )}
           </div>
         </div>
 
-        <div className="league-footer">
-          <span className="last-updated">
-            Updated: {league.lastUpdated}
-          </span>
+        {/* Footer */}
+        <div className="mt-auto pt-3 text-xs text-white/60 text-center">
+          Updated: {league.lastUpdated}
         </div>
       </div>
     </div>
