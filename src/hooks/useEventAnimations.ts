@@ -1,4 +1,4 @@
-import { useCallback, useRef } from 'react';
+import { useCallback, useRef, useEffect } from 'react';
 
 interface AnimationOptions {
   pulseCount?: number;
@@ -9,6 +9,7 @@ interface AnimationOptions {
 export const useEventAnimations = () => {
   const animationTimeouts = useRef<Map<string, NodeJS.Timeout>>(new Map());
   const lastAnimationTime = useRef<Map<string, number>>(new Map());
+  const scrollTimeouts = useRef<Map<string, NodeJS.Timeout>>(new Map());
 
   const triggerPulseAnimation = useCallback((
     elementId: string, 
@@ -51,21 +52,44 @@ export const useEventAnimations = () => {
     const element = document.getElementById(elementId);
     if (!element) return;
 
+    // Clear any existing scroll timeout for this element
+    const existingScrollTimeout = scrollTimeouts.current.get(elementId);
+    if (existingScrollTimeout) {
+      clearTimeout(existingScrollTimeout);
+    }
+
     // Add scroll-in animation
     element.classList.add('event-scroll-in');
     
     // Remove animation class after completion
-    setTimeout(() => {
+    const scrollTimeout = setTimeout(() => {
       element.classList.remove('event-scroll-in');
+      scrollTimeouts.current.delete(elementId);
     }, 500);
+    
+    scrollTimeouts.current.set(elementId, scrollTimeout);
   }, []);
 
-  // Cleanup function
+  // Enhanced cleanup function
   const cleanup = useCallback(() => {
+    // Clear all pulse animation timeouts
     animationTimeouts.current.forEach(timeout => clearTimeout(timeout));
     animationTimeouts.current.clear();
+    
+    // Clear all scroll animation timeouts
+    scrollTimeouts.current.forEach(timeout => clearTimeout(timeout));
+    scrollTimeouts.current.clear();
+    
+    // Clear animation time tracking
     lastAnimationTime.current.clear();
   }, []);
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      cleanup();
+    };
+  }, [cleanup]);
 
   return {
     triggerPulseAnimation,

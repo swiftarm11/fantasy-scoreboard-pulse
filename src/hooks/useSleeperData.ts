@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { sleeperAPI, SleeperLeague, SleeperUser, SleeperRoster, SleeperMatchup } from '../services/SleeperAPI';
 import { LeagueData, ScoringEvent } from '../types/fantasy';
 import { LeagueConfig } from '../types/config';
@@ -16,7 +16,7 @@ interface UseSleeperDataReturn {
   loading: boolean;
   error: string | null;
   lastUpdated: Date | null;
-  refetch: () => Promise<void>;
+  refetch: () => void;
 }
 
 export const useSleeperData = (leagueConfigs: LeagueConfig[]): UseSleeperDataReturn => {
@@ -25,6 +25,11 @@ export const useSleeperData = (leagueConfigs: LeagueConfig[]): UseSleeperDataRet
   const [error, setError] = useState<string | null>(null);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
   const [previousMatchups, setPreviousMatchups] = useState<Record<string, SleeperMatchup[]>>({});
+  
+  // Add request cancellation support
+  const abortControllerRef = useRef<AbortController | null>(null);
+  const requestTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const lastRequestTimeRef = useRef<number>(0);
 
   const processSleeperData = useCallback(async (leagueData: SleeperLeagueData, config: LeagueConfig, prevMatchups: Record<string, SleeperMatchup[]>): Promise<LeagueData> => {
     const { league, users, rosters, matchups, currentWeek } = leagueData;
@@ -167,16 +172,38 @@ export const useSleeperData = (leagueConfigs: LeagueConfig[]): UseSleeperDataRet
       return;
     }
 
-    // Prevent concurrent fetches
-    if (loading) {
-      console.log('Already fetching data, skipping...');
+    // Prevent concurrent fetches with debouncing (minimum 2 seconds between requests)
+    const now = Date.now();
+    if (loading || (now - lastRequestTimeRef.current < 2000)) {
+      console.log('Request debounced - too frequent or already loading');
       return;
     }
+
+    // Cancel previous request if still pending
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
+
+    // Create new abort controller for this request
+    abortControllerRef.current = new AbortController();
+    lastRequestTimeRef.current = now;
 
     setLoading(true);
     setError(null);
 
     try {
+      // Clear any existing request timeout
+      if (requestTimeoutRef.current) {
+        clearTimeout(requestTimeoutRef.current);
+      }
+
+      // Set request timeout (30 seconds)
+      requestTimeoutRef.current = setTimeout(() => {
+        if (abortControllerRef.current) {
+          abortControllerRef.current.abort();
+        }
+      }, 30000);
+
       const currentWeek = await sleeperAPI.getCurrentWeek();
       const leagueDataPromises = enabledLeagues.map(async (config) => {
         try {
@@ -201,6 +228,12 @@ export const useSleeperData = (leagueConfigs: LeagueConfig[]): UseSleeperDataRet
       });
 
       const processedLeagues = await Promise.all(leagueDataPromises);
+      
+      // Check if request was cancelled
+      if (abortControllerRef.current?.signal.aborted) {
+        return;
+      }
+
       setLeagues(processedLeagues);
       setLastUpdated(new Date());
 
@@ -228,26 +261,60 @@ export const useSleeperData = (leagueConfigs: LeagueConfig[]): UseSleeperDataRet
       }
 
     } catch (error) {
+      // Don't set error if request was cancelled
+      if (abortControllerRef.current?.signal.aborted) {
+        return;
+      }
+      
       console.error('Error fetching Sleeper data:', error);
       console.log('Active leagues attempting to fetch:', enabledLeagues.map(l => ({ id: l.id, leagueId: l.leagueId })));
       setError(error.message || 'Failed to fetch league data');
     } finally {
+      // Clear timeout and reset abort controller
+      if (requestTimeoutRef.current) {
+        clearTimeout(requestTimeoutRef.current);
+        requestTimeoutRef.current = null;
+      }
+      abortControllerRef.current = null;
       setLoading(false);
     }
   }, [leagueConfigs, processSleeperData, previousMatchups]); // Fixed dependency loop issue
 
-  const refetch = async () => {
-    await fetchSleeperData();
+  const refetch = () => {
+    fetchSleeperData();
   };
 
-  // Initial fetch with debouncing
+  // Initial fetch with debouncing and cleanup
   useEffect(() => {
     const timeoutId = setTimeout(() => {
       fetchSleeperData();
     }, 100); // Small delay to prevent rapid consecutive calls
 
-    return () => clearTimeout(timeoutId);
+    return () => {
+      clearTimeout(timeoutId);
+      // Cancel ongoing requests on unmount or dependency change
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+        abortControllerRef.current = null;
+      }
+      if (requestTimeoutRef.current) {
+        clearTimeout(requestTimeoutRef.current);
+        requestTimeoutRef.current = null;
+      }
+    };
   }, [leagueConfigs]); // Only depend on leagueConfigs, not fetchSleeperData
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+      }
+      if (requestTimeoutRef.current) {
+        clearTimeout(requestTimeoutRef.current);
+      }
+    };
+  }, []);
 
   return {
     leagues,

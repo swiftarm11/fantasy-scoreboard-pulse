@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { yahooFantasyAPI } from '../services/YahooFantasyAPI';
 import { LeagueData } from '../types/fantasy';
 import { useYahooOAuth } from './useYahooOAuth';
@@ -22,6 +22,10 @@ export const useYahooData = (enabledLeagueIds: string[] = []) => {
     error: null,
     lastUpdated: null
   });
+
+  // Add cleanup refs
+  const abortControllerRef = useRef<AbortController | null>(null);
+  const timeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   const fetchAvailableLeagues = useCallback(async () => {
     if (!isConnected) return;
@@ -133,12 +137,39 @@ export const useYahooData = (enabledLeagueIds: string[] = []) => {
     }
   }, [isConnected, fetchAvailableLeagues]);
 
-  // Fetch league data when enabled leagues change
+  // Fetch league data when enabled leagues change with cleanup
   useEffect(() => {
-    if (enabledLeagueIds.length > 0 && state.availableLeagues.length > 0) {
-      fetchLeagueData(enabledLeagueIds);
+    // Clear any existing timeout
+    if (timeoutRef.current) {
+      clearTimeout(timeoutRef.current);
     }
+
+    if (enabledLeagueIds.length > 0 && state.availableLeagues.length > 0) {
+      // Debounce league data fetching
+      timeoutRef.current = setTimeout(() => {
+        fetchLeagueData(enabledLeagueIds);
+      }, 500);
+    }
+
+    return () => {
+      if (timeoutRef.current) {
+        clearTimeout(timeoutRef.current);
+        timeoutRef.current = null;
+      }
+    };
   }, [enabledLeagueIds, fetchLeagueData, state.availableLeagues]);
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+      }
+      if (timeoutRef.current) {
+        clearTimeout(timeoutRef.current);
+      }
+    };
+  }, []);
 
   const refreshData = useCallback(() => {
     if (isConnected) {

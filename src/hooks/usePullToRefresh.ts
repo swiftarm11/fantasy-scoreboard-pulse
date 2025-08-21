@@ -21,6 +21,10 @@ export function usePullToRefresh({
   
   const touchStartY = useRef(0)
   const containerRef = useRef<HTMLDivElement>(null)
+  
+  // Add throttling to prevent rapid consecutive refreshes
+  const lastRefreshRef = useRef<number>(0)
+  const refreshTimeoutRef = useRef<NodeJS.Timeout | null>(null)
 
   useEffect(() => {
     const container = containerRef.current
@@ -53,18 +57,36 @@ export function usePullToRefresh({
     }
 
     const handleTouchEnd = () => {
-      if (!isPulling) return
-
       setIsPulling(false)
       
-      if (currentDistance >= distanceToRefresh) {
+      // Throttle refreshes - minimum 3 seconds between refreshes
+      const now = Date.now()
+      if (now - lastRefreshRef.current < 3000) {
+        console.log('Pull to refresh throttled - too frequent')
+        setPullDistance(0)
+        return
+      }
+
+      if (currentDistance >= distanceToRefresh && !isRefreshing) {
+        lastRefreshRef.current = now
         setIsRefreshing(true)
-        onRefresh().finally(() => {
-          setTimeout(() => {
-            setIsRefreshing(false)
-            setPullDistance(0)
-          }, refreshingTimeout)
-        })
+        
+        // Clear any existing timeout
+        if (refreshTimeoutRef.current) {
+          clearTimeout(refreshTimeoutRef.current)
+        }
+        
+        onRefresh()
+          .catch(error => {
+            console.error('Pull to refresh error:', error)
+          })
+          .finally(() => {
+            refreshTimeoutRef.current = setTimeout(() => {
+              setIsRefreshing(false)
+              setPullDistance(0)
+              refreshTimeoutRef.current = null
+            }, refreshingTimeout)
+          })
       } else {
         setPullDistance(0)
       }
@@ -78,8 +100,23 @@ export function usePullToRefresh({
       container.removeEventListener('touchstart', handleTouchStart)
       container.removeEventListener('touchmove', handleTouchMove)
       container.removeEventListener('touchend', handleTouchEnd)
+      
+      // Clear timeout on cleanup
+      if (refreshTimeoutRef.current) {
+        clearTimeout(refreshTimeoutRef.current)
+        refreshTimeoutRef.current = null
+      }
     }
   }, [isPulling, onRefresh, threshold, resistance, distanceToRefresh, refreshingTimeout])
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      if (refreshTimeoutRef.current) {
+        clearTimeout(refreshTimeoutRef.current)
+      }
+    }
+  }, [])
 
   return {
     containerRef,

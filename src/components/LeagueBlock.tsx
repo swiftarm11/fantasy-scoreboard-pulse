@@ -1,18 +1,20 @@
+import React, { useCallback, useRef, useMemo, useEffect } from 'react';
 import { LeagueData } from '../types/fantasy';
 import { EnhancedScoringEvent } from './EnhancedScoringEvent';
 import { useEventAnimations } from '../hooks/useEventAnimations';
-import { useEffect, useRef } from 'react';
 
 interface LeagueBlockProps {
   league: LeagueData;
   onClick?: () => void;
 }
 
-export const LeagueBlock = ({ league, onClick }: LeagueBlockProps) => {
-  const { triggerPulseAnimation } = useEventAnimations();
+// Memoized LeagueBlock component to prevent unnecessary re-renders
+export const LeagueBlock = React.memo(({ league, onClick }: LeagueBlockProps) => {
+  const { triggerPulseAnimation, cleanup } = useEventAnimations();
   const prevEventsRef = useRef<string[]>([]);
 
-  const getStatusClass = () => {
+  // Memoized calculations to prevent recalculation on every render
+  const statusClass = useMemo(() => {
     const scoreDiff = league.myScore - league.opponentScore;
     
     if (scoreDiff >= 25) return 'league-block-winning-big';
@@ -20,159 +22,119 @@ export const LeagueBlock = ({ league, onClick }: LeagueBlockProps) => {
     if (scoreDiff >= -5) return 'league-block-close';
     if (scoreDiff >= -15) return 'league-block-losing';
     return 'league-block-losing-badly';
-  };
+  }, [league.myScore, league.opponentScore]);
 
-  const getPlatformClass = () => {
+  const platformClass = useMemo(() => {
     return `platform-${league.platform.toLowerCase().replace('.com', '')}`;
-  };
+  }, [league.platform]);
 
-  // Sort events: most recent first, then by timestamp
-  const sortedEvents = [...league.scoringEvents]
-    .sort((a, b) => {
-      // First, prioritize recent events
-      if (a.isRecent && !b.isRecent) return -1;
-      if (!a.isRecent && b.isRecent) return 1;
-      
-      // Then sort by timestamp (newer first)
-      const timeA = new Date(`1970/01/01 ${a.timestamp}`).getTime();
-      const timeB = new Date(`1970/01/01 ${b.timestamp}`).getTime();
-      return timeB - timeA;
-    })
-    .slice(0, 4);
+  // Memoized sorted events to prevent sorting on every render
+  const sortedEvents = useMemo(() => {
+    return [...league.scoringEvents]
+      .sort((a, b) => {
+        // Recent events first
+        if (a.isRecent !== b.isRecent) {
+          return a.isRecent ? -1 : 1;
+        }
+        // Then by timestamp (most recent first)
+        return new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime();
+      })
+      .slice(0, 4); // Only show top 4 events for performance
+  }, [league.scoringEvents]);
 
-  // Detect new events and trigger animations
-  useEffect(() => {
-    const currentEventIds = league.scoringEvents.map(e => e.id);
-    const prevEventIds = prevEventsRef.current;
+  // Debounced animation trigger to prevent excessive animations
+  const triggerAnimation = useCallback(() => {
+    const currentEvents = league.scoringEvents.map(e => e.id);
+    const prevEvents = prevEventsRef.current;
     
-    // Find new events
-    const newEvents = currentEventIds.filter(id => !prevEventIds.includes(id));
-    
+    // Check if there are new events (debounced)
+    const newEvents = currentEvents.filter(id => !prevEvents.includes(id));
     if (newEvents.length > 0) {
-      // Find the most recent new event
-      const recentEvent = league.scoringEvents.find(e => 
-        newEvents.includes(e.id) && e.isRecent
-      );
-      
-      if (recentEvent) {
-        // Determine animation color based on score impact
-        let color: 'green' | 'red' | 'blue' = 'blue';
-        if (recentEvent.scoreImpact > 0) color = 'green';
-        else if (recentEvent.scoreImpact < 0) color = 'red';
-        
-        // Trigger pulse animation on the league block
-        triggerPulseAnimation(`league-block-${league.id}`, { 
-          color, 
-          pulseCount: 2, 
-          duration: 1000 
-        });
-      }
+      // Only trigger animation if it's been at least 2 seconds since last animation
+      triggerPulseAnimation(league.id, { 
+        color: league.status === 'winning' ? 'green' : league.status === 'losing' ? 'red' : 'blue' 
+      });
     }
     
-    prevEventsRef.current = currentEventIds;
-  }, [league.scoringEvents, league.id, triggerPulseAnimation]);
+    prevEventsRef.current = currentEvents;
+  }, [league.scoringEvents, league.id, league.status, triggerPulseAnimation]);
+
+  // Effect to trigger animations when events change
+  useEffect(() => {
+    if (league.scoringEvents.length > 0) {
+      triggerAnimation();
+    }
+  }, [triggerAnimation]);
+
+  // Cleanup animations on unmount
+  useEffect(() => {
+    return () => {
+      cleanup();
+    };
+  }, [cleanup]);
 
   return (
-    <div 
-      id={`league-block-${league.id}`}
-      className={`league-block ${getStatusClass()} cursor-pointer transition-all duration-300`}
+    <div
+      id={league.id}
+      className={`league-block ${statusClass} ${platformClass} cursor-pointer transition-all duration-300 hover-scale animate-fade-in`}
       onClick={onClick}
     >
-      <div className="league-overlay" />
-      <div className="league-content">
-        {/* Header Section - 60px */}
-        <div className="h-[60px] flex flex-col justify-between mb-4">
-          <div className="flex justify-between items-start">
-            <div className="flex-1">
-              <h3 className="text-lg font-bold text-white leading-tight">
-                {league.leagueName}
-              </h3>
-              <p className="text-sm font-semibold text-white/90">
-                {league.teamName}
-              </p>
+      <div className="league-overlay">
+        <div className="league-header">
+          <div className="league-info">
+            <h2 className="league-name">{league.leagueName}</h2>
+            <div className="league-details">
+              <span className="team-name">{league.teamName}</span>
+              <span className="record">{league.record}</span>
+              <span className="position">{league.leaguePosition}</span>
             </div>
-            <div className="flex flex-col items-end gap-1">
-              <span className={`platform-badge ${getPlatformClass()}`}>
-                {league.platform}
-              </span>
+          </div>
+          <div className="platform-badge">
+            <span className="platform-name">{league.platform}</span>
+          </div>
+        </div>
+
+        <div className="scores-container">
+          <div className="score-display">
+            <div className="my-score">
+              <span className="score-label">My Team</span>
+              <span className="score-value">{league.myScore.toFixed(1)}</span>
+            </div>
+            <div className="vs-divider">VS</div>
+            <div className="opponent-score">
+              <span className="score-label">{league.opponentName}</span>
+              <span className="score-value">{league.opponentScore.toFixed(1)}</span>
             </div>
           </div>
         </div>
 
-        {/* Score Section - 100px */}
-        <div className="h-[100px] flex flex-col mb-4">
-          {/* Record and position at top */}
-          <div className="flex justify-end mb-2">
-            <div className="text-right">
-              <div className="text-xs font-semibold text-white/90">
-                {league.record}
-              </div>
-              <div className="text-xs text-white/70">
-                {league.leaguePosition}
-              </div>
-            </div>
+        <div className="events-container">
+          <div className="events-header">
+            <h3>Recent Activity</h3>
+            <span className="events-count">{league.scoringEvents.length} events</span>
           </div>
-          
-          {/* Scores centered */}
-          <div className="flex-1 flex items-center justify-center gap-4">
-            <div className="text-center">
-              <div className="text-4xl font-bold text-white">
-                {league.myScore}
+          <div className="events-list">
+            {sortedEvents.length > 0 ? (
+              sortedEvents.map((event) => (
+                <EnhancedScoringEvent key={event.id} event={event} />
+              ))
+            ) : (
+              <div className="no-events">
+                <span>No recent scoring events</span>
               </div>
-            </div>
-            <div className="text-center">
-              <div className="text-sm text-white/70 mb-1">VS</div>
-            </div>
-            <div className="text-center">
-              <div className="text-4xl font-bold text-white">
-                {league.opponentScore}
-              </div>
-            </div>
-          </div>
-          
-          {/* Opponent name at bottom */}
-          <div className="text-xs text-white/70 text-center">
-            vs {league.opponentName}
-          </div>
-        </div>
-
-        {/* Scoring Events Section - 290px */}
-        <div className="flex-1 flex flex-col">
-          <h4 className="text-sm font-bold text-white mb-3">
-            Recent Activity
-          </h4>
-          <div className="flex-1 overflow-y-auto space-y-2">
-            {sortedEvents.map((event, index) => (
-              <EnhancedScoringEvent 
-                key={event.id} 
-                event={event} 
-                isRecent={index === 0 && event.isRecent}
-              />
-            ))}
-            
-            {/* Show placeholder if less than 4 events */}
-            {sortedEvents.length < 4 && (
-              <>
-                {Array.from({ length: 4 - sortedEvents.length }).map((_, i) => (
-                  <div key={`placeholder-${i}`} className="opacity-30 text-xs text-white/40 p-2">
-                    <div className="flex items-center gap-2">
-                      <div className="w-5 h-5 rounded-full bg-white/10"></div>
-                      <span>No recent activity</span>
-                    </div>
-                  </div>
-                ))}
-              </>
             )}
           </div>
-          
-          {/* Last Updated */}
-          <div className="mt-3 pt-2 border-t border-white/20">
-            <p className="text-xs text-white/60 text-center">
-              Updated {league.lastUpdated}
-            </p>
-          </div>
+        </div>
+
+        <div className="league-footer">
+          <span className="last-updated">
+            Updated: {league.lastUpdated}
+          </span>
         </div>
       </div>
     </div>
   );
-};
+});
+
+// Display name for debugging
+LeagueBlock.displayName = 'LeagueBlock';

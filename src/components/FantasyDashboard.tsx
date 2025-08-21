@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useCallback, useRef, useMemo } from 'react';
 import { LeagueBlock } from './LeagueBlock';
 import { MobileLeagueCard } from './MobileLeagueCard';
 import { CompactLeagueSummary } from './CompactLeagueSummary';
@@ -55,29 +55,35 @@ const DashboardContent = () => {
   // Use keyboard navigation
   useKeyboardNavigation();
 
-  // Combine all leagues from different platforms
-  const allLeagues = [];
-  if (demoLeague) {
-    allLeagues.push(demoLeague);
-  }
-  // Add Sleeper leagues
-  if (sleeperLeagues.length > 0) {
-    allLeagues.push(...sleeperLeagues);
-  }
-  // Add Yahoo leagues
-  if (yahooLeagues.length > 0) {
-    allLeagues.push(...yahooLeagues);
-  }
-  // Show mock data only if no real leagues configured, no demo league, and no loaded leagues
-  if (config.leagues.length === 0 && !demoLeague && sleeperLeagues.length === 0 && yahooLeagues.length === 0) {
-    allLeagues.push(...mockLeagueData);
-  }
+  // Memoized combined leagues calculation to prevent unnecessary recalculation
+  const displayLeagues = useMemo(() => {
+    const allLeagues: LeagueData[] = [];
+    
+    // Add demo league
+    if (demoLeague) {
+      allLeagues.push(demoLeague);
+    }
+    // Add Sleeper leagues
+    if (sleeperLeagues.length > 0) {
+      allLeagues.push(...sleeperLeagues);
+    }
+    // Add Yahoo leagues
+    if (yahooLeagues.length > 0) {
+      allLeagues.push(...yahooLeagues);
+    }
+    // Show mock data only if no real leagues configured, no demo league, and no loaded leagues
+    if (config.leagues.length === 0 && !demoLeague && sleeperLeagues.length === 0 && yahooLeagues.length === 0) {
+      allLeagues.push(...mockLeagueData);
+    }
+    
+    return allLeagues;
+  }, [demoLeague, sleeperLeagues, yahooLeagues, config.leagues.length]);
 
-  const displayLeagues = allLeagues;
-
-  // Combine loading and error states from both platforms
-  const combinedLoading = loading || yahooLoading;
-  const combinedError = error || yahooError;
+  // Memoized combined loading and error states
+  const { combinedLoading, combinedError } = useMemo(() => ({
+    combinedLoading: loading || yahooLoading,
+    combinedError: error || yahooError
+  }), [loading, yahooLoading, error, yahooError]);
 
   const { startPolling, stopPolling, isPolling } = usePolling({
     callback: refetch,
@@ -85,15 +91,31 @@ const DashboardContent = () => {
     enabled: true, // Fixed dependency loop issue
   });
 
-  // Pull to refresh for mobile
+  // Add ref to track last refresh time
+  const lastRefreshRef = useRef<number>(0);
+
+  // Debounced refresh function to prevent rapid successive calls
+  const debouncedRefetch = useCallback(async () => {
+    const now = Date.now();
+    if (now - lastRefreshRef.current < 2000) {
+      console.log('Refresh debounced - too frequent');
+      return;
+    }
+    
+    lastRefreshRef.current = now;
+    
+    // Refresh both platforms with error handling
+    await Promise.allSettled([
+      refetch(),
+      refreshYahooData()
+    ]);
+  }, [refetch, refreshYahooData]);
+
+  // Pull to refresh for mobile with throttling
   const { containerRef, isRefreshing: isPullRefreshing, pullDistance } = usePullToRefresh({
     onRefresh: async () => {
       if (hasHaptics) navigator.vibrate?.(50);
-      // Refresh both platforms
-      await Promise.allSettled([
-        refetch(),
-        refreshYahooData()
-      ]);
+      await debouncedRefetch();
     },
     threshold: 120,
     distanceToRefresh: 80,
