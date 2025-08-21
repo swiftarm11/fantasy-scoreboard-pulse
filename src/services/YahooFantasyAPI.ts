@@ -200,6 +200,8 @@ class YahooFantasyAPIService {
   }
 
   private async makeSecureAPICall(endpoint: string, params: any = {}, retryCount = 0): Promise<any> {
+    const maxRetries = 2;
+    
     try {
       const accessToken = await yahooOAuth.getValidAccessToken();
       
@@ -223,6 +225,21 @@ class YahooFantasyAPIService {
           await this.handleRateLimitError(retryCount);
           return this.makeSecureAPICall(endpoint, params, retryCount + 1);
         }
+        
+        if (response.status === 401) {
+          // Handle 401 errors by attempting token refresh
+          console.log('Received 401 from Yahoo API, attempting token refresh...');
+          try {
+            await yahooOAuth.refreshTokens();
+            if (retryCount < maxRetries) {
+              return this.makeSecureAPICall(endpoint, params, retryCount + 1);
+            }
+          } catch (refreshError) {
+            console.error('Token refresh failed:', refreshError);
+            throw new Error('REAUTH_REQUIRED: Please reconnect your Yahoo account');
+          }
+        }
+        
         throw new Error(`API call failed: ${response.status} - ${response.statusText}`);
       }
 
@@ -233,6 +250,21 @@ class YahooFantasyAPIService {
         error: error instanceof Error ? error.message : error,
         retryCount 
       });
+      
+      if (error instanceof Error) {
+        // Handle re-authentication requirement
+        if (error.message === 'REAUTH_REQUIRED' || error.message.includes('REAUTH_REQUIRED')) {
+          throw error;
+        }
+        
+        // Retry logic for temporary failures (but not auth failures)
+        if (retryCount < maxRetries && !error.message.includes('401') && !error.message.includes('REAUTH_REQUIRED')) {
+          console.warn(`Yahoo API call failed, retrying (${retryCount + 1}/${maxRetries}):`, error.message);
+          await new Promise(resolve => setTimeout(resolve, Math.pow(2, retryCount) * 1000));
+          return this.makeSecureAPICall(endpoint, params, retryCount + 1);
+        }
+      }
+      
       throw error;
     }
   }

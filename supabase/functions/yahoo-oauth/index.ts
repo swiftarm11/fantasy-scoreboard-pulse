@@ -56,36 +56,38 @@ serve(async (req) => {
     let tokenResponse
     
     if (refreshToken) {
-      // Refresh token flow
+      // Refresh token flow - use Basic Auth header for better compatibility
+      const credentials = btoa(`${YAHOO_CLIENT_ID}:${clientSecret}`)
+      
       const params = new URLSearchParams({
-        client_id: YAHOO_CLIENT_ID,
-        client_secret: clientSecret,
-        redirect_uri: redirectUri,
+        grant_type: 'refresh_token',
         refresh_token: refreshToken,
-        grant_type: 'refresh_token'
+        redirect_uri: redirectUri
       })
 
       tokenResponse = await fetch('https://api.login.yahoo.com/oauth2/get_token', {
         method: 'POST',
         headers: {
+          'Authorization': `Basic ${credentials}`,
           'Content-Type': 'application/x-www-form-urlencoded',
           'Accept': 'application/json'
         },
         body: params.toString()
       })
     } else if (code) {
-      // Authorization code flow
+      // Authorization code flow - use Basic Auth for consistency
+      const credentials = btoa(`${YAHOO_CLIENT_ID}:${clientSecret}`)
+      
       const params = new URLSearchParams({
-        client_id: YAHOO_CLIENT_ID,
-        client_secret: clientSecret,
-        redirect_uri: redirectUri,
+        grant_type: 'authorization_code',
         code: code,
-        grant_type: 'authorization_code'
+        redirect_uri: redirectUri
       })
 
       tokenResponse = await fetch('https://api.login.yahoo.com/oauth2/get_token', {
         method: 'POST',
         headers: {
+          'Authorization': `Basic ${credentials}`,
           'Content-Type': 'application/x-www-form-urlencoded',
           'Accept': 'application/json'
         },
@@ -97,8 +99,26 @@ serve(async (req) => {
 
     if (!tokenResponse.ok) {
       const errorText = await tokenResponse.text()
-      console.error('Yahoo token exchange error:', errorText)
-      throw new Error(`Token exchange failed: ${tokenResponse.status}`)
+      console.error('Yahoo token exchange error:', {
+        status: tokenResponse.status,
+        statusText: tokenResponse.statusText,
+        error: errorText,
+        refreshToken: !!refreshToken,
+        code: !!code
+      })
+      
+      // Return more specific error information
+      return new Response(
+        JSON.stringify({ 
+          error: `Token exchange failed: ${tokenResponse.status} ${tokenResponse.statusText}`,
+          details: errorText,
+          status: tokenResponse.status
+        }),
+        {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          status: tokenResponse.status === 401 ? 401 : 400,
+        }
+      )
     }
 
     const tokenData = await tokenResponse.json()

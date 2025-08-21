@@ -119,54 +119,155 @@ export class YahooOAuthService {
   async refreshTokens(): Promise<YahooTokens> {
     const tokens = this.getStoredTokens();
     if (!tokens?.refreshToken) {
-      throw new Error('No refresh token available');
+      throw new Error('REAUTH_REQUIRED');
     }
 
-    const response = await fetch('https://doyquitecogdnvbyiszt.supabase.co/functions/v1/yahoo-oauth', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRveXF1aXRlY29nZG52Ynlpc3p0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTU2ODg0OTMsImV4cCI6MjA3MTI2NDQ5M30.63TmTlCTK_jVJnG_4vuZWUwS--UcyNgOSem5tI7q_1w`
-      },
-      body: JSON.stringify({
-        refreshToken: tokens.refreshToken,
-        redirectUri: YAHOO_CONFIG.redirectUri
-      })
-    });
+    try {
+      const response = await fetch('https://doyquitecogdnvbyiszt.supabase.co/functions/v1/yahoo-oauth', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRveXF1aXRlY29nZG52Ynlpc3p0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTU2ODg0OTMsImV4cCI6MjA3MTI2NDQ5M30.63TmTlCTK_jVJnG_4vuZWUwS--UcyNgOSem5tI7q_1w`
+        },
+        body: JSON.stringify({
+          refreshToken: tokens.refreshToken,
+          redirectUri: YAHOO_CONFIG.redirectUri
+        })
+      });
 
-    if (!response.ok) {
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('Token refresh failed:', errorText);
+        
+        if (response.status === 401) {
+          // Clear invalid tokens and require re-authentication
+          this.disconnect();
+          throw new Error('REAUTH_REQUIRED');
+        }
+        
+        throw new Error(`Token refresh failed: ${response.status} - ${errorText}`);
+      }
+
+      const tokenData = await response.json();
+      const newTokens: YahooTokens = {
+        accessToken: tokenData.access_token,
+        refreshToken: tokenData.refresh_token || tokens.refreshToken,
+        expiresAt: Date.now() + (tokenData.expires_in * 1000),
+        tokenType: tokenData.token_type || 'Bearer'
+      };
+
+      this.storeTokens(newTokens);
+      console.log('Successfully refreshed Yahoo OAuth tokens');
+      return newTokens;
+    } catch (error) {
+      console.error('Token refresh error:', error);
+      if (error instanceof Error && error.message === 'REAUTH_REQUIRED') {
+        throw error;
+      }
       throw new Error('Token refresh failed');
     }
-
-    const tokenData = await response.json();
-    const newTokens: YahooTokens = {
-      accessToken: tokenData.access_token,
-      refreshToken: tokenData.refresh_token || tokens.refreshToken, // Use old refresh token if new one not provided
-      expiresAt: Date.now() + (tokenData.expires_in * 1000),
-      tokenType: tokenData.token_type || 'Bearer'
-    };
-
-    this.storeTokens(newTokens);
-    return newTokens;
   }
 
   async getValidAccessToken(): Promise<string> {
     const tokens = this.getStoredTokens();
     if (!tokens) {
-      throw new Error('No tokens available - user needs to authenticate');
+      throw new Error('REAUTH_REQUIRED');
     }
 
-    // Check if token expires in the next 5 minutes, refresh if needed
-    if (Date.now() + (5 * 60 * 1000) >= tokens.expiresAt) {
-      const newTokens = await this.refreshTokens();
-      return newTokens.accessToken;
+    // Proactive refresh: Check if token expires in the next 5 minutes
+    const fiveMinutesFromNow = Date.now() + (5 * 60 * 1000);
+    
+    if (tokens.expiresAt <= fiveMinutesFromNow) {
+      console.log('Access token expires soon, refreshing proactively...');
+      try {
+        const newTokens = await this.refreshTokens();
+        return newTokens.accessToken;
+      } catch (error) {
+        console.error('Proactive token refresh failed:', error);
+        if (error instanceof Error && error.message === 'REAUTH_REQUIRED') {
+          throw error;
+        }
+        // If refresh fails but token is still valid, return current token
+        if (Date.now() < tokens.expiresAt) {
+          console.warn('Using potentially expiring token due to refresh failure');
+          return tokens.accessToken;
+        }
+        throw error;
+      }
     }
 
     return tokens.accessToken;
   }
 
+  // Method to handle API call with automatic 401 recovery
+  async makeAuthenticatedRequest(url: string, options: RequestInit = {}): Promise<Response> {
+    try {
+      const accessToken = await this.getValidAccessToken();
+      
+      const response = await fetch(url, {
+        ...options,
+        headers: {
+          ...options.headers,
+          'Authorization': `Bearer ${accessToken}`,
+          'Accept': 'application/json'
+        }
+      });
+
+      // Handle 401 errors with token refresh retry
+      if (response.status === 401) {
+        console.log('Received 401, attempting token refresh...');
+        try {
+          const newTokens = await this.refreshTokens();
+          
+          // Retry the request with new token
+          const retryResponse = await fetch(url, {
+            ...options,
+            headers: {
+              ...options.headers,
+              'Authorization': `Bearer ${newTokens.accessToken}`,
+              'Accept': 'application/json'
+            }
+          });
+
+          if (retryResponse.status === 401) {
+            // Still getting 401 after refresh, require re-authentication
+            this.disconnect();
+            throw new Error('REAUTH_REQUIRED');
+          }
+
+          return retryResponse;
+        } catch (refreshError) {
+          console.error('Token refresh failed after 401:', refreshError);
+          if (refreshError instanceof Error && refreshError.message === 'REAUTH_REQUIRED') {
+            throw refreshError;
+          }
+          throw new Error('REAUTH_REQUIRED');
+        }
+      }
+
+      return response;
+    } catch (error) {
+      if (error instanceof Error && error.message === 'REAUTH_REQUIRED') {
+        throw error;
+      }
+      console.error('Authenticated request failed:', error);
+      throw error;
+    }
+  }
+
   storeTokens(tokens: YahooTokens): void {
+    // Validate tokens before storing
+    if (!tokens.accessToken || !tokens.refreshToken) {
+      throw new Error('Invalid tokens: missing required fields');
+    }
+    
+    // Ensure expiresAt is properly calculated
+    if (!tokens.expiresAt || tokens.expiresAt <= Date.now()) {
+      console.warn('Invalid or past expiry time for tokens');
+    }
+    
     localStorage.setItem(STORAGE_KEYS.TOKENS, JSON.stringify(tokens));
+    console.log('Stored Yahoo OAuth tokens, expires at:', new Date(tokens.expiresAt));
   }
 
   getStoredTokens(): YahooTokens | null {
@@ -174,8 +275,19 @@ export class YahooOAuthService {
     if (!tokensStr) return null;
     
     try {
-      return JSON.parse(tokensStr);
-    } catch {
+      const tokens = JSON.parse(tokensStr);
+      
+      // Validate stored tokens
+      if (!this.validateTokens(tokens)) {
+        console.warn('Stored tokens are invalid, clearing...');
+        this.disconnect();
+        return null;
+      }
+      
+      return tokens;
+    } catch (error) {
+      console.error('Failed to parse stored tokens:', error);
+      localStorage.removeItem(STORAGE_KEYS.TOKENS);
       return null;
     }
   }
@@ -203,7 +315,27 @@ export class YahooOAuthService {
 
   isConnected(): boolean {
     const tokens = this.getStoredTokens();
-    return tokens !== null && Date.now() < tokens.expiresAt;
+    if (!tokens) return false;
+    
+    // Consider token valid if it doesn't expire in the next minute
+    // This gives us buffer time for API calls
+    const oneMinuteFromNow = Date.now() + (60 * 1000);
+    return tokens.expiresAt > oneMinuteFromNow;
+  }
+
+  // Validate token format and expiry
+  validateTokens(tokens: YahooTokens): boolean {
+    if (!tokens.accessToken || !tokens.refreshToken) {
+      return false;
+    }
+    
+    // Check if token is expired
+    if (Date.now() >= tokens.expiresAt) {
+      console.warn('Stored tokens are expired');
+      return false;
+    }
+    
+    return true;
   }
 }
 
