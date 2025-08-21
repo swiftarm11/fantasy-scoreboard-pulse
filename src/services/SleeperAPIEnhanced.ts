@@ -69,6 +69,10 @@ export class SleeperAPIEnhanced {
   private playersCache: Record<string, SleeperPlayer> | null = null;
   private playersCacheTimestamp: number = 0;
   private readonly CACHE_DURATION = 24 * 60 * 60 * 1000; // 24 hours
+  
+  // Smart caching for league data
+  private leagueDataCache = new Map<string, {data: any, timestamp: number}>();
+  private readonly STATIC_CACHE_DURATION = 300000; // 5 minutes
 
   static getInstance(): SleeperAPIEnhanced {
     if (!SleeperAPIEnhanced.instance) {
@@ -181,6 +185,45 @@ export class SleeperAPIEnhanced {
     return state.week;
   }
 
+  // Smart caching method for static league data
+  async getStaticLeagueData(leagueId: string, forceRefresh = false): Promise<{
+    league: SleeperLeague,
+    users: SleeperUser[],
+    rosters: SleeperRoster[]
+  }> {
+    const cacheKey = `${leagueId}_static`;
+    const cached = this.leagueDataCache.get(cacheKey);
+
+    if (!forceRefresh && cached && (Date.now() - cached.timestamp < this.STATIC_CACHE_DURATION)) {
+      debugLogger.info('SLEEPER_CACHE', `Using cached static data for league ${leagueId}`, {
+        cacheAge: Date.now() - cached.timestamp,
+        maxAge: this.STATIC_CACHE_DURATION
+      });
+      return cached.data;
+    }
+
+    debugLogger.info('SLEEPER_CACHE', `Fetching fresh static data for league ${leagueId}`, {
+      forceRefresh,
+      cacheExpired: cached ? Date.now() - cached.timestamp >= this.STATIC_CACHE_DURATION : true
+    });
+
+    const [league, users, rosters] = await Promise.all([
+      this.getLeague(leagueId),
+      this.getUsers(leagueId),
+      this.getRosters(leagueId)
+    ]);
+
+    const data = { league, users, rosters };
+    this.leagueDataCache.set(cacheKey, { data, timestamp: Date.now() });
+    
+    debugLogger.success('SLEEPER_CACHE', `Cached static data for league ${leagueId}`, {
+      leagueId,
+      dataKeys: Object.keys(data)
+    });
+    
+    return data;
+  }
+
   async validateLeagueId(leagueId: string): Promise<boolean> {
     debugLogger.logLeagueAdditionStart(leagueId);
     
@@ -246,6 +289,31 @@ export class SleeperAPIEnhanced {
     });
     
     return names;
+  }
+
+  // Get cache statistics for debugging
+  getCacheStats(): { size: number; entries: Array<{key: string; age: number; isExpired: boolean}> } {
+    const entries = Array.from(this.leagueDataCache.entries()).map(([key, value]) => ({
+      key,
+      age: Date.now() - value.timestamp,
+      isExpired: Date.now() - value.timestamp >= this.STATIC_CACHE_DURATION
+    }));
+    
+    return {
+      size: this.leagueDataCache.size,
+      entries
+    };
+  }
+
+  // Clear expired cache entries
+  clearExpiredCache(): void {
+    const now = Date.now();
+    for (const [key, value] of this.leagueDataCache.entries()) {
+      if (now - value.timestamp >= this.STATIC_CACHE_DURATION) {
+        this.leagueDataCache.delete(key);
+        debugLogger.info('SLEEPER_CACHE', `Removed expired cache entry: ${key}`);
+      }
+    }
   }
 }
 

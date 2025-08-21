@@ -180,17 +180,15 @@ export const useSleeperData = (leagueConfigs: LeagueConfig[]): UseSleeperDataRet
       const currentWeek = await sleeperAPI.getCurrentWeek();
       const leagueDataPromises = enabledLeagues.map(async (config) => {
         try {
-          const [league, users, rosters, matchups] = await Promise.all([
-            sleeperAPI.getLeague(config.leagueId),
-            sleeperAPI.getUsers(config.leagueId),
-            sleeperAPI.getRosters(config.leagueId),
-            sleeperAPI.getMatchups(config.leagueId, currentWeek),
-          ]);
+          // OPTIMIZATION: Use cached static data (league, users, rosters) and only fetch fresh matchups
+          // This reduces API calls from 4 per league to 1 per league for regular updates
+          const staticData = await sleeperAPI.getStaticLeagueData(config.leagueId);
+          const matchups = await sleeperAPI.getMatchups(config.leagueId, currentWeek);
 
           const sleeperLeagueData: SleeperLeagueData = {
-            league,
-            users,
-            rosters,
+            league: staticData.league,
+            users: staticData.users,
+            rosters: staticData.rosters,
             matchups,
             currentWeek,
           };
