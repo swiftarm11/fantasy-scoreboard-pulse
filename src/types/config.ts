@@ -31,12 +31,27 @@ export interface DemoModeConfig {
   updateInterval: number; // seconds
 }
 
+export interface DisplayConfig {
+  compactView: boolean;
+  showWinProbabilityTrends: boolean;
+  showPerformanceMetrics: boolean;
+}
+
+export interface AdvancedPollingConfig extends PollingConfig {
+  gameHourIntervals: {
+    sunday: number; // seconds
+    monday: number; // seconds
+    normal: number; // seconds
+  };
+}
+
 export interface DashboardConfig {
   leagues: LeagueConfig[];
-  polling: PollingConfig;
+  polling: AdvancedPollingConfig;
   notifications: NotificationConfig;
   debug: DebugConfig;
   demoMode: DemoModeConfig;
+  display: DisplayConfig;
   version: string;
 }
 
@@ -46,6 +61,11 @@ export const DEFAULT_CONFIG: DashboardConfig = {
     updateFrequency: 30,
     smartPolling: true,
     gameHourPolling: true,
+    gameHourIntervals: {
+      sunday: 15,    // 15 seconds during Sunday games
+      monday: 15,    // 15 seconds during Monday games  
+      normal: 60,    // 60 seconds otherwise
+    },
   },
   notifications: {
     scoringEvents: true,
@@ -60,6 +80,11 @@ export const DEFAULT_CONFIG: DashboardConfig = {
   demoMode: {
     enabled: false,
     updateInterval: 20, // 20 seconds
+  },
+  display: {
+    compactView: false,
+    showWinProbabilityTrends: true,
+    showPerformanceMetrics: false,
   },
   version: '1.0.0',
 };

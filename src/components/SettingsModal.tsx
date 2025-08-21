@@ -1,3 +1,4 @@
+import { PerformanceDashboard } from './PerformanceDashboard';
 import { YahooConnectionCard } from './YahooConnectionCard';
 import { YahooLeagueSelector } from './YahooLeagueSelector';
 import { YahooRateLimitStatus } from './YahooRateLimitStatus';
@@ -331,13 +332,14 @@ export const SettingsModal = ({ open, onOpenChange, onMockEvent }: SettingsModal
         </DialogHeader>
 
         <Tabs defaultValue="leagues" className="w-full">
-          <TabsList className="grid w-full grid-cols-6">
+          <TabsList className="grid w-full grid-cols-7">
             <TabsTrigger value="leagues">Leagues</TabsTrigger>
             <TabsTrigger value="polling">Polling</TabsTrigger>
+            <TabsTrigger value="display">Display</TabsTrigger>
+            <TabsTrigger value="performance">Performance</TabsTrigger>
             <TabsTrigger value="notifications">Notifications</TabsTrigger>
             <TabsTrigger value="debug">Debug</TabsTrigger>
             <TabsTrigger value="data">Data</TabsTrigger>
-            <TabsTrigger value="testing">Testing</TabsTrigger>
           </TabsList>
 
           <TabsContent value="leagues" className="space-y-4">
@@ -450,14 +452,14 @@ export const SettingsModal = ({ open, onOpenChange, onMockEvent }: SettingsModal
           <TabsContent value="polling" className="space-y-4">
             <Card>
               <CardHeader>
-                <CardTitle>Polling Settings</CardTitle>
+                <CardTitle>Enhanced Polling Settings</CardTitle>
                 <CardDescription>
-                  Configure how often the dashboard updates
+                  Intelligent polling with game-hour optimization
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-6">
                 <div>
-                  <Label>Update Frequency</Label>
+                  <Label>Base Update Frequency</Label>
                   <Select 
                     value={localConfig.polling.updateFrequency.toString()} 
                     onValueChange={(value) => setLocalConfig(prev => ({
@@ -499,7 +501,7 @@ export const SettingsModal = ({ open, onOpenChange, onMockEvent }: SettingsModal
                     <div>
                       <Label>Game Hour Polling</Label>
                       <p className="text-sm text-muted-foreground">
-                        Poll more frequently on Sundays (1-11 PM) and Mondays (8-11 PM)
+                        Use faster intervals during Sunday (1-11 PM) and Monday (8-11 PM) games
                       </p>
                     </div>
                     <Switch
@@ -511,8 +513,164 @@ export const SettingsModal = ({ open, onOpenChange, onMockEvent }: SettingsModal
                     />
                   </div>
                 </div>
+
+                {localConfig.polling.gameHourPolling && (
+                  <Card className="bg-muted/50">
+                    <CardHeader className="pb-3">
+                      <CardTitle className="text-sm">Game Hour Intervals</CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                      <div className="grid grid-cols-3 gap-4">
+                        <div>
+                          <Label className="text-xs">Sunday Games</Label>
+                          <Select 
+                            value={localConfig.polling.gameHourIntervals?.sunday?.toString() || '15'} 
+                            onValueChange={(value) => setLocalConfig(prev => ({
+                              ...prev,
+                              polling: { 
+                                ...prev.polling, 
+                                gameHourIntervals: {
+                                  ...prev.polling.gameHourIntervals,
+                                  sunday: parseInt(value)
+                                }
+                              }
+                            }))}
+                          >
+                            <SelectTrigger>
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="10">10 seconds</SelectItem>
+                              <SelectItem value="15">15 seconds</SelectItem>
+                              <SelectItem value="30">30 seconds</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <div>
+                          <Label className="text-xs">Monday Games</Label>
+                          <Select 
+                            value={localConfig.polling.gameHourIntervals?.monday?.toString() || '15'} 
+                            onValueChange={(value) => setLocalConfig(prev => ({
+                              ...prev,
+                              polling: { 
+                                ...prev.polling, 
+                                gameHourIntervals: {
+                                  ...prev.polling.gameHourIntervals,
+                                  monday: parseInt(value)
+                                }
+                              }
+                            }))}
+                          >
+                            <SelectTrigger>
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="10">10 seconds</SelectItem>
+                              <SelectItem value="15">15 seconds</SelectItem>
+                              <SelectItem value="30">30 seconds</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <div>
+                          <Label className="text-xs">Off-Hours</Label>
+                          <Select 
+                            value={localConfig.polling.gameHourIntervals?.normal?.toString() || '60'} 
+                            onValueChange={(value) => setLocalConfig(prev => ({
+                              ...prev,
+                              polling: { 
+                                ...prev.polling, 
+                                gameHourIntervals: {
+                                  ...prev.polling.gameHourIntervals,
+                                  normal: parseInt(value)
+                                }
+                              }
+                            }))}
+                          >
+                            <SelectTrigger>
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="30">30 seconds</SelectItem>
+                              <SelectItem value="60">60 seconds</SelectItem>
+                              <SelectItem value="120">2 minutes</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      </div>
+                      <div className="text-xs text-muted-foreground">
+                        <p>• Sunday: 1 PM - 11 PM EST</p>
+                        <p>• Monday: 8 PM - 11 PM EST</p>
+                        <p>• Off-hours: All other times</p>
+                      </div>
+                    </CardContent>
+                  </Card>
+                )}
               </CardContent>
             </Card>
+          </TabsContent>
+
+          <TabsContent value="display" className="space-y-4">
+            <Card>
+              <CardHeader>
+                <CardTitle>Display Options</CardTitle>
+                <CardDescription>
+                  Customize how leagues and data are displayed
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <Label>Compact View</Label>
+                    <p className="text-sm text-muted-foreground">
+                      Show leagues in a condensed, grid-style layout
+                    </p>
+                  </div>
+                  <Switch
+                    checked={localConfig.display?.compactView || false}
+                    onCheckedChange={(compactView) => setLocalConfig(prev => ({
+                      ...prev,
+                      display: { ...prev.display, compactView }
+                    }))}
+                  />
+                </div>
+
+                <div className="flex items-center justify-between">
+                  <div>
+                    <Label>Win Probability Trends</Label>
+                    <p className="text-sm text-muted-foreground">
+                      Show historical win probability charts and trends
+                    </p>
+                  </div>
+                  <Switch
+                    checked={localConfig.display?.showWinProbabilityTrends ?? true}
+                    onCheckedChange={(showWinProbabilityTrends) => setLocalConfig(prev => ({
+                      ...prev,
+                      display: { ...prev.display, showWinProbabilityTrends }
+                    }))}
+                  />
+                </div>
+
+                <div className="flex items-center justify-between">
+                  <div>
+                    <Label>Performance Metrics</Label>
+                    <p className="text-sm text-muted-foreground">
+                      Display API response times and success rates
+                    </p>
+                  </div>
+                  <Switch
+                    checked={localConfig.display?.showPerformanceMetrics || false}
+                    onCheckedChange={(showPerformanceMetrics) => setLocalConfig(prev => ({
+                      ...prev,
+                      display: { ...prev.display, showPerformanceMetrics }
+                    }))}
+                  />
+                </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          <TabsContent value="performance" className="space-y-4">
+            <PerformanceDashboard />
           </TabsContent>
 
           <TabsContent value="notifications" className="space-y-4">
@@ -725,7 +883,7 @@ export const SettingsModal = ({ open, onOpenChange, onMockEvent }: SettingsModal
               </CardContent>
             </Card>
           </TabsContent>
-          <TabsContent value="testing" className="space-y-4">
+           <TabsContent value="testing" className="space-y-4">
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">

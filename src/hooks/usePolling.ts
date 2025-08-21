@@ -1,9 +1,9 @@
 import { useEffect, useRef, useCallback } from 'react';
-import { PollingConfig, GAME_HOURS } from '../types/config';
+import { AdvancedPollingConfig, GAME_HOURS } from '../types/config';
 
 interface UsePollingOptions {
   callback: () => Promise<void> | void;
-  config: PollingConfig;
+  config: AdvancedPollingConfig;
   enabled?: boolean;
 }
 
@@ -69,11 +69,23 @@ export const usePolling = ({ callback, config, enabled = true }: UsePollingOptio
       intervalRef.current = null;
     }
 
-    // Convert updateFrequency to milliseconds, with game hour adjustments
-    const baseInterval = config.updateFrequency * 1000;
-    const interval = isGameHour() && config.gameHourPolling ? 
-      Math.min(baseInterval, 15000) : // Game hours: max 15 seconds
-      baseInterval; // Normal: use configured frequency
+    // Enhanced game hour polling with specific intervals
+    let interval: number;
+    
+    if (isGameHour() && config.gameHourPolling) {
+      const now = new Date();
+      const day = now.getDay();
+      
+      if (day === 0) { // Sunday
+        interval = config.gameHourIntervals?.sunday * 1000 || 15000;
+      } else if (day === 1) { // Monday  
+        interval = config.gameHourIntervals?.monday * 1000 || 15000;
+      } else {
+        interval = config.updateFrequency * 1000;
+      }
+    } else {
+      interval = config.gameHourIntervals?.normal * 1000 || config.updateFrequency * 1000;
+    }
 
     console.info(`Starting polling with ${interval}ms interval`);
 
@@ -124,10 +136,22 @@ export const usePolling = ({ callback, config, enabled = true }: UsePollingOptio
       
       // Only restart if we're currently polling and should adjust for game hours
       if (intervalRef.current && config.gameHourPolling) {
-        const baseInterval = config.updateFrequency * 1000;
-        const expectedInterval = currentlyGameHour ? 
-          Math.min(baseInterval, 15000) : // Game hours: max 15 seconds
-          baseInterval; // Normal: use configured frequency
+        let expectedInterval: number;
+        
+        if (currentlyGameHour) {
+          const now = new Date();
+          const day = now.getDay();
+          
+          if (day === 0) { // Sunday
+            expectedInterval = config.gameHourIntervals?.sunday * 1000 || 15000;
+          } else if (day === 1) { // Monday
+            expectedInterval = config.gameHourIntervals?.monday * 1000 || 15000;
+          } else {
+            expectedInterval = config.updateFrequency * 1000;
+          }
+        } else {
+          expectedInterval = config.gameHourIntervals?.normal * 1000 || config.updateFrequency * 1000;
+        }
         
         console.info(`Game hour status changed (isGameHour: ${currentlyGameHour}), restarting polling with ${expectedInterval}ms interval`);
         startPolling();

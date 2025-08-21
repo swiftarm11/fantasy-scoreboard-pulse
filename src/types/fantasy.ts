@@ -24,4 +24,17 @@ export interface LeagueData {
   status: 'winning' | 'losing' | 'neutral';
   scoringEvents: ScoringEvent[];
   lastUpdated: string;
+  // New properties for enhanced features
+  week?: number;
+  winProbability?: number;
+  winProbabilityTrend?: number;
+  wins?: number;
+  losses?: number;
+  rank?: number;
+  totalTeams?: number;
+  events?: Array<{
+    player: string;
+    action: string;
+    points: number;
+  }>;
 }

@@ -1,6 +1,8 @@
 import React, { useState, useCallback, useRef, useMemo } from 'react';
 import { LeagueBlock } from './LeagueBlock';
 import { MobileLeagueCard } from './MobileLeagueCard';
+import { CompactLeagueView } from './CompactLeagueView';
+import { WinProbabilityTrend } from './WinProbabilityTrend';
 import { CompactLeagueSummary } from './CompactLeagueSummary';
 import { MobileSettingsModal } from './MobileSettingsModal';
 import { LeagueData } from '../types/fantasy';
@@ -208,27 +210,51 @@ const DashboardContent = () => {
       ));
     }
 
-    return displayLeagues.map((league, index) => (
-      <div
-        key={league.id}
-        className="animate-slide-in-right"
-        style={{ animationDelay: `${index * 0.1}s` }}
-        tabIndex={0}
-        role="region"
-        aria-label={`${league.leagueName} league information`}
-        onKeyDown={(e) => {
-          if (e.key === 'Enter' || e.key === ' ') {
-            e.preventDefault();
-            handleLeagueClick(league);
-          }
-        }}
-      >
-        <LeagueBlock
-          league={league}
-          onClick={() => handleLeagueClick(league)}
-        />
-      </div>
-    ));
+    return displayLeagues.map((league, index) => {
+      if (config.display?.compactView) {
+        return (
+          <div
+            key={league.id}
+            className="animate-slide-in-right"
+            style={{ animationDelay: `${index * 0.1}s` }}
+            tabIndex={0}
+            role="region"
+            aria-label={`${league.leagueName} league information`}
+          >
+            <CompactLeagueView
+              league={league}
+              className="hover:shadow-lg transition-shadow cursor-pointer"
+              onClick={() => handleLeagueClick(league)}
+            />
+            {config.display?.showWinProbabilityTrends && (
+              <WinProbabilityTrend league={league} className="mt-2" />
+            )}
+          </div>
+        );
+      }
+
+      return (
+        <div
+          key={league.id}
+          className="animate-slide-in-right"
+          style={{ animationDelay: `${index * 0.1}s` }}
+          tabIndex={0}
+          role="region"
+          aria-label={`${league.leagueName} league information`}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+              e.preventDefault();
+              handleLeagueClick(league);
+            }
+          }}
+        >
+          <LeagueBlock
+            league={league}
+            onClick={() => handleLeagueClick(league)}
+          />
+        </div>
+      );
+    });
   };
 
   return (
