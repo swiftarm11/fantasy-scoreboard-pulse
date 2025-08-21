@@ -66,8 +66,17 @@ class YahooFantasyAPIService {
   private isProcessingQueue = false;
   private lastRequestTime = 0;
   private readonly REQUEST_INTERVAL = 1100; // 1.1 seconds to be safe with rate limits
+  
+  // Enhanced error handling and request deduplication
+  private activeRequests = new Map<string, Promise<any>>();
+  private lastKnownGoodData = new Map<string, { data: any; timestamp: number }>();
+  private readonly REQUEST_TIMEOUT = 30000; // 30 seconds
+  private readonly DATA_PRESERVATION_KEY = 'yahoo_fantasy_cache';
 
-  private constructor() {}
+  private constructor() {
+    // Load preserved data on initialization
+    this.loadPreservedData();
+  }
 
   static getInstance(): YahooFantasyAPIService {
     if (!YahooFantasyAPIService.instance) {
@@ -121,7 +130,76 @@ class YahooFantasyAPIService {
     });
   }
 
-  private async makeSecureAPICall(endpoint: string, params: any = {}): Promise<any> {
+  private async handleRateLimitError(retryCount = 0): Promise<void> {
+    if (retryCount >= 4) {
+      throw new Error('Rate limit exceeded - please wait a few minutes and try again');
+    }
+
+    const delay = Math.pow(2, retryCount) * 2000; // 2s, 4s, 8s, 16s
+    
+    debugLogger.warning('YAHOO_API', `Rate limited, waiting ${delay/1000}s before retry (attempt ${retryCount + 1}/4)`, {
+      retryCount,
+      delay,
+      nextRetryIn: delay
+    });
+
+    await new Promise(resolve => setTimeout(resolve, delay));
+  }
+
+  private async makeSecureAPICallWithTimeout(endpoint: string, params: any = {}): Promise<any> {
+    return Promise.race([
+      this.makeSecureAPICall(endpoint, params),
+      new Promise((_, reject) => 
+        setTimeout(() => reject(new Error('Request timeout - please check your connection')), this.REQUEST_TIMEOUT)
+      )
+    ]);
+  }
+
+  private getRequestKey(endpoint: string, params: any = {}): string {
+    return `${endpoint}_${JSON.stringify(params)}`;
+  }
+
+  private async makeSecureAPICallWithDeduplication(endpoint: string, params: any = {}): Promise<any> {
+    const requestKey = this.getRequestKey(endpoint, params);
+    
+    // Return existing promise if request is already in flight
+    if (this.activeRequests.has(requestKey)) {
+      debugLogger.info('YAHOO_API', `Deduplicating request: ${requestKey}`);
+      return this.activeRequests.get(requestKey);
+    }
+
+    // Create new request promise
+    const requestPromise = this.makeSecureAPICallWithTimeout(endpoint, params)
+      .then(data => {
+        // Store as last known good data
+        this.lastKnownGoodData.set(requestKey, {
+          data,
+          timestamp: Date.now()
+        });
+        this.preserveData();
+        return data;
+      })
+      .catch(error => {
+        // Try to return cached data if available
+        const cached = this.lastKnownGoodData.get(requestKey);
+        if (cached && Date.now() - cached.timestamp < 300000) { // 5 minutes
+          debugLogger.warning('YAHOO_API', `Using cached data due to error: ${error.message}`, {
+            cacheAge: Date.now() - cached.timestamp
+          });
+          return cached.data;
+        }
+        throw error;
+      })
+      .finally(() => {
+        // Clean up active request
+        this.activeRequests.delete(requestKey);
+      });
+
+    this.activeRequests.set(requestKey, requestPromise);
+    return requestPromise;
+  }
+
+  private async makeSecureAPICall(endpoint: string, params: any = {}, retryCount = 0): Promise<any> {
     try {
       const accessToken = await yahooOAuth.getValidAccessToken();
       
@@ -141,23 +219,27 @@ class YahooFantasyAPIService {
 
       if (!response.ok) {
         if (response.status === 429) {
-          // Rate limit exceeded, wait and retry
-          await new Promise(resolve => setTimeout(resolve, 2000));
-          throw new Error('Rate limit exceeded, retrying...');
+          // Enhanced rate limit handling with exponential backoff
+          await this.handleRateLimitError(retryCount);
+          return this.makeSecureAPICall(endpoint, params, retryCount + 1);
         }
-        throw new Error(`API call failed: ${response.status}`);
+        throw new Error(`API call failed: ${response.status} - ${response.statusText}`);
       }
 
       return await response.json();
     } catch (error) {
-      debugLogger.error('YAHOO_API', 'API call failed', { endpoint, error });
+      debugLogger.error('YAHOO_API', 'API call failed', { 
+        endpoint, 
+        error: error instanceof Error ? error.message : error,
+        retryCount 
+      });
       throw error;
     }
   }
 
   async getUserLeagues(): Promise<YahooLeague[]> {
     return this.queueRequest(async () => {
-      const response = await this.makeSecureAPICall('getUserLeagues');
+      const response = await this.makeSecureAPICallWithDeduplication('getUserLeagues');
       
       // Handle Yahoo's nested JSON structure
       const leagues = response?.fantasy_content?.users?.user?.games?.game?.leagues?.league || [];
@@ -169,19 +251,19 @@ class YahooFantasyAPIService {
 
   async getLeagueStandings(leagueKey: string): Promise<any> {
     return this.queueRequest(async () => {
-      return this.makeSecureAPICall('getLeagueStandings', { leagueKey });
+      return this.makeSecureAPICallWithDeduplication('getLeagueStandings', { leagueKey });
     });
   }
 
   async getLeagueScoreboard(leagueKey: string, week?: number): Promise<any> {
     return this.queueRequest(async () => {
-      return this.makeSecureAPICall('getLeagueScoreboard', { leagueKey, week });
+      return this.makeSecureAPICallWithDeduplication('getLeagueScoreboard', { leagueKey, week });
     });
   }
 
   async getLeagueSettings(leagueKey: string): Promise<any> {
     return this.queueRequest(async () => {
-      return this.makeSecureAPICall('getLeagueSettings', { leagueKey });
+      return this.makeSecureAPICallWithDeduplication('getLeagueSettings', { leagueKey });
     });
   }
 
@@ -235,12 +317,68 @@ class YahooFantasyAPIService {
   }
 
   // Get rate limit status for debugging
-  getRateLimitStatus(): { queueLength: number; lastRequestTime: number; isProcessing: boolean } {
+  getRateLimitStatus(): { 
+    queueLength: number; 
+    lastRequestTime: number; 
+    isProcessing: boolean;
+    activeRequests: number;
+    cacheSize: number;
+  } {
     return {
       queueLength: this.rateLimitQueue.length,
       lastRequestTime: this.lastRequestTime,
-      isProcessing: this.isProcessingQueue
+      isProcessing: this.isProcessingQueue,
+      activeRequests: this.activeRequests.size,
+      cacheSize: this.lastKnownGoodData.size
     };
+  }
+
+  // Offline data preservation methods
+  private preserveData(): void {
+    try {
+      const dataToPreserve = Array.from(this.lastKnownGoodData.entries());
+      localStorage.setItem(this.DATA_PRESERVATION_KEY, JSON.stringify(dataToPreserve));
+    } catch (error) {
+      debugLogger.warning('YAHOO_API', 'Failed to preserve data to localStorage', error);
+    }
+  }
+
+  private loadPreservedData(): void {
+    try {
+      const preserved = localStorage.getItem(this.DATA_PRESERVATION_KEY);
+      if (preserved) {
+        const data = JSON.parse(preserved);
+        this.lastKnownGoodData = new Map(data);
+        debugLogger.info('YAHOO_API', `Loaded ${data.length} preserved data entries`);
+      }
+    } catch (error) {
+      debugLogger.warning('YAHOO_API', 'Failed to load preserved data from localStorage', error);
+    }
+  }
+
+  // Get last known good data timestamp for UI display
+  getLastUpdateTimestamp(endpoint: string, params: any = {}): number | null {
+    const requestKey = this.getRequestKey(endpoint, params);
+    const cached = this.lastKnownGoodData.get(requestKey);
+    return cached ? cached.timestamp : null;
+  }
+
+  // Clear old cached data
+  clearOldCache(maxAge: number = 24 * 60 * 60 * 1000): void {
+    const now = Date.now();
+    let cleared = 0;
+    
+    for (const [key, value] of this.lastKnownGoodData.entries()) {
+      if (now - value.timestamp > maxAge) {
+        this.lastKnownGoodData.delete(key);
+        cleared++;
+      }
+    }
+    
+    if (cleared > 0) {
+      debugLogger.info('YAHOO_API', `Cleared ${cleared} old cache entries`);
+      this.preserveData();
+    }
   }
 }
 

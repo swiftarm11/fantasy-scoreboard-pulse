@@ -185,7 +185,7 @@ export class SleeperAPIEnhanced {
     return state.week;
   }
 
-  // Smart caching method for static league data
+  // Enhanced error recovery for SleeperAPI
   async getStaticLeagueData(leagueId: string, forceRefresh = false): Promise<{
     league: SleeperLeague,
     users: SleeperUser[],
@@ -207,21 +207,43 @@ export class SleeperAPIEnhanced {
       cacheExpired: cached ? Date.now() - cached.timestamp >= this.STATIC_CACHE_DURATION : true
     });
 
-    const [league, users, rosters] = await Promise.all([
-      this.getLeague(leagueId),
-      this.getUsers(leagueId),
-      this.getRosters(leagueId)
-    ]);
+    try {
+      const [league, users, rosters] = await Promise.all([
+        this.getLeague(leagueId),
+        this.getUsers(leagueId),
+        this.getRosters(leagueId)
+      ]);
 
-    const data = { league, users, rosters };
-    this.leagueDataCache.set(cacheKey, { data, timestamp: Date.now() });
-    
-    debugLogger.success('SLEEPER_CACHE', `Cached static data for league ${leagueId}`, {
-      leagueId,
-      dataKeys: Object.keys(data)
-    });
-    
-    return data;
+      const data = { league, users, rosters };
+      this.leagueDataCache.set(cacheKey, { data, timestamp: Date.now() });
+      
+      // Preserve to localStorage for offline recovery
+      this.preserveStaticData();
+      
+      debugLogger.success('SLEEPER_CACHE', `Cached static data for league ${leagueId}`, {
+        leagueId,
+        dataKeys: Object.keys(data)
+      });
+      
+      return data;
+    } catch (error) {
+      // Try to return cached data if network fails
+      if (cached && Date.now() - cached.timestamp < 24 * 60 * 60 * 1000) { // 24 hours
+      debugLogger.warning('SLEEPER_CACHE', `Using stale cached data due to error: ${error}`, {
+        cacheAge: Date.now() - cached.timestamp
+      });
+        return cached.data;
+      }
+      
+      // Try to load from localStorage as last resort
+      const preserved = this.loadPreservedStaticData(leagueId);
+      if (preserved) {
+        debugLogger.warning('SLEEPER_CACHE', `Using preserved data from localStorage due to error: ${error}`);
+        return preserved;
+      }
+      
+      throw error;
+    }
   }
 
   async validateLeagueId(leagueId: string): Promise<boolean> {
@@ -314,6 +336,43 @@ export class SleeperAPIEnhanced {
         debugLogger.info('SLEEPER_CACHE', `Removed expired cache entry: ${key}`);
       }
     }
+  }
+
+  // Offline data preservation methods
+  private preserveStaticData(): void {
+    try {
+      const dataToPreserve = Array.from(this.leagueDataCache.entries());
+      localStorage.setItem('sleeper_static_cache', JSON.stringify(dataToPreserve));
+    } catch (error) {
+      debugLogger.warning('SLEEPER_CACHE', 'Failed to preserve static data to localStorage', error);
+    }
+  }
+
+  private loadPreservedStaticData(leagueId: string): any | null {
+    try {
+      const preserved = localStorage.getItem('sleeper_static_cache');
+      if (preserved) {
+        const data = new Map(JSON.parse(preserved));
+        const cacheKey = `${leagueId}_static`;
+        const cachedData = data.get(cacheKey);
+        
+        if (cachedData && typeof cachedData === 'object' && cachedData !== null && 
+            'timestamp' in cachedData && 'data' in cachedData &&
+            Date.now() - (cachedData.timestamp as number) < 24 * 60 * 60 * 1000) { // 24 hours
+          return cachedData.data;
+        }
+      }
+    } catch (error) {
+      debugLogger.warning('SLEEPER_CACHE', 'Failed to load preserved static data from localStorage', error);
+    }
+    return null;
+  }
+
+  // Get last update timestamp for a league
+  getLastUpdateTimestamp(leagueId: string): number | null {
+    const cacheKey = `${leagueId}_static`;
+    const cached = this.leagueDataCache.get(cacheKey);
+    return cached ? cached.timestamp : null;
   }
 }
 

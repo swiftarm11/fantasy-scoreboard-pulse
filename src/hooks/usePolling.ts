@@ -32,71 +32,77 @@ export const usePolling = ({ callback, config, enabled = true }: UsePollingOptio
     return false;
   }, [config.gameHourPolling]);
 
-  const getPollingInterval = useCallback((): number => {
-    if (!config.smartPolling) {
-      return config.updateFrequency * 1000;
-    }
-
-    // During game hours, use faster polling
-    if (isGameHour()) {
-      return Math.min(config.updateFrequency, 15) * 1000; // Max 15 seconds during games
-    }
-
-    return config.updateFrequency * 1000;
-  }, [config.smartPolling, config.updateFrequency, isGameHour]);
-
-  const executeCallback = useCallback(async () => {
+  // Enhanced debounced callback with better concurrency protection
+  const debouncedCallback = useCallback(() => {
+    const now = Date.now();
+    
+    // Prevent concurrent execution
     if (isRunningRef.current) {
-      console.log('Polling callback already running, skipping...');
+      console.info('Polling callback already running, skipping...');
       return;
     }
 
-    const now = Date.now();
-    const minInterval = getPollingInterval();
-    
-    // Debounce rapid calls
-    if (now - lastCallRef.current < minInterval / 2) {
-      console.log('Debouncing polling call');
+    // Enhanced debounce with minimum 5 second gap between calls
+    if (now - lastCallRef.current < 5000) {
+      console.info('Debouncing polling call - minimum 5 second gap enforced');
       return;
     }
 
     isRunningRef.current = true;
     lastCallRef.current = now;
 
-    try {
-      await callback();
-    } catch (error) {
-      console.error('Polling callback error:', error);
-    } finally {
-      isRunningRef.current = false;
-    }
-  }, [callback, getPollingInterval]);
+    Promise.resolve(callback())
+      .catch(error => {
+        console.error('Polling callback error:', error);
+      })
+      .finally(() => {
+        isRunningRef.current = false;
+      });
+  }, [callback]);
 
   const startPolling = useCallback(() => {
-    if (intervalRef.current) {
-      clearInterval(intervalRef.current);
-    }
-
-    const interval = getPollingInterval();
-    console.log(`Starting polling with ${interval}ms interval`);
-
-    intervalRef.current = setInterval(() => {
-      executeCallback();
-    }, interval);
-
-    // Execute immediately on start
-    executeCallback();
-  }, [executeCallback, getPollingInterval]);
-
-  const stopPolling = useCallback(() => {
+    if (!enabled) return;
+    
+    // Clear any existing interval to prevent duplicates
     if (intervalRef.current) {
       clearInterval(intervalRef.current);
       intervalRef.current = null;
     }
-    console.log('Stopped polling');
+
+    // Convert updateFrequency to milliseconds, with game hour adjustments
+    const baseInterval = config.updateFrequency * 1000;
+    const interval = isGameHour() && config.gameHourPolling ? 
+      Math.min(baseInterval, 15000) : // Game hours: max 15 seconds
+      baseInterval; // Normal: use configured frequency
+
+    console.info(`Starting polling with ${interval}ms interval`);
+
+    // Start immediate callback (with debouncing protection)
+    debouncedCallback();
+
+    // Set up recurring interval with enhanced protection
+    intervalRef.current = setInterval(() => {
+      // Additional check to prevent runaway intervals
+      if (!enabled || !intervalRef.current) {
+        return;
+      }
+      debouncedCallback();
+    }, interval);
+  }, [enabled, config, isGameHour, debouncedCallback]);
+
+  const stopPolling = useCallback(() => {
+    console.info('Stopped polling');
+    if (intervalRef.current) {
+      clearInterval(intervalRef.current);
+      intervalRef.current = null;
+    }
+    // Reset running state when stopping
+    isRunningRef.current = false;
   }, []);
 
-  // Start/stop polling based on enabled flag and config changes
+  const isPolling = intervalRef.current !== null;
+
+  // Enhanced effect with better cleanup
   useEffect(() => {
     if (enabled) {
       startPolling();
@@ -109,16 +115,36 @@ export const usePolling = ({ callback, config, enabled = true }: UsePollingOptio
     };
   }, [enabled, startPolling, stopPolling]);
 
-  // Restart polling when config changes
+  // Game hour change detection with enhanced logic
   useEffect(() => {
-    if (enabled && intervalRef.current) {
-      startPolling();
-    }
-  }, [config.updateFrequency, config.smartPolling, config.gameHourPolling, enabled, startPolling]);
+    if (!enabled || !config.gameHourPolling) return;
+
+    const checkGameHour = () => {
+      const currentlyGameHour = isGameHour();
+      
+      // Only restart if we're currently polling and should adjust for game hours
+      if (intervalRef.current && config.gameHourPolling) {
+        const baseInterval = config.updateFrequency * 1000;
+        const expectedInterval = currentlyGameHour ? 
+          Math.min(baseInterval, 15000) : // Game hours: max 15 seconds
+          baseInterval; // Normal: use configured frequency
+        
+        console.info(`Game hour status changed (isGameHour: ${currentlyGameHour}), restarting polling with ${expectedInterval}ms interval`);
+        startPolling();
+      }
+    };
+
+    // Check every minute for game hour changes
+    const gameHourCheckInterval = setInterval(checkGameHour, 60000);
+
+    return () => {
+      clearInterval(gameHourCheckInterval);
+    };
+  }, [enabled, config, isGameHour, startPolling]);
 
   return {
     startPolling,
     stopPolling,
-    isPolling: intervalRef.current !== null,
+    isPolling,
   };
 };
