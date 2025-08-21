@@ -147,13 +147,39 @@ export const useYahooOAuth = () => {
       }));
       return tokens;
     } catch (error) {
-      setState(prev => ({
-        ...prev,
-        isConnected: false,
-        error: error instanceof Error ? error.message : 'Failed to refresh tokens'
-      }));
+      if (error instanceof Error && error.message === 'REAUTH_REQUIRED') {
+        setState(prev => ({
+          ...prev,
+          isConnected: false,
+          tokens: null,
+          userInfo: null,
+          error: 'Re-authentication required'
+        }));
+      } else {
+        setState(prev => ({
+          ...prev,
+          isConnected: false,
+          error: error instanceof Error ? error.message : 'Failed to refresh tokens'
+        }));
+      }
       throw error;
     }
+  }, []);
+
+  const checkConnectionStatus = useCallback(() => {
+    const isConnected = yahooOAuth.isConnected();
+    const tokens = yahooOAuth.getStoredTokens();
+    const userInfo = yahooOAuth.getStoredUserInfo();
+    
+    setState(prev => ({
+      ...prev,
+      isConnected,
+      tokens,
+      userInfo,
+      error: isConnected ? null : prev.error
+    }));
+    
+    return isConnected;
   }, []);
 
   return {
@@ -161,6 +187,7 @@ export const useYahooOAuth = () => {
     connect,
     disconnect,
     handleCallback,
-    refreshTokens
+    refreshTokens,
+    checkConnectionStatus
   };
 };

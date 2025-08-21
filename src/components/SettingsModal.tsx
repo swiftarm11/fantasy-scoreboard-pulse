@@ -1,6 +1,5 @@
 import { PerformanceDashboard } from './PerformanceDashboard';
-import { YahooConnectionCard } from './YahooConnectionCard';
-import { YahooLeagueSelector } from './YahooLeagueSelector';
+import { YahooIntegrationFlow } from './YahooIntegrationFlow';
 import { YahooRateLimitStatus } from './YahooRateLimitStatus';
 import { useYahooOAuth } from '../hooks/useYahooOAuth';
 import { useState, useEffect } from 'react';
@@ -343,8 +342,7 @@ export const SettingsModal = ({ open, onOpenChange, onMockEvent }: SettingsModal
           </TabsList>
 
           <TabsContent value="leagues" className="space-y-4">
-            <YahooConnectionCard />
-            <YahooLeagueSelector />
+            <YahooIntegrationFlow />
             
             <Card>
               <CardHeader>
