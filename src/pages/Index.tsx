@@ -1,5 +1,7 @@
+import React from 'react';
 import { FantasyDashboard } from '../components/FantasyDashboard';
 import { ConnectionStatusBanner } from '../components/ConnectionStatusBanner';
+import { LoadingStateProvider } from '../components/enhanced-loading-states/LoadingStateProvider';
 import { useNetworkStatus } from '../hooks/useNetworkStatus';
 import { useYahooData } from '../hooks/useYahooData';
 import { yahooFantasyAPI } from '../services/YahooFantasyAPI';
@@ -28,16 +30,18 @@ const Index = () => {
   };
 
   return (
-    <div className="min-h-screen bg-background">
-      <ConnectionStatusBanner
-        isOnline={networkStatus.isOnline}
-        rateLimitStatus={rateLimitStatus}
-        onRetry={handleRetryConnection}
-        usingCachedData={!networkStatus.isOnline}
-        lastUpdated={networkStatus.lastConnected}
-      />
-      <FantasyDashboard />
-    </div>
+    <LoadingStateProvider>
+      <div className="min-h-screen bg-background">
+        <ConnectionStatusBanner
+          isOnline={networkStatus.isOnline}
+          rateLimitStatus={rateLimitStatus}
+          onRetry={handleRetryConnection}
+          usingCachedData={!networkStatus.isOnline}
+          lastUpdated={networkStatus.lastConnected}
+        />
+        <FantasyDashboard />
+      </div>
+    </LoadingStateProvider>
   );
 };
 
