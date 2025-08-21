@@ -1,10 +1,31 @@
 import { YahooOAuthConfig, YahooTokens, YahooUserInfo } from '../types/yahoo';
 
-const YAHOO_CONFIG: YahooOAuthConfig = {
-  clientId: "dj0yJmk9anVKMG9vdmJhZ0daJmQ9WVdrOVJ6UldjRWhrYkRJbWNHbzlNQT09JnM9Y29uc3VtZXJzZWNyZXQmc3Y9MCZ4PThh",
-  redirectUri: `${window.location.origin}/auth/yahoo/callback`,
-  scopes: ["fspt-r"]
+// Yahoo OAuth Configuration Validation
+export const validateYahooConfig = () => {
+  const missing = [];
+  if (!import.meta.env.VITE_YAHOO_CLIENT_ID) missing.push('VITE_YAHOO_CLIENT_ID');
+  if (!import.meta.env.VITE_YAHOO_CLIENT_SECRET) missing.push('VITE_YAHOO_CLIENT_SECRET');
+
+  if (missing.length > 0) {
+    console.error('Missing Yahoo OAuth environment variables:', missing);
+    return { isValid: false, missing };
+  }
+  return { isValid: true, missing: [] };
 };
+
+// Yahoo OAuth Configuration with Environment Variables
+const getYahooConfig = (): YahooOAuthConfig & { isConfigured: boolean } => {
+  const validation = validateYahooConfig();
+  
+  return {
+    clientId: import.meta.env.VITE_YAHOO_CLIENT_ID || "dj0yJmk9anVKMG9vdmJhZ0daJmQ9WVdrOVJ6UldjRWhrYkRJbWNHbzlNQT09JnM9Y29uc3VtZXJzZWNyZXQmc3Y9MCZ4PThh",
+    redirectUri: import.meta.env.VITE_YAHOO_REDIRECT_URI || `${window.location.origin}/auth/yahoo/callback`,
+    scopes: ["fspt-r"],
+    isConfigured: validation.isValid
+  };
+};
+
+const YAHOO_CONFIG = getYahooConfig();
 
 const STORAGE_KEYS = {
   TOKENS: 'yahoo_oauth_tokens',
@@ -29,6 +50,10 @@ export class YahooOAuthService {
   }
 
   getAuthUrl(): string {
+    if (!YAHOO_CONFIG.isConfigured) {
+      throw new Error('Yahoo OAuth is not properly configured. Please check environment variables.');
+    }
+
     const state = this.generateRandomState();
     localStorage.setItem(STORAGE_KEYS.STATE, state);
     
@@ -41,6 +66,14 @@ export class YahooOAuthService {
     });
 
     return `https://api.login.yahoo.com/oauth2/request_auth?${params.toString()}`;
+  }
+
+  isConfigured(): boolean {
+    return YAHOO_CONFIG.isConfigured;
+  }
+
+  getConfigurationStatus(): { isValid: boolean; missing: string[] } {
+    return validateYahooConfig();
   }
 
   async exchangeCodeForTokens(code: string, state: string): Promise<YahooTokens> {

@@ -1,7 +1,8 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { corsHeaders } from "../_shared/cors.ts"
 
-const YAHOO_CLIENT_ID = "dj0yJmk9anVKMG9vdmJhZ0daJmQ9WVdrOVJ6UldjRWhrYkRJbWNHbzlNQT09JnM9Y29uc3VtZXJzZWNyZXQmc3Y9MCZ4PThh"
+// Get Yahoo OAuth configuration from environment variables
+const YAHOO_CLIENT_ID = Deno.env.get('YAHOO_CLIENT_ID') || "dj0yJmk9anVKMG9vdmJhZ0daJmQ9WVdrOVJ6UldjRWhrYkRJbWNHbzlNQT09JnM9Y29uc3VtZXJzZWNyZXQmc3Y9MCZ4PThh"
 
 serve(async (req) => {
   // Handle CORS preflight requests
@@ -15,7 +16,13 @@ serve(async (req) => {
     // Get the Yahoo client secret from environment
     const clientSecret = Deno.env.get('YAHOO_CLIENT_SECRET')
     if (!clientSecret) {
-      throw new Error('Yahoo client secret not configured')
+      console.error('YAHOO_CLIENT_SECRET environment variable not set')
+      throw new Error('Yahoo OAuth is not properly configured on the server')
+    }
+
+    // Validate client ID is configured
+    if (!YAHOO_CLIENT_ID || YAHOO_CLIENT_ID === "dj0yJmk9anVKMG9vdmJhZ0daJmQ9WVdrOVJ6UldjRWhrYkRJbWNHbzlNQT09JnM9Y29uc3VtZXJzZWNyZXQmc3Y9MCZ4PThh") {
+      console.warn('Using default YAHOO_CLIENT_ID - please set YAHOO_CLIENT_ID environment variable')
     }
 
     if (action === 'getUserInfo' && accessToken) {

@@ -1,14 +1,21 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
 import { Button } from './ui/button';
 import { Badge } from './ui/badge';
-import { useYahooOAuth } from '../hooks/useYahooOAuth';
 import { Loader2, ExternalLink, Unlink } from 'lucide-react';
+import { useYahooOAuth } from '../hooks/useYahooOAuth';
+import { YahooConfigStatus } from './YahooConfigStatus';
+import { yahooOAuth } from '../utils/yahooOAuth';
 
 export const YahooConnectionCard = () => {
   const { isConnected, userInfo, isLoading, connect, disconnect } = useYahooOAuth();
+  const isConfigured = yahooOAuth.isConfigured();
 
   return (
-    <Card>
+    <div className="space-y-4">
+      <YahooConfigStatus />
+      
+      {!isConfigured ? null : (
+        <Card>
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
           <span className="text-lg">🏈</span>
@@ -77,7 +84,9 @@ export const YahooConnectionCard = () => {
             This allows reading your fantasy league data but cannot make changes to your teams.
           </p>
         </div>
-      </CardContent>
-    </Card>
+        </CardContent>
+        </Card>
+      )}
+    </div>
   );
 };

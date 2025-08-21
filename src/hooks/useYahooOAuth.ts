@@ -27,6 +27,15 @@ export const useYahooOAuth = () => {
   }, []);
 
   const connect = useCallback(() => {
+    if (!yahooOAuth.isConfigured()) {
+      toast({
+        title: 'Configuration Error',
+        description: 'Yahoo OAuth is not properly configured. Please check the settings.',
+        variant: 'destructive'
+      });
+      return;
+    }
+
     setState(prev => ({ ...prev, isLoading: true, error: null }));
     
     try {
