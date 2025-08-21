@@ -236,7 +236,7 @@ export const useSleeperData = (leagueConfigs: LeagueConfig[]): UseSleeperDataRet
     } finally {
       setLoading(false);
     }
-  }, [leagueConfigs, processSleeperData, previousMatchups, loading]); // Stable dependencies
+  }, [leagueConfigs, processSleeperData, previousMatchups]); // Fixed dependency loop issue
 
   const refetch = async () => {
     await fetchSleeperData();

@@ -79,11 +79,10 @@ const DashboardContent = () => {
   const combinedLoading = loading || yahooLoading;
   const combinedError = error || yahooError;
 
-  // EMERGENCY: Disable polling to stop the infinite loop
   const { startPolling, stopPolling, isPolling } = usePolling({
     callback: refetch,
     config: config.polling,
-    enabled: false, // DISABLED until dependency loop is fixed
+    enabled: true, // Fixed dependency loop issue
   });
 
   // Pull to refresh for mobile
