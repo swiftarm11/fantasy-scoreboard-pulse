@@ -5,6 +5,7 @@ export const validateYahooConfig = () => {
   const missing = [];
   if (!import.meta.env.VITE_YAHOO_CLIENT_ID) missing.push('VITE_YAHOO_CLIENT_ID');
   if (!import.meta.env.VITE_YAHOO_CLIENT_SECRET) missing.push('VITE_YAHOO_CLIENT_SECRET');
+  if (!import.meta.env.VITE_YAHOO_REDIRECT_URI) missing.push('VITE_YAHOO_REDIRECT_URI');
 
   if (missing.length > 0) {
     console.error('Missing Yahoo OAuth environment variables:', missing);
@@ -18,7 +19,7 @@ const getYahooConfig = (): YahooOAuthConfig & { isConfigured: boolean } => {
   const validation = validateYahooConfig();
   
   return {
-    clientId: import.meta.env.VITE_YAHOO_CLIENT_ID || "dj0yJmk9anVKMG9vdmJhZ0daJmQ9WVdrOVJ6UldjRWhrYkRJbWNHbzlNQT09JnM9Y29uc3VtZXJzZWNyZXQmc3Y9MCZ4PThh",
+    clientId: import.meta.env.VITE_YAHOO_CLIENT_ID || "dj0yJmk9anVKMG9vdmJhZ0daJmQ9WVdrOVJ6UldqRWhrYkJWNHbzlNQT09JnM9Y29uc3VtZXJzZWNyZXQmc3M9Y29uc3VtZXJzZWNyZXQ-",
     redirectUri: import.meta.env.VITE_YAHOO_REDIRECT_URI || `${window.location.origin}/auth/yahoo/callback`,
     scopes: ["fspt-r"],
     isConfigured: validation.isValid
@@ -26,6 +27,15 @@ const getYahooConfig = (): YahooOAuthConfig & { isConfigured: boolean } => {
 };
 
 const YAHOO_CONFIG = getYahooConfig();
+
+// Debug logging for environment variable status
+console.log('Yahoo OAuth Configuration Status:', {
+  clientIdPresent: !!import.meta.env.VITE_YAHOO_CLIENT_ID,
+  clientSecretPresent: !!import.meta.env.VITE_YAHOO_CLIENT_SECRET,
+  redirectUriPresent: !!import.meta.env.VITE_YAHOO_REDIRECT_URI,
+  fallbackClientId: "dj0yJmk9anVKMG9vdmJhZ0daJmQ9WVdrOVJ6UldqRWhrYkJWNHbzlNQT09JnM9Y29uc3VtZXJzZWNyZXQmc3M9Y29uc3VtZXJzZWNyZXQ-",
+  isConfigured: YAHOO_CONFIG.isConfigured
+});
 
 const STORAGE_KEYS = {
   TOKENS: 'yahoo_oauth_tokens',
@@ -91,7 +101,8 @@ export class YahooOAuthService {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRveXF1aXRlY29nZG52Ynlpc3p0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTU2ODg0OTMsImV4cCI6MjA3MTI2NDQ5M30.63TmTlCTK_jVJnG_4vuZWUwS--UcyNgOSem5tI7q_1w`
+        'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+        'apikey': import.meta.env.VITE_SUPABASE_ANON_KEY
       },
       body: JSON.stringify({
         code,
@@ -127,7 +138,8 @@ export class YahooOAuthService {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRveXF1aXRlY29nZG52Ynlpc3p0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTU2ODg0OTMsImV4cCI6MjA3MTI2NDQ5M30.63TmTlCTK_jVJnG_4vuZWUwS--UcyNgOSem5tI7q_1w`
+          'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+          'apikey': import.meta.env.VITE_SUPABASE_ANON_KEY
         },
         body: JSON.stringify({
           refreshToken: tokens.refreshToken,
