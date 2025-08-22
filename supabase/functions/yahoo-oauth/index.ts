@@ -5,10 +5,10 @@ import { corsHeaders } from "../_shared/cors.ts"
 const YAHOO_CLIENT_ID = Deno.env.get('YAHOO_CLIENT_ID') || "dj0yJmk9anVKMG9vdmJhZ0daJmQ9WVdrOVJ6UldqRWhrYkJWNHbzlNQT09JnM9Y29uc3VtZXJzZWNyZXQmc3M9Y29uc3VtZXJzZWNyZXQ-"
 
 // Debug logging for environment variable status
-console.log('Yahoo OAuth Edge Function Configuration:', {
+console.log('Yahoo OAuth Edge Function Configuration (PKCE Public App):', {
   clientIdPresent: !!Deno.env.get('YAHOO_CLIENT_ID'),
-  clientSecretPresent: !!Deno.env.get('YAHOO_CLIENT_SECRET'),
-  usingFallbackClientId: !Deno.env.get('YAHOO_CLIENT_ID')
+  usingFallbackClientId: !Deno.env.get('YAHOO_CLIENT_ID'),
+  flowType: 'PKCE (public app, no client secret required)'
 })
 
 serve(async (req) => {
@@ -20,15 +20,12 @@ serve(async (req) => {
   try {
     const { code, refreshToken, redirectUri, action, accessToken, codeVerifier } = await req.json()
     
-    // For PKCE flows (when codeVerifier is provided), client secret is NOT required
-    // For refresh token flows, client secret IS required
-    const clientSecret = Deno.env.get('YAHOO_CLIENT_SECRET')
-    const isPKCEFlow = !!codeVerifier
-    
-    if (!isPKCEFlow && !clientSecret) {
-      console.error('YAHOO_CLIENT_SECRET environment variable not set for refresh token flow')
-      throw new Error('Yahoo OAuth is not properly configured on the server')
-    }
+    console.log('Processing Yahoo OAuth request:', {
+      hasCode: !!code,
+      hasRefreshToken: !!refreshToken,
+      hasCodeVerifier: !!codeVerifier,
+      action: action || 'token_exchange'
+    })
 
     // Validate client ID is configured  
     if (!YAHOO_CLIENT_ID || YAHOO_CLIENT_ID === "dj0yJmk9anVKMG9vdmJhZ0daJmQ9WVdrOVJ6UldqRWhrYkJWNHbzlNQT09JnM9Y29uc3VtZXJzZWNyZXQmc3M9Y29uc3VtZXJzZWNyZXQ-") {
@@ -66,69 +63,46 @@ serve(async (req) => {
     let tokenResponse
     
     if (refreshToken) {
-      // Refresh token flow - use Basic Auth header with client secret
-      const credentials = btoa(`${YAHOO_CLIENT_ID}:${clientSecret}`)
+      // PKCE Refresh token flow - public app, no client secret needed
+      console.log('Making PKCE refresh token request (public app)')
       
       const params = new URLSearchParams({
         grant_type: 'refresh_token',
+        client_id: YAHOO_CLIENT_ID,
         refresh_token: refreshToken,
         redirect_uri: redirectUri
       })
 
-      console.log('Making refresh token request with Basic Auth')
       tokenResponse = await fetch('https://api.login.yahoo.com/oauth2/get_token', {
         method: 'POST',
         headers: {
-          'Authorization': `Basic ${credentials}`,
           'Content-Type': 'application/x-www-form-urlencoded',
           'Accept': 'application/json'
         },
         body: params.toString()
       })
-    } else if (code) {
-      if (isPKCEFlow) {
-        // PKCE flow - NO client secret, use code_verifier instead
-        console.log('Making PKCE token exchange request (no client secret)')
-        
-        const params = new URLSearchParams({
-          grant_type: 'authorization_code',
-          client_id: YAHOO_CLIENT_ID,
-          code: code,
-          redirect_uri: redirectUri,
-          code_verifier: codeVerifier
-        })
+    } else if (code && codeVerifier) {
+      // PKCE authorization code flow - public app, no client secret needed
+      console.log('Making PKCE token exchange request (public app)')
+      
+      const params = new URLSearchParams({
+        grant_type: 'authorization_code',
+        client_id: YAHOO_CLIENT_ID,
+        code: code,
+        redirect_uri: redirectUri,
+        code_verifier: codeVerifier
+      })
 
-        tokenResponse = await fetch('https://api.login.yahoo.com/oauth2/get_token', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/x-www-form-urlencoded',
-            'Accept': 'application/json'
-          },
-          body: params.toString()
-        })
-      } else {
-        // Traditional OAuth flow - use Basic Auth with client secret
-        console.log('Making traditional OAuth token exchange request with Basic Auth')
-        const credentials = btoa(`${YAHOO_CLIENT_ID}:${clientSecret}`)
-        
-        const params = new URLSearchParams({
-          grant_type: 'authorization_code',
-          code: code,
-          redirect_uri: redirectUri
-        })
-
-        tokenResponse = await fetch('https://api.login.yahoo.com/oauth2/get_token', {
-          method: 'POST',
-          headers: {
-            'Authorization': `Basic ${credentials}`,
-            'Content-Type': 'application/x-www-form-urlencoded',
-            'Accept': 'application/json'
-          },
-          body: params.toString()
-        })
-      }
+      tokenResponse = await fetch('https://api.login.yahoo.com/oauth2/get_token', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded',
+          'Accept': 'application/json'
+        },
+        body: params.toString()
+      })
     } else {
-      throw new Error('Missing required parameters')
+      throw new Error('Missing required parameters (code and codeVerifier required for PKCE flow)')
     }
 
     if (!tokenResponse.ok) {

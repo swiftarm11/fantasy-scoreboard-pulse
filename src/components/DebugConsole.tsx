@@ -10,7 +10,6 @@ import { toast } from './ui/use-toast';
 interface DebugInfo {
   envVars: {
     VITE_YAHOO_CLIENT_ID: string;
-    VITE_YAHOO_CLIENT_SECRET: string;
     VITE_YAHOO_REDIRECT_URI: string;
     VITE_SUPABASE_URL: string;
     VITE_SUPABASE_ANON_KEY: string;
@@ -40,7 +39,6 @@ export const DebugConsole = () => {
       return {
         envVars: {
           VITE_YAHOO_CLIENT_ID: import.meta.env.VITE_YAHOO_CLIENT_ID || 'NOT SET',
-          VITE_YAHOO_CLIENT_SECRET: import.meta.env.VITE_YAHOO_CLIENT_SECRET ? 'SET' : 'NOT SET',
           VITE_YAHOO_REDIRECT_URI: import.meta.env.VITE_YAHOO_REDIRECT_URI || 'NOT SET',
           VITE_SUPABASE_URL: import.meta.env.VITE_SUPABASE_URL || 'NOT SET',
           VITE_SUPABASE_ANON_KEY: import.meta.env.VITE_SUPABASE_ANON_KEY ? 'SET' : 'NOT SET'
@@ -60,11 +58,11 @@ export const DebugConsole = () => {
 
     // Console logging for development
     console.log('=== YAHOO OAUTH DEBUG INFO ===');
-    console.log('Environment Variables Status:', {
+    console.log('Environment Variables Status (PKCE Public App):', {
       VITE_YAHOO_CLIENT_ID: info.envVars.VITE_YAHOO_CLIENT_ID !== 'NOT SET' ? 'SET' : 'MISSING',
-      VITE_YAHOO_CLIENT_SECRET: info.envVars.VITE_YAHOO_CLIENT_SECRET,
       VITE_YAHOO_REDIRECT_URI: info.envVars.VITE_YAHOO_REDIRECT_URI,
-      VITE_SUPABASE_ANON_KEY: info.envVars.VITE_SUPABASE_ANON_KEY
+      VITE_SUPABASE_ANON_KEY: info.envVars.VITE_SUPABASE_ANON_KEY,
+      NOTE: 'Client secret not required for PKCE public app'
     });
 
     if (showSensitive) {
@@ -117,7 +115,7 @@ export const DebugConsole = () => {
   };
 
   const formatValue = (key: string, value: string) => {
-    if (!showSensitive && (key.includes('ID') || key.includes('KEY') || key.includes('SECRET'))) {
+    if (!showSensitive && (key.includes('ID') || key.includes('KEY'))) {
       if (value === 'NOT SET') return value;
       if (value === 'SET') return value;
       return value.substring(0, 8) + '...';
