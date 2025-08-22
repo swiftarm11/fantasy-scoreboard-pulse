@@ -1,6 +1,6 @@
 import { YahooOAuthConfig, YahooTokens, YahooUserInfo } from '../types/yahoo';
 
-// Yahoo OAuth Configuration Validation - NO CLIENT SECRET REQUIRED
+// Yahoo OAuth Configuration Validation
 export const validateYahooConfig = () => {
   const missing = [];
   if (!import.meta.env.VITE_YAHOO_CLIENT_ID) missing.push('VITE_YAHOO_CLIENT_ID');
@@ -27,7 +27,7 @@ const getYahooConfig = (): YahooOAuthConfig & { isConfigured: boolean } => {
 
 const YAHOO_CONFIG = getYahooConfig();
 
-// Debug log on startup - NO CLIENT SECRET CHECK
+// Debug log on startup
 console.log('Yahoo OAuth Configuration Status:', {
   clientIdPresent: !!import.meta.env.VITE_YAHOO_CLIENT_ID,
   redirectUriPresent: !!import.meta.env.VITE_YAHOO_REDIRECT_URI,
@@ -37,7 +37,8 @@ console.log('Yahoo OAuth Configuration Status:', {
 const STORAGE_KEYS = {
   TOKENS: 'yahoo_oauth_tokens',
   USER_INFO: 'yahoo_user_info',
-  STATE: 'yahoo_oauth_state'
+  STATE: 'yahoo_oauth_state',
+  CODE_VERIFIER: 'yahoo_code_verifier'
 };
 
 export class YahooOAuthService {
@@ -52,16 +53,41 @@ export class YahooOAuthService {
     return YahooOAuthService.instance;
   }
 
+  // PKCE Helper Functions
+  private generateRandomString(length: number): string {
+    const array = new Uint8Array(length);
+    crypto.getRandomValues(array);
+    return Array.from(array, byte => 
+      'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~'[byte % 66]
+    ).join('');
+  }
+
+  private async generateCodeChallenge(codeVerifier: string): Promise<string> {
+    const encoder = new TextEncoder();
+    const data = encoder.encode(codeVerifier);
+    const digest = await crypto.subtle.digest('SHA-256', data);
+    
+    // Convert to base64url
+    const base64 = btoa(String.fromCharCode(...new Uint8Array(digest)));
+    return base64.replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '');
+  }
+
   generateRandomState(): string {
     return Math.random().toString(36).substring(2) + Date.now().toString(36);
   }
 
-  getAuthUrl(): string {
+  async getAuthUrl(): Promise<string> {
     if (!YAHOO_CONFIG.isConfigured) {
       throw new Error('Yahoo OAuth is not properly configured. Please check environment variables.');
     }
 
+    // Generate PKCE parameters
+    const codeVerifier = this.generateRandomString(128);
+    const codeChallenge = await this.generateCodeChallenge(codeVerifier);
     const state = this.generateRandomState();
+
+    // Store PKCE verifier and state
+    localStorage.setItem(STORAGE_KEYS.CODE_VERIFIER, codeVerifier);
     localStorage.setItem(STORAGE_KEYS.STATE, state);
     
     const params = new URLSearchParams({
@@ -69,7 +95,17 @@ export class YahooOAuthService {
       redirect_uri: YAHOO_CONFIG.redirectUri,
       response_type: 'code',
       scope: YAHOO_CONFIG.scopes.join(' '),
-      state: state
+      state: state,
+      // PKCE parameters - REQUIRED for public clients
+      code_challenge: codeChallenge,
+      code_challenge_method: 'S256'
+    });
+
+    console.log('Generated PKCE OAuth URL with parameters:', {
+      clientId: YAHOO_CONFIG.clientId.substring(0, 20) + '...',
+      redirectUri: YAHOO_CONFIG.redirectUri,
+      codeChallenge: codeChallenge.substring(0, 20) + '...',
+      codeChallengeMethod: 'S256'
     });
 
     return `https://api.login.yahoo.com/oauth2/request_auth?${params.toString()}`;
@@ -89,11 +125,24 @@ export class YahooOAuthService {
     if (state !== storedState) {
       throw new Error('Invalid state parameter - potential CSRF attack');
     }
-    
-    // Clear stored state
-    localStorage.removeItem(STORAGE_KEYS.STATE);
 
-    // Exchange code for tokens via Supabase edge function
+    // Get code verifier for PKCE
+    const codeVerifier = localStorage.getItem(STORAGE_KEYS.CODE_VERIFIER);
+    if (!codeVerifier) {
+      throw new Error('Code verifier not found - PKCE flow interrupted');
+    }
+    
+    // Clear stored state and code verifier
+    localStorage.removeItem(STORAGE_KEYS.STATE);
+    localStorage.removeItem(STORAGE_KEYS.CODE_VERIFIER);
+
+    console.log('Exchanging code for tokens with PKCE...', {
+      hasCode: !!code,
+      hasCodeVerifier: !!codeVerifier,
+      codeVerifierLength: codeVerifier.length
+    });
+
+    // Exchange code for tokens via Supabase edge function with PKCE
     const response = await fetch('https://doyquitecogdnvbyiszt.supabase.co/functions/v1/yahoo-oauth', {
       method: 'POST',
       headers: {
@@ -104,13 +153,15 @@ export class YahooOAuthService {
       body: JSON.stringify({
         code,
         redirectUri: YAHOO_CONFIG.redirectUri,
-        // No client secret sent for public clients
-        clientId: YAHOO_CONFIG.clientId
+        clientId: YAHOO_CONFIG.clientId,
+        // PKCE parameter for token exchange
+        codeVerifier: codeVerifier
       })
     });
 
     if (!response.ok) {
       const error = await response.text();
+      console.error('Token exchange failed:', error);
       throw new Error(`Token exchange failed: ${error}`);
     }
 
@@ -122,6 +173,7 @@ export class YahooOAuthService {
       tokenType: tokenData.token_type || 'Bearer'
     };
 
+    console.log('Successfully exchanged code for tokens');
     this.storeTokens(tokens);
     return tokens;
   }
@@ -144,7 +196,6 @@ export class YahooOAuthService {
           refreshToken: tokens.refreshToken,
           redirectUri: YAHOO_CONFIG.redirectUri,
           clientId: YAHOO_CONFIG.clientId
-          // No client secret for public clients
         })
       });
 
@@ -306,6 +357,7 @@ export class YahooOAuthService {
     localStorage.removeItem(STORAGE_KEYS.TOKENS);
     localStorage.removeItem(STORAGE_KEYS.USER_INFO);
     localStorage.removeItem(STORAGE_KEYS.STATE);
+    localStorage.removeItem(STORAGE_KEYS.CODE_VERIFIER);
   }
 
   isConnected(): boolean {
