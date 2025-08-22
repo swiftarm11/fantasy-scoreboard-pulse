@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
 import { Button } from './ui/button';
 import { Badge } from './ui/badge';
@@ -41,20 +41,41 @@ export const YahooDebugPanel = () => {
     return () => yahooLogger.removeListener(updateLogs);
   }, []);
 
-  const filteredLogs = logs.filter(log => 
-    selectedLevel === 'ALL' || log.level === selectedLevel
+  // Memoize current status to prevent infinite re-renders
+  const currentStatus = useMemo(() => {
+    try {
+      return {
+        isConnected: yahooOAuth.isConnected(),
+        isConfigured: yahooOAuth.isConfigured(),
+        hasTokens: !!yahooOAuth.getStoredTokens(),
+        hasUserInfo: !!yahooOAuth.getStoredUserInfo()
+      };
+    } catch (error) {
+      // Fallback if any of the Yahoo methods fail
+      return {
+        isConnected: false,
+        isConfigured: false,
+        hasTokens: false,
+        hasUserInfo: false
+      };
+    }
+  }, [logs.length]); // Re-calculate when logs change (which indicates activity)
+
+  const filteredLogs = useMemo(() => 
+    logs.filter(log => selectedLevel === 'ALL' || log.level === selectedLevel),
+    [logs, selectedLevel]
   );
 
-  const handleClearTokens = () => {
+  const handleClearTokens = useCallback(() => {
     yahooOAuth.disconnect();
     yahooLogger.info('DEBUG_PANEL', 'Manually cleared all Yahoo tokens and data');
     toast({
       title: 'Tokens Cleared',
       description: 'All Yahoo OAuth tokens have been cleared. Re-authentication required.'
     });
-  };
+  }, []);
 
-  const handleRefreshTokens = async () => {
+  const handleRefreshTokens = useCallback(async () => {
     try {
       yahooLogger.info('DEBUG_PANEL', 'Manual token refresh requested');
       const tokens = await yahooOAuth.refreshTokens();
@@ -69,18 +90,18 @@ export const YahooDebugPanel = () => {
         variant: 'destructive'
       });
     }
-  };
+  }, []);
 
-  const copyToClipboard = (text: string) => {
+  const copyToClipboard = useCallback((text: string) => {
     navigator.clipboard.writeText(text).then(() => {
       toast({
         title: 'Copied',
         description: 'Debug information copied to clipboard'
       });
     });
-  };
+  }, []);
 
-  const exportLogs = () => {
+  const exportLogs = useCallback(() => {
     const logsJson = yahooLogger.exportLogs();
     const blob = new Blob([logsJson], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
@@ -89,9 +110,9 @@ export const YahooDebugPanel = () => {
     a.download = `yahoo-debug-logs-${new Date().toISOString()}.json`;
     a.click();
     URL.revokeObjectURL(url);
-  };
+  }, []);
 
-  const getLogIcon = (level: string) => {
+  const getLogIcon = useCallback((level: string) => {
     switch (level) {
       case 'ERROR': return <XCircle className="h-4 w-4 text-destructive" />;
       case 'WARN': return <AlertTriangle className="h-4 w-4 text-orange-500" />;
@@ -99,9 +120,9 @@ export const YahooDebugPanel = () => {
       case 'DEBUG': return <Bug className="h-4 w-4 text-gray-500" />;
       default: return null;
     }
-  };
+  }, []);
 
-  const getLevelBadgeVariant = (level: string) => {
+  const getLevelBadgeVariant = useCallback((level: string) => {
     switch (level) {
       case 'ERROR': return 'destructive';
       case 'WARN': return 'secondary';
@@ -109,15 +130,7 @@ export const YahooDebugPanel = () => {
       case 'DEBUG': return 'outline';
       default: return 'outline';
     }
-  };
-
-  // Current status overview
-  const currentStatus = {
-    isConnected: yahooOAuth.isConnected(),
-    isConfigured: yahooOAuth.isConfigured(),
-    hasTokens: !!yahooOAuth.getStoredTokens(),
-    hasUserInfo: !!yahooOAuth.getStoredUserInfo()
-  };
+  }, []);
 
   return (
     <Card className="fixed bottom-4 left-4 w-96 max-h-96 z-50 shadow-lg">
@@ -176,20 +189,24 @@ export const YahooDebugPanel = () => {
                 {currentStatus.hasTokens && (
                   <div className="mt-2 p-2 bg-muted rounded text-xs">
                     <div className="font-semibold mb-1">Token Info:</div>
-                    {(() => {
-                      const tokens = yahooOAuth.getStoredTokens();
-                      if (!tokens) return null;
-                      return (
-                        <div className="space-y-1">
-                          <div>Expires: {new Date(tokens.expiresAt).toLocaleString()}</div>
-                          <div>Type: {tokens.tokenType}</div>
-                          <div className="text-orange-600">
-                            {Date.now() >= tokens.expiresAt ? 'EXPIRED' : 
-                             Date.now() + 300000 >= tokens.expiresAt ? 'EXPIRES SOON' : 'VALID'}
+                    {useMemo(() => {
+                      try {
+                        const tokens = yahooOAuth.getStoredTokens();
+                        if (!tokens) return null;
+                        return (
+                          <div className="space-y-1">
+                            <div>Expires: {new Date(tokens.expiresAt).toLocaleString()}</div>
+                            <div>Type: {tokens.tokenType}</div>
+                            <div className="text-orange-600">
+                              {Date.now() >= tokens.expiresAt ? 'EXPIRED' : 
+                               Date.now() + 300000 >= tokens.expiresAt ? 'EXPIRES SOON' : 'VALID'}
+                            </div>
                           </div>
-                        </div>
-                      );
-                    })()}
+                        );
+                      } catch (error) {
+                        return <div className="text-destructive">Error loading token info</div>;
+                      }
+                    }, [currentStatus.hasTokens])}
                   </div>
                 )}
               </TabsContent>
