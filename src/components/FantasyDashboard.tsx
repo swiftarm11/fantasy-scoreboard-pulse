@@ -1,4 +1,5 @@
 import React, { useState, useCallback, useRef, useMemo } from 'react';
+import { useLocation } from 'react-router-dom'; // Already imported - no change needed
 import { LeagueBlock } from './LeagueBlock';
 import { MobileLeagueCard } from './MobileLeagueCard';
 import { CompactLeagueView } from './CompactLeagueView';
@@ -39,6 +40,7 @@ import { YahooDebugPanel } from './YahooDebugPanel';
 
 const DashboardContent = () => {
   const { config } = useConfig();
+  const location = useLocation(); // Already imported - using existing import
   const { leagues: sleeperLeagues, loading, error, lastUpdated, refetch } = useSleeperData(config.leagues);
   
   // Yahoo leagues
@@ -93,11 +95,21 @@ const DashboardContent = () => {
     combinedError: error || yahooError
   }), [loading, yahooLoading, error, yahooError]);
 
+  // CHANGE: Disable polling during OAuth callback to prevent interference
+  const isOnOAuthCallback = location.pathname === '/auth/yahoo/callback';
+  
   const { startPolling, stopPolling, isPolling } = usePolling({
     callback: refetch,
     config: config.polling,
-    enabled: true, // Fixed dependency loop issue
+    enabled: !isOnOAuthCallback, // CHANGE: Disable polling on OAuth callback route
   });
+
+  // Log when polling is disabled
+  React.useEffect(() => {
+    if (isOnOAuthCallback) {
+      console.log('Polling disabled - on OAuth callback page');
+    }
+  }, [isOnOAuthCallback]);
 
   // Add ref to track last refresh time
   const lastRefreshRef = useRef<number>(0);
