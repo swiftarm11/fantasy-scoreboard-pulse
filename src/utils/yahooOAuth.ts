@@ -1,4 +1,5 @@
 import { YahooOAuthConfig, YahooTokens, YahooUserInfo } from '../types/yahoo';
+import { yahooLogger } from './yahooLogger';
 
 // Yahoo OAuth Configuration Validation
 export const validateYahooConfig = () => {
@@ -87,17 +88,27 @@ export class YahooOAuthService {
   }
 
   async exchangeCodeForTokens(code: string, state: string): Promise<YahooTokens> {
+    yahooLogger.info('OAUTH', 'Starting token exchange', { 
+      hasCode: !!code, 
+      hasState: !!state,
+      codePreview: code?.substring(0, 10) + '...'
+    });
+
     // Validate state parameter
     const storedState = localStorage.getItem(STORAGE_KEYS.STATE);
     if (state !== storedState) {
+      yahooLogger.error('OAUTH', 'State parameter validation failed', {
+        providedState: state?.substring(0, 10) + '...',
+        storedState: storedState?.substring(0, 10) + '...'
+      });
       throw new Error('Invalid state parameter - potential CSRF attack');
     }
     
     // Clear stored state
     localStorage.removeItem(STORAGE_KEYS.STATE);
+    yahooLogger.debug('OAUTH', 'State validation passed, cleared stored state');
 
-    // Exchange code for tokens via Supabase edge function for secure client secret handling
-    const response = await fetch('https://doyquitecogdnvbyiszt.supabase.co/functions/v1/yahoo-oauth', {
+    const requestOptions = {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -108,14 +119,33 @@ export class YahooOAuthService {
         code,
         redirectUri: YAHOO_CONFIG.redirectUri
       })
-    });
+    };
+
+    yahooLogger.logAPICall('OAUTH', 'https://doyquitecogdnvbyiszt.supabase.co/functions/v1/yahoo-oauth', requestOptions);
+
+    // Exchange code for tokens via Supabase edge function for secure client secret handling
+    const response = await fetch('https://doyquitecogdnvbyiszt.supabase.co/functions/v1/yahoo-oauth', requestOptions);
+
+    yahooLogger.logAPICall('OAUTH', 'https://doyquitecogdnvbyiszt.supabase.co/functions/v1/yahoo-oauth', requestOptions, response);
 
     if (!response.ok) {
       const error = await response.text();
+      yahooLogger.error('OAUTH', 'Token exchange failed', {
+        status: response.status,
+        statusText: response.statusText,
+        error
+      });
       throw new Error(`Token exchange failed: ${error}`);
     }
 
     const tokenData = await response.json();
+    yahooLogger.info('OAUTH', 'Token exchange successful', {
+      hasAccessToken: !!tokenData.access_token,
+      hasRefreshToken: !!tokenData.refresh_token,
+      expiresIn: tokenData.expires_in,
+      tokenType: tokenData.token_type
+    });
+
     const tokens: YahooTokens = {
       accessToken: tokenData.access_token,
       refreshToken: tokenData.refresh_token,
@@ -123,18 +153,24 @@ export class YahooOAuthService {
       tokenType: tokenData.token_type || 'Bearer'
     };
 
+    yahooLogger.logTokens('OAUTH', tokens, 'exchanged');
     this.storeTokens(tokens);
     return tokens;
   }
 
   async refreshTokens(): Promise<YahooTokens> {
     const tokens = this.getStoredTokens();
+    yahooLogger.logTokens('OAUTH_REFRESH', tokens, 'current before refresh');
+    
     if (!tokens?.refreshToken) {
+      yahooLogger.error('OAUTH_REFRESH', 'No refresh token available', { hasTokens: !!tokens });
       throw new Error('REAUTH_REQUIRED');
     }
 
+    yahooLogger.info('OAUTH_REFRESH', 'Starting token refresh');
+
     try {
-      const response = await fetch('https://doyquitecogdnvbyiszt.supabase.co/functions/v1/yahoo-oauth', {
+      const requestOptions = {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -145,13 +181,24 @@ export class YahooOAuthService {
           refreshToken: tokens.refreshToken,
           redirectUri: YAHOO_CONFIG.redirectUri
         })
-      });
+      };
+
+      yahooLogger.logAPICall('OAUTH_REFRESH', 'https://doyquitecogdnvbyiszt.supabase.co/functions/v1/yahoo-oauth', requestOptions);
+
+      const response = await fetch('https://doyquitecogdnvbyiszt.supabase.co/functions/v1/yahoo-oauth', requestOptions);
+
+      yahooLogger.logAPICall('OAUTH_REFRESH', 'https://doyquitecogdnvbyiszt.supabase.co/functions/v1/yahoo-oauth', requestOptions, response);
 
       if (!response.ok) {
         const errorText = await response.text();
-        console.error('Token refresh failed:', errorText);
+        yahooLogger.error('OAUTH_REFRESH', 'Token refresh failed', {
+          status: response.status,
+          statusText: response.statusText,
+          error: errorText
+        });
         
         if (response.status === 401) {
+          yahooLogger.warn('OAUTH_REFRESH', 'Received 401, clearing tokens and requiring re-auth');
           // Clear invalid tokens and require re-authentication
           this.disconnect();
           throw new Error('REAUTH_REQUIRED');
@@ -161,6 +208,12 @@ export class YahooOAuthService {
       }
 
       const tokenData = await response.json();
+      yahooLogger.info('OAUTH_REFRESH', 'Token refresh successful', {
+        hasAccessToken: !!tokenData.access_token,
+        hasRefreshToken: !!tokenData.refresh_token,
+        expiresIn: tokenData.expires_in
+      });
+
       const newTokens: YahooTokens = {
         accessToken: tokenData.access_token,
         refreshToken: tokenData.refresh_token || tokens.refreshToken,
@@ -168,11 +221,15 @@ export class YahooOAuthService {
         tokenType: tokenData.token_type || 'Bearer'
       };
 
+      yahooLogger.logTokens('OAUTH_REFRESH', newTokens, 'refreshed');
       this.storeTokens(newTokens);
-      console.log('Successfully refreshed Yahoo OAuth tokens');
+      yahooLogger.info('OAUTH_REFRESH', 'Successfully refreshed Yahoo OAuth tokens');
       return newTokens;
     } catch (error) {
-      console.error('Token refresh error:', error);
+      yahooLogger.error('OAUTH_REFRESH', 'Token refresh error', { 
+        error: error instanceof Error ? error.message : error,
+        currentRefreshToken: tokens?.refreshToken?.substring(0, 15) + '...'
+      });
       if (error instanceof Error && error.message === 'REAUTH_REQUIRED') {
         throw error;
       }
@@ -268,37 +325,56 @@ export class YahooOAuthService {
   }
 
   storeTokens(tokens: YahooTokens): void {
+    yahooLogger.logTokens('STORAGE', tokens, 'storing');
+    
     // Validate tokens before storing
     if (!tokens.accessToken || !tokens.refreshToken) {
+      yahooLogger.error('STORAGE', 'Invalid tokens: missing required fields', tokens);
       throw new Error('Invalid tokens: missing required fields');
     }
     
     // Ensure expiresAt is properly calculated
     if (!tokens.expiresAt || tokens.expiresAt <= Date.now()) {
-      console.warn('Invalid or past expiry time for tokens');
+      yahooLogger.warn('STORAGE', 'Invalid or past expiry time for tokens', {
+        expiresAt: tokens.expiresAt,
+        now: Date.now(),
+        isPast: tokens.expiresAt <= Date.now()
+      });
     }
     
     localStorage.setItem(STORAGE_KEYS.TOKENS, JSON.stringify(tokens));
-    console.log('Stored Yahoo OAuth tokens, expires at:', new Date(tokens.expiresAt));
+    yahooLogger.logLocalStorage('STORAGE', 'after storing tokens');
+    yahooLogger.info('STORAGE', 'Stored Yahoo OAuth tokens', {
+      expiresAt: new Date(tokens.expiresAt).toISOString()
+    });
   }
 
   getStoredTokens(): YahooTokens | null {
     const tokensStr = localStorage.getItem(STORAGE_KEYS.TOKENS);
-    if (!tokensStr) return null;
+    yahooLogger.debug('STORAGE', 'Retrieving stored tokens', { hasTokensString: !!tokensStr });
+    
+    if (!tokensStr) {
+      yahooLogger.debug('STORAGE', 'No tokens found in localStorage');
+      return null;
+    }
     
     try {
       const tokens = JSON.parse(tokensStr);
+      yahooLogger.logTokens('STORAGE', tokens, 'retrieved');
       
       // Validate stored tokens
       if (!this.validateTokens(tokens)) {
-        console.warn('Stored tokens are invalid, clearing...');
+        yahooLogger.warn('STORAGE', 'Stored tokens are invalid, clearing...');
         this.disconnect();
         return null;
       }
       
       return tokens;
     } catch (error) {
-      console.error('Failed to parse stored tokens:', error);
+      yahooLogger.error('STORAGE', 'Failed to parse stored tokens', { 
+        error: error instanceof Error ? error.message : error,
+        tokensStringLength: tokensStr.length 
+      });
       localStorage.removeItem(STORAGE_KEYS.TOKENS);
       return null;
     }
@@ -320,9 +396,15 @@ export class YahooOAuthService {
   }
 
   disconnect(): void {
+    yahooLogger.info('OAUTH', 'Disconnecting - clearing all stored data');
+    yahooLogger.logLocalStorage('OAUTH', 'before disconnect');
+    
     localStorage.removeItem(STORAGE_KEYS.TOKENS);
     localStorage.removeItem(STORAGE_KEYS.USER_INFO);
     localStorage.removeItem(STORAGE_KEYS.STATE);
+    
+    yahooLogger.logLocalStorage('OAUTH', 'after disconnect');
+    yahooLogger.info('OAUTH', 'Successfully disconnected and cleared all data');
   }
 
   isConnected(): boolean {

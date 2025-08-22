@@ -1,6 +1,7 @@
 import { yahooOAuth } from '../utils/yahooOAuth';
 import { LeagueData, ScoringEvent } from '../types/fantasy';
 import { debugLogger } from '../utils/debugLogger';
+import { yahooLogger } from '../utils/yahooLogger';
 
 interface YahooLeagueResponse {
   fantasy_content: {
@@ -204,8 +205,14 @@ class YahooFantasyAPIService {
     
     try {
       const accessToken = await yahooOAuth.getValidAccessToken();
+      yahooLogger.info('YAHOO_API', `Getting access token for ${endpoint}`, {
+        hasAccessToken: !!accessToken,
+        accessTokenPreview: accessToken?.substring(0, 15) + '...',
+        endpoint,
+        retryCount
+      });
       
-      const response = await fetch('https://doyquitecogdnvbyiszt.supabase.co/functions/v1/yahoo-api', {
+      const requestOptions = {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -217,38 +224,71 @@ class YahooFantasyAPIService {
           accessToken,
           ...params
         })
-      });
+      };
+
+      yahooLogger.logAPICall('YAHOO_API', 'https://doyquitecogdnvbyiszt.supabase.co/functions/v1/yahoo-api', requestOptions);
+      
+      const response = await fetch('https://doyquitecogdnvbyiszt.supabase.co/functions/v1/yahoo-api', requestOptions);
+
+      yahooLogger.logAPICall('YAHOO_API', 'https://doyquitecogdnvbyiszt.supabase.co/functions/v1/yahoo-api', requestOptions, response);
 
       if (!response.ok) {
         if (response.status === 429) {
+          yahooLogger.warn('YAHOO_API', 'Rate limited, applying backoff', { retryCount, endpoint });
           // Enhanced rate limit handling with exponential backoff
           await this.handleRateLimitError(retryCount);
           return this.makeSecureAPICall(endpoint, params, retryCount + 1);
         }
         
         if (response.status === 401) {
+          yahooLogger.warn('YAHOO_API', 'Received 401, attempting token refresh', { 
+            endpoint, 
+            retryCount,
+            currentRefreshToken: yahooOAuth.getStoredTokens()?.refreshToken?.substring(0, 15) + '...'
+          });
+          
           // Handle 401 errors by attempting token refresh
-          console.log('Received 401 from Yahoo API, attempting token refresh...');
           try {
             await yahooOAuth.refreshTokens();
             if (retryCount < maxRetries) {
+              yahooLogger.info('YAHOO_API', 'Token refreshed, retrying API call', { endpoint, retryCount });
               return this.makeSecureAPICall(endpoint, params, retryCount + 1);
             }
           } catch (refreshError) {
-            console.error('Token refresh failed:', refreshError);
+            yahooLogger.error('YAHOO_API', 'Token refresh failed after 401', { 
+              refreshError: refreshError instanceof Error ? refreshError.message : refreshError,
+              endpoint 
+            });
             throw new Error('REAUTH_REQUIRED: Please reconnect your Yahoo account');
           }
         }
         
+        const errorText = await response.text();
+        yahooLogger.error('YAHOO_API', 'API call failed', {
+          endpoint,
+          status: response.status,
+          statusText: response.statusText,
+          error: errorText,
+          retryCount
+        });
         throw new Error(`API call failed: ${response.status} - ${response.statusText}`);
       }
 
-      return await response.json();
+      const responseData = await response.json();
+      yahooLogger.info('YAHOO_API', 'API call successful', {
+        endpoint,
+        responseType: typeof responseData,
+        hasData: !!responseData,
+        retryCount
+      });
+
+      return responseData;
     } catch (error) {
-      debugLogger.error('YAHOO_API', 'API call failed', { 
+      yahooLogger.error('YAHOO_API', 'API call failed with exception', { 
         endpoint, 
         error: error instanceof Error ? error.message : error,
-        retryCount 
+        retryCount,
+        errorType: error instanceof Error ? error.constructor.name : typeof error
       });
       
       if (error instanceof Error) {
@@ -259,7 +299,12 @@ class YahooFantasyAPIService {
         
         // Retry logic for temporary failures (but not auth failures)
         if (retryCount < maxRetries && !error.message.includes('401') && !error.message.includes('REAUTH_REQUIRED')) {
-          console.warn(`Yahoo API call failed, retrying (${retryCount + 1}/${maxRetries}):`, error.message);
+          yahooLogger.warn('YAHOO_API', 'Retrying API call after failure', { 
+            endpoint, 
+            retryCount: retryCount + 1, 
+            maxRetries, 
+            error: error.message 
+          });
           await new Promise(resolve => setTimeout(resolve, Math.pow(2, retryCount) * 1000));
           return this.makeSecureAPICall(endpoint, params, retryCount + 1);
         }

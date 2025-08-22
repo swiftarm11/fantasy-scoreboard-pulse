@@ -35,6 +35,7 @@ import { enhancedAPIHandler, getUserFriendlyErrorMessage } from '../utils/enhanc
 import { useSwipeable } from 'react-swipeable';
 import { RefreshCw as RefreshIcon } from 'lucide-react';
 import { DebugConsole } from './DebugConsole';
+import { YahooDebugPanel } from './YahooDebugPanel';
 
 const DashboardContent = () => {
   const { config } = useConfig();
@@ -469,6 +470,7 @@ const DashboardContent = () => {
 
       {/* Debug Console - Only shows in dev or when there are config issues */}
       <DebugConsole />
+      <YahooDebugPanel />
     </div>
   );
 };
