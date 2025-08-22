@@ -14,18 +14,19 @@ export const useYahooOAuth = () => {
   });
 
   useEffect(() => {
-    // Initialize state from stored data
-    const tokens = yahooOAuth.getStoredTokens();
-    const userInfo = yahooOAuth.getStoredUserInfo();
-    const isConnected = yahooOAuth.isConnected();
+  // Initialize state from stored data ONLY ONCE
+  const tokens = yahooOAuth.getStoredTokens();
+  const userInfo = yahooOAuth.getStoredUserInfo();
+  const isConnected = yahooOAuth.isConnected();
 
-    setState(prev => ({
-      ...prev,
-      isConnected,
-      tokens,
-      userInfo,
-    }));
-  }, []);
+  setState({
+    isConnected,
+    tokens,
+    userInfo,
+    isLoading: false,
+    error: null
+  });
+}, []); // Empty dependency array - run only once
 
   const connect = useCallback(() => {
     if (!yahooOAuth.isConfigured()) {
