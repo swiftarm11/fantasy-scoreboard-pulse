@@ -1,105 +1,93 @@
-import { useEffect } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
-import { useYahooOAuth } from '../hooks/useYahooOAuth';
-import { LoadingScreen } from '../components/LoadingScreen';
-import { toast } from '../components/ui/use-toast';
+import { useEffect, useState } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
+import { yahooOAuth } from '@/utils/yahooOAuth';
 
-export const YahooCallback = () => {
+export function YahooCallback() {
+  const location = useLocation();
   const navigate = useNavigate();
-  const [searchParams] = useSearchParams();
-  const { handleCallback } = useYahooOAuth();
+  const [error, setError] = useState<string | null>(null);
+  const [processing, setProcessing] = useState(true);
 
   useEffect(() => {
-    const processCallback = async () => {
-      const code = searchParams.get('code');
-      const state = searchParams.get('state');
-      const error = searchParams.get('error');
-      const errorDescription = searchParams.get('error_description');
+    let isProcessed = false;
 
-      // Handle OAuth errors (user cancellation, access denied, etc.)
-      if (error) {
-        let errorMessage = 'Yahoo authentication failed';
-        
-        if (error === 'access_denied') {
-          errorMessage = 'Access denied - you need to approve the application to continue';
-        } else if (errorDescription) {
-          errorMessage = `Authentication error: ${errorDescription}`;
-        } else {
-          errorMessage = `Authentication error: ${error}`;
-        }
-
-        toast({
-          title: 'Authentication Error',
-          description: errorMessage,
-          variant: 'destructive'
-        });
-        
-        // Redirect back to settings with error indication
-        navigate('/?auth_error=true');
-        return;
-      }
-
-      // Handle missing required parameters
-      if (!code || !state) {
-        toast({
-          title: 'Authentication Error',
-          description: 'Missing required parameters from Yahoo callback. Please try connecting again.',
-          variant: 'destructive'
-        });
-        navigate('/?auth_error=missing_params');
-        return;
-      }
+    const handleCallback = async () => {
+      // Prevent multiple executions
+      if (isProcessed) return;
+      isProcessed = true;
 
       try {
-        // Process the OAuth callback
-        await handleCallback(code, state);
-        
-        // Show success message
-        toast({
-          title: 'Connected Successfully',
-          description: 'Yahoo Fantasy Sports account connected successfully!',
+        const params = new URLSearchParams(location.search);
+        const code = params.get('code');
+        const state = params.get('state');
+        const error = params.get('error');
+
+        console.log('[YAHOO CALLBACK] Processing callback:', {
+          hasCode: !!code,
+          hasState: !!state,
+          hasError: !!error,
+          fullURL: window.location.href
         });
-        
-        // Redirect to main page with success indication
-        navigate('/?auth_success=true');
-      } catch (error) {
-        console.error('OAuth callback processing error:', error);
-        
-        let errorMessage = 'Failed to complete Yahoo authentication';
-        if (error instanceof Error) {
-          if (error.message.includes('REAUTH_REQUIRED')) {
-            errorMessage = 'Authentication session expired. Please try connecting again.';
-          } else {
-            errorMessage = `Authentication failed: ${error.message}`;
-          }
+
+        if (error) {
+          throw new Error(`Yahoo OAuth error: ${error}`);
         }
 
-        toast({
-          title: 'Authentication Failed',
-          description: errorMessage,
-          variant: 'destructive'
-        });
+        if (!code || !state) {
+          throw new Error('Missing authorization code or state parameter');
+        }
+
+        console.log('[YAHOO CALLBACK] Exchanging code for tokens...');
         
-        navigate('/?auth_error=callback_failed');
+        // Exchange code for tokens - this should only happen ONCE
+        await yahooOAuth.exchangeCodeForTokens(code, state);
+        
+        console.log('[YAHOO CALLBACK] Success! Tokens received');
+        setProcessing(false);
+
+        // Clean redirect to avoid reprocessing
+        setTimeout(() => {
+          navigate('/', { replace: true });
+        }, 1500);
+
+      } catch (err) {
+        console.error('[YAHOO CALLBACK] Failed:', err);
+        setError(err instanceof Error ? err.message : 'Authentication failed');
+        setProcessing(false);
       }
     };
 
-    processCallback();
-  }, [searchParams, handleCallback, navigate]);
+    // Small delay to ensure single execution
+    const timer = setTimeout(handleCallback, 100);
+    return () => clearTimeout(timer);
+
+  }, []); // Empty dependency array to run only once
+
+  if (error) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="text-center">
+          <h2 className="text-xl font-semibold text-red-600 mb-2">Authentication Failed</h2>
+          <p className="text-gray-600 mb-4">{error}</p>
+          <button 
+            onClick={() => navigate('/')}
+            className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
+          >
+            Return to Dashboard
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-background">
-      <div className="text-center space-y-4">
-        <LoadingScreen 
-          isLoading={true} 
-          loadingStage="Completing Yahoo authentication..." 
-          progress={50}
-        />
-        <p className="text-sm text-muted-foreground max-w-md">
-          Please wait while we complete your Yahoo Fantasy Sports authentication.
-          You will be redirected automatically.
+    <div className="flex items-center justify-center min-h-screen">
+      <div className="text-center">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500 mx-auto mb-4"></div>
+        <p className="text-gray-600">
+          {processing ? 'Completing Yahoo authentication...' : 'Success! Redirecting...'}
         </p>
       </div>
     </div>
   );
-};
+}
