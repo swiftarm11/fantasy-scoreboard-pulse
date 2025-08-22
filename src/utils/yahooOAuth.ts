@@ -128,21 +128,56 @@ export class YahooOAuthService {
   }
 
   async exchangeCodeForTokens(code: string, state: string): Promise<YahooTokens> {
-    // Validate state parameter
+    console.log('[YAHOO DEBUG] Starting token exchange with state validation');
+    console.log('[YAHOO DEBUG] Received state:', state?.substring(0, 10) + '...');
+    
+    // Get stored state
     const storedState = localStorage.getItem(STORAGE_KEYS.STATE);
+    console.log('[YAHOO DEBUG] Stored state:', storedState?.substring(0, 10) + '...');
+    console.log('[YAHOO DEBUG] States match:', state === storedState);
+    
+    // More detailed state validation
+    if (!storedState) {
+      console.error('[YAHOO DEBUG] No stored state found in localStorage');
+      throw new Error('No stored state found - OAuth flow may have been interrupted');
+    }
+    
     if (state !== storedState) {
-      throw new Error('Invalid state parameter - potential CSRF attack');
+      console.error('[YAHOO DEBUG] State mismatch details:', {
+        receivedState: state,
+        storedState: storedState,
+        receivedLength: state?.length,
+        storedLength: storedState?.length,
+        receivedType: typeof state,
+        storedType: typeof storedState
+      });
+      
+      // Check if states are similar (accounting for encoding issues)
+      const statesAreSimilar = state && storedState && 
+        (decodeURIComponent(state) === storedState || 
+         state === decodeURIComponent(storedState) ||
+         encodeURIComponent(state) === storedState ||
+         state === encodeURIComponent(storedState));
+         
+      if (statesAreSimilar) {
+        console.warn('[YAHOO DEBUG] States are similar but not exact match - proceeding');
+      } else {
+        throw new Error('Invalid state parameter - potential CSRF attack');
+      }
     }
 
     // Get code verifier for PKCE
     const codeVerifier = localStorage.getItem(STORAGE_KEYS.CODE_VERIFIER);
     if (!codeVerifier) {
+      console.error('[YAHOO DEBUG] No code verifier found');
       throw new Error('Code verifier not found - PKCE flow interrupted');
     }
     
-    // Clear stored state and code verifier
+    // Clear stored state and code verifier immediately to prevent reuse
     localStorage.removeItem(STORAGE_KEYS.STATE);
     localStorage.removeItem(STORAGE_KEYS.CODE_VERIFIER);
+    
+    console.log('[YAHOO DEBUG] State validation passed, proceeding with token exchange');
 
     console.log('Exchanging code for tokens with PKCE...', {
       hasCode: !!code,
@@ -169,7 +204,7 @@ export class YahooOAuthService {
 
     if (!response.ok) {
       const error = await response.text();
-      console.error('Token exchange failed:', error);
+      console.error('[YAHOO DEBUG] Token exchange failed:', error);
       throw new Error(`Token exchange failed: ${error}`);
     }
 
@@ -181,7 +216,7 @@ export class YahooOAuthService {
       tokenType: tokenData.token_type || 'Bearer'
     };
 
-    console.log('Successfully exchanged code for tokens');
+    console.log('[YAHOO DEBUG] Token exchange successful');
     this.storeTokens(tokens);
     return tokens;
   }
