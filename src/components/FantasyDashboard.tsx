@@ -34,6 +34,7 @@ import { LoadingOverlay } from './LoadingOverlay';
 import { enhancedAPIHandler, getUserFriendlyErrorMessage } from '../utils/enhancedErrorHandling';
 import { useSwipeable } from 'react-swipeable';
 import { RefreshCw as RefreshIcon } from 'lucide-react';
+import { DebugConsole } from './DebugConsole';
 
 const DashboardContent = () => {
   const { config } = useConfig();
@@ -465,6 +466,9 @@ const DashboardContent = () => {
           message={isPullRefreshing ? "Pull to refresh..." : "Refreshing data..."} 
         />
       )}
+
+      {/* Debug Console - Only shows in dev or when there are config issues */}
+      <DebugConsole />
     </div>
   );
 };

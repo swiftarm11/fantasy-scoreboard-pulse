@@ -790,13 +790,7 @@ export const SettingsModal = ({ open, onOpenChange, onMockEvent }: SettingsModal
               </CardContent>
             </Card>
 
-            <DebugConsole
-              debugMode={localConfig.debug.enabled}
-              onToggleDebug={(enabled) => setLocalConfig(prev => ({
-                ...prev,
-                debug: { ...prev.debug, enabled }
-              }))}
-            />
+            {/* Debug console is now handled globally in FantasyDashboard */}
             
             <YahooRateLimitStatus />
           </TabsContent>
