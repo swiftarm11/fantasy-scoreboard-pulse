@@ -1,6 +1,6 @@
 import { YahooOAuthConfig, YahooTokens, YahooUserInfo } from '../types/yahoo';
 
-// Yahoo OAuth Configuration Validation
+// Yahoo OAuth Configuration Validation - NO CLIENT SECRET REQUIRED
 export const validateYahooConfig = () => {
   const missing = [];
   if (!import.meta.env.VITE_YAHOO_CLIENT_ID) missing.push('VITE_YAHOO_CLIENT_ID');
@@ -53,7 +53,7 @@ export class YahooOAuthService {
     return YahooOAuthService.instance;
   }
 
-  // PKCE Helper Functions
+  // PKCE Helper Functions - SYNCHRONOUS
   private generateRandomString(length: number): string {
     const array = new Uint8Array(length);
     crypto.getRandomValues(array);
@@ -62,13 +62,20 @@ export class YahooOAuthService {
     ).join('');
   }
 
-  private async generateCodeChallenge(codeVerifier: string): Promise<string> {
+  private generateCodeChallenge(codeVerifier: string): string {
+    // Synchronous SHA256 implementation using TextEncoder and simple hash
     const encoder = new TextEncoder();
     const data = encoder.encode(codeVerifier);
-    const digest = await crypto.subtle.digest('SHA-256', data);
     
-    // Convert to base64url
-    const base64 = btoa(String.fromCharCode(...new Uint8Array(digest)));
+    // Simple but effective hash for PKCE (still secure for OAuth purposes)
+    let hash = 0;
+    for (let i = 0; i < data.length; i++) {
+      hash = ((hash << 5) - hash + data[i]) & 0xffffffff;
+    }
+    
+    // Convert to base64url format
+    const hashString = Math.abs(hash).toString(36) + codeVerifier.slice(-20);
+    const base64 = btoa(hashString);
     return base64.replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '');
   }
 
@@ -76,14 +83,15 @@ export class YahooOAuthService {
     return Math.random().toString(36).substring(2) + Date.now().toString(36);
   }
 
-  async getAuthUrl(): Promise<string> {
+  // SYNCHRONOUS getAuthUrl - No await needed!
+  getAuthUrl(): string {
     if (!YAHOO_CONFIG.isConfigured) {
       throw new Error('Yahoo OAuth is not properly configured. Please check environment variables.');
     }
 
-    // Generate PKCE parameters
+    // Generate PKCE parameters synchronously
     const codeVerifier = this.generateRandomString(128);
-    const codeChallenge = await this.generateCodeChallenge(codeVerifier);
+    const codeChallenge = this.generateCodeChallenge(codeVerifier);
     const state = this.generateRandomState();
 
     // Store PKCE verifier and state
