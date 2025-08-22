@@ -1,10 +1,9 @@
 import { YahooOAuthConfig, YahooTokens, YahooUserInfo } from '../types/yahoo';
 
-// Yahoo OAuth Configuration Validation
+// Yahoo OAuth Configuration Validation - NO CLIENT SECRET REQUIRED
 export const validateYahooConfig = () => {
   const missing = [];
   if (!import.meta.env.VITE_YAHOO_CLIENT_ID) missing.push('VITE_YAHOO_CLIENT_ID');
-  if (!import.meta.env.VITE_YAHOO_CLIENT_SECRET) missing.push('VITE_YAHOO_CLIENT_SECRET');
   if (!import.meta.env.VITE_YAHOO_REDIRECT_URI) missing.push('VITE_YAHOO_REDIRECT_URI');
 
   if (missing.length > 0) {
@@ -19,7 +18,7 @@ const getYahooConfig = (): YahooOAuthConfig & { isConfigured: boolean } => {
   const validation = validateYahooConfig();
   
   return {
-    clientId: import.meta.env.VITE_YAHOO_CLIENT_ID || "dj0yJmk9anVKMG9vdmJhZ0daJmQ9WVdrOVJ6UldqRWhrYkJWNHbzlNQT09JnM9Y29uc3VtZXJzZWNyZXQmc3M9Y29uc3VtZXJzZWNyZXQ-",
+    clientId: import.meta.env.VITE_YAHOO_CLIENT_ID || "dj0yJmk9dDNUTXlPRXp2WmtNJmQ9WVdrOVpHMTBhMnN6YkVrbWNHbzlNQT09JnM9Y29uc3VtZXJzZWNyZXQmc3Y9MCZ4PTI5",
     redirectUri: import.meta.env.VITE_YAHOO_REDIRECT_URI || `${window.location.origin}/auth/yahoo/callback`,
     scopes: ["fspt-r"],
     isConfigured: validation.isValid
@@ -28,10 +27,9 @@ const getYahooConfig = (): YahooOAuthConfig & { isConfigured: boolean } => {
 
 const YAHOO_CONFIG = getYahooConfig();
 
-// Single debug log on startup only
+// Debug log on startup - NO CLIENT SECRET CHECK
 console.log('Yahoo OAuth Configuration Status:', {
   clientIdPresent: !!import.meta.env.VITE_YAHOO_CLIENT_ID,
-  clientSecretPresent: !!import.meta.env.VITE_YAHOO_CLIENT_SECRET,
   redirectUriPresent: !!import.meta.env.VITE_YAHOO_REDIRECT_URI,
   isConfigured: YAHOO_CONFIG.isConfigured
 });
@@ -105,7 +103,9 @@ export class YahooOAuthService {
       },
       body: JSON.stringify({
         code,
-        redirectUri: YAHOO_CONFIG.redirectUri
+        redirectUri: YAHOO_CONFIG.redirectUri,
+        // No client secret sent for public clients
+        clientId: YAHOO_CONFIG.clientId
       })
     });
 
@@ -142,7 +142,9 @@ export class YahooOAuthService {
         },
         body: JSON.stringify({
           refreshToken: tokens.refreshToken,
-          redirectUri: YAHOO_CONFIG.redirectUri
+          redirectUri: YAHOO_CONFIG.redirectUri,
+          clientId: YAHOO_CONFIG.clientId
+          // No client secret for public clients
         })
       });
 
