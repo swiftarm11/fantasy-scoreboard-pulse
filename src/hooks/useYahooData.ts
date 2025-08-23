@@ -1,3 +1,4 @@
+// src/hooks/useYahooData.ts
 
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { LeagueData } from '../types/fantasy';
@@ -37,16 +38,16 @@ export const useYahooData = (enabledLeagueIds: string[] = []) => {
       if (!tokens?.access_token) throw new Error('Not authenticated');
 
       const resp = await fetch(
-        'https://doyquitecogdnvbyiszt.supabase.co/functions/v1/yahoo-api',
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/yahoo-oauth`,
         {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            Authorization: `Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRveXF1aXRlY29nZG52Ynlpc3p0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTU2ODg0OTMsImV4cCI6MjA3MTI2NDQ5M30.63TmTlCTK_jVJnG_4vuZWUwS--UcyNgOSem5tI7q_1w`,
-            apikey: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRveXF1aXRlY29nZG52Ynlpc3p0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTU2ODg0OTMsImV4cCI6MjA3MTI2NDQ5M30.63TmTlCTK_jVJnG_4vuZWUwS--UcyNgOSem5tI7q_1w'
+            Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+            apikey: import.meta.env.VITE_SUPABASE_ANON_KEY
           },
           body: JSON.stringify({
-            endpoint: 'getUserLeagues',
+            action: 'getLeagues',
             accessToken: tokens.access_token
           })
         }
@@ -57,43 +58,27 @@ export const useYahooData = (enabledLeagueIds: string[] = []) => {
         throw new Error(errText || 'Failed to fetch leagues');
       }
 
-      const data = await resp.json();
-      console.log('Yahoo API leagues response:', JSON.stringify(data, null, 2));
+      // Parse the response text as JSON
+      const responseText = await resp.text();
+      console.log('Yahoo API leagues response:', responseText);
       
-      // Navigate the Yahoo Fantasy API JSON structure with proper numbered object handling:
-      let leagues = [];
-      try {
-        const users = data?.fantasy_content?.users;
-        if (users && users.length > 0) {
-          const user = users[0]?.user;
-          if (user && user.length > 0) {
-            const games = user[1]?.games;
-            if (games && games.length > 0) {
-              const game = games[0]?.game;
-              if (game && game.length > 0) {
-                const gameLeagues = game[1]?.leagues;
-                if (gameLeagues) {
-                  // Handle numbered objects structure ("0", "1", "2", etc.)
-                  Object.keys(gameLeagues).forEach(key => {
-                    if (key !== 'count' && gameLeagues[key]?.league) {
-                      // Each numbered object contains a league array
-                      const leagueArray = Array.isArray(gameLeagues[key].league) 
-                        ? gameLeagues[key].league 
-                        : [gameLeagues[key].league];
-                      leagues.push(...leagueArray);
-                    }
-                  });
-                }
-              }
-            }
-          }
+      const data = JSON.parse(responseText);
+
+      // Navigate the correct path in Yahoo's nested structure
+      const usersNode = data.fantasy_content.users["0"].user;
+      const gamesNode = usersNode[1].games["0"].game;
+      const leaguesNode = gamesNode[3].leagues;
+      
+      // Extract the leagues array
+      const leagues = [];
+      for (let i = 0; i < leaguesNode.count; i++) {
+        if (leaguesNode[i.toString()] && leaguesNode[i.toString()].league) {
+          leagues.push(leaguesNode[i.toString()].league[0]);
         }
-        console.log('Parsed leagues:', leagues);
-        console.log('Number of leagues found:', leagues.length);
-      } catch (parseError) {
-        console.error('Error parsing Yahoo API response:', parseError);
-        console.log('Raw response structure:', Object.keys(data || {}));
       }
+
+      console.log('Parsed leagues:', leagues, `(${leagues.length})`);
+      console.log('Number of leagues found:', leagues.length);
 
       setState(prev => ({
         ...prev,
@@ -144,7 +129,7 @@ export const useYahooData = (enabledLeagueIds: string[] = []) => {
         for (const leagueId of leagueIds) {
           try {
             const leagueInfo = state.availableLeagues.find(
-              (l: any) => l.league_key[0] === leagueId
+              (l: any) => l.league_key === leagueId
             );
             if (!leagueInfo) {
               debugLogger.error(
@@ -158,17 +143,17 @@ export const useYahooData = (enabledLeagueIds: string[] = []) => {
             if (!tokens?.access_token) throw new Error('Not authenticated');
 
             const scoreboardResp = await fetch(
-              'https://doyquitecogdnvbyiszt.supabase.co/functions/v1/yahoo-api',
+              `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/yahoo-oauth`,
               {
                 method: 'POST',
                 headers: {
                   'Content-Type': 'application/json',
-                  Authorization: `Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRveXF1aXRlY29nZG52Ynlpc3p0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTU2ODg0OTMsImV4cCI6MjA3MTI2NDQ5M30.63TmTlCTK_jVJnG_4vuZWUwS--UcyNgOSem5tI7q_1w`,
-                  apikey: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRveXF1aXRlY29nZG52Ynlpc3p0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTU2ODg0OTMsImV4cCI6MjA3MTI2NDQ5M30.63TmTlCTK_jVJnG_4vuZWUwS--UcyNgOSem5tI7q_1w'
+                  Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+                  apikey: import.meta.env.VITE_SUPABASE_ANON_KEY
                 },
                 body: JSON.stringify({
-                  endpoint: 'getLeagueScoreboard',
-                  leagueKey: leagueId,
+                  action: 'getLeagueScoreboard',
+                  leagueId,
                   accessToken: tokens.access_token
                 })
               }
@@ -179,19 +164,10 @@ export const useYahooData = (enabledLeagueIds: string[] = []) => {
             }
             const scoreboardData = await scoreboardResp.json();
 
-            const commonLeague: LeagueData = {
-              id: leagueId,
-              leagueName: leagueInfo.name[0],
-              platform: 'Yahoo',
-              teamName: 'My Team', // TODO: Extract from scoreboard data
-              myScore: 0,
-              opponentScore: 0,
-              opponentName: 'TBD',
-              record: '0-0',
-              leaguePosition: 'N/A',
-              status: 'neutral',
-              scoringEvents: [],
-              lastUpdated: new Date().toISOString()
+            const commonLeague = {
+              leagueId,
+              leagueName: leagueInfo.name,
+              // map other fields from scoreboardData to LeagueData
             };
             leagues.push(commonLeague);
             debugLogger.info(
@@ -276,7 +252,7 @@ export const useYahooData = (enabledLeagueIds: string[] = []) => {
   }, [isConnected, fetchAvailableLeagues, fetchLeagueData, enabledLeagueIds]);
 
   const getRateLimitStatus = useCallback(() => {
-    return { requests: 0, remaining: 1000, resetTime: Date.now() };
+    return { remaining: 999, resetTime: Date.now() + 3600000 }; // placeholder
   }, []);
 
   return {
