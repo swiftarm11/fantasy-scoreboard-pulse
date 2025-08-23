@@ -67,7 +67,7 @@ export const useYahooData = (enabledLeagueIds: string[] = []) => {
         if (users && users.length > 0) {
           const user = users[0]?.user;
           if (user && user.length > 0) {
-            const games = user[0]?.games;
+            const games = user[1]?.games;
             if (games && games.length > 0) {
               const game = games[0]?.game;
               if (game && game.length > 0) {
