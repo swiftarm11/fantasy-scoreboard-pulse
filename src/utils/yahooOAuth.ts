@@ -1,5 +1,3 @@
-// src/utils/yahooOAuth.ts
-
 import { STORAGE_KEYS, YAHOO_CONFIG, YahooTokens } from './config';
 import { generateRandomString, generateCodeChallenge } from './pkceUtils';
 
