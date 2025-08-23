@@ -1,7 +1,6 @@
 // src/utils/yahooOAuth.ts
 
 import { STORAGE_KEYS, YAHOO_CONFIG, YahooTokens } from './config';
-export { validateYahooConfig } from './config';
 import { generateRandomString, generateCodeChallenge } from './pkceUtils';
 
 export class YahooOAuthService {
