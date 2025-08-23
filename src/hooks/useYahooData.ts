@@ -58,10 +58,33 @@ export const useYahooData = (enabledLeagueIds: string[] = []) => {
       }
 
       const data = await resp.json();
-      console.log('Yahoo API leagues response:', data);
+      console.log('Yahoo API leagues response:', JSON.stringify(data, null, 2));
       
-      // Navigate the Yahoo Fantasy API JSON structure:
-      const leagues = data?.fantasy_content?.users?.[0]?.user?.[0]?.games?.[0]?.game?.[0]?.leagues?.[0]?.league || [];
+      // Navigate the Yahoo Fantasy API JSON structure with better error handling:
+      let leagues = [];
+      try {
+        const users = data?.fantasy_content?.users;
+        if (users && users.length > 0) {
+          const user = users[0]?.user;
+          if (user && user.length > 0) {
+            const games = user[0]?.games;
+            if (games && games.length > 0) {
+              const game = games[0]?.game;
+              if (game && game.length > 0) {
+                const gameLeagues = game[0]?.leagues;
+                if (gameLeagues && gameLeagues.length > 0) {
+                  leagues = gameLeagues[0]?.league || [];
+                }
+              }
+            }
+          }
+        }
+        console.log('Parsed leagues:', leagues);
+        console.log('Number of leagues found:', leagues.length);
+      } catch (parseError) {
+        console.error('Error parsing Yahoo API response:', parseError);
+        console.log('Raw response structure:', Object.keys(data || {}));
+      }
 
       setState(prev => ({
         ...prev,

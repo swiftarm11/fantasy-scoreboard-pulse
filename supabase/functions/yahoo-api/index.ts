@@ -23,7 +23,37 @@ serve(async (req) => {
 
     switch (endpoint) {
       case 'getUserLeagues':
-        apiUrl = 'https://fantasysports.yahooapis.com/fantasy/v2/users;use_login=1/games;game_keys=423/leagues?format=json'
+        // Try multiple game keys for NFL to find active leagues
+        // Start with 'nfl' which gets the current active season, then fallback to specific years
+        const gameKeys = ['nfl', '449', '448', '447', '423'] // 2025, 2024, 2023, 2022, 2021
+        
+        // Try each game key until we find leagues
+        for (const gameKey of gameKeys) {
+          const testUrl = `https://fantasysports.yahooapis.com/fantasy/v2/users;use_login=1/games;game_keys=${gameKey}/leagues?format=json`
+          console.log(`Trying game key ${gameKey}: ${testUrl}`)
+          
+          const testResponse = await fetch(testUrl, { headers })
+          if (testResponse.ok) {
+            const testData = await testResponse.json()
+            console.log(`Game key ${gameKey} response:`, JSON.stringify(testData, null, 2))
+            
+            // Check if this game key has leagues
+            const leagues = testData?.fantasy_content?.users?.[0]?.user?.[0]?.games?.[0]?.game?.[0]?.leagues?.[0]?.league
+            if (leagues && leagues.length > 0) {
+              console.log(`Found ${leagues.length} leagues with game key ${gameKey}`)
+              return new Response(
+                JSON.stringify(testData),
+                {
+                  headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+                  status: 200,
+                }
+              )
+            }
+          }
+        }
+        
+        // If no game key worked, use the default 'nfl' key
+        apiUrl = 'https://fantasysports.yahooapis.com/fantasy/v2/users;use_login=1/games;game_keys=nfl/leagues?format=json'
         break
         
       case 'getLeagueStandings':
