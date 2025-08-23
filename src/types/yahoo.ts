@@ -5,10 +5,10 @@ export interface YahooOAuthConfig {
 }
 
 export interface YahooTokens {
-  accessToken: string;
-  refreshToken: string;
-  expiresAt: number; // timestamp in milliseconds
-  tokenType: string;
+  access_token: string;
+  refresh_token?: string;
+  expires_in?: number;
+  token_type?: string;
 }
 
 export interface YahooUserInfo {

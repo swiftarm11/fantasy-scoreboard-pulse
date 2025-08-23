@@ -27,7 +27,7 @@ export const YahooIntegrationFlow = () => {
 
   // Check configuration on mount
   useEffect(() => {
-    const config = validateYahooConfig();
+    const config = yahooOAuth.getConfigurationStatus();
     if (!config.isValid) {
       setFlowState('error');
       setFlowMessage({
@@ -49,7 +49,7 @@ export const YahooIntegrationFlow = () => {
       setFlowMessage({ text: 'Checking configuration...', type: 'info' });
 
       // Check if Yahoo OAuth is configured
-      const config = validateYahooConfig();
+      const config = yahooOAuth.getConfigurationStatus();
       if (!config.isValid) {
         setFlowState('error');
         setFlowMessage({
@@ -164,7 +164,7 @@ export const YahooIntegrationFlow = () => {
       );
     }
     
-    const config = validateYahooConfig();
+    const config = yahooOAuth.getConfigurationStatus();
     if (!config.isValid) {
       return <Badge variant="destructive">Not Configured</Badge>;
     }

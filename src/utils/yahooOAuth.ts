@@ -1,6 +1,7 @@
 // src/utils/yahooOAuth.ts
 
-import { STORAGE_KEYS, YAHOO_CONFIG, validateYahooConfig, YahooTokens } from './config';
+import { STORAGE_KEYS, YAHOO_CONFIG, YahooTokens } from './config';
+export { validateYahooConfig } from './config';
 import { generateRandomString, generateCodeChallenge } from './pkceUtils';
 
 export class YahooOAuthService {
@@ -8,7 +9,7 @@ export class YahooOAuthService {
   private userInfo: any = null;
 
   constructor() {
-    validateYahooConfig();
+    // Don't validate on construction to allow checking isConfigured first
   }
 
   // 1. Configuration status
@@ -17,6 +18,11 @@ export class YahooOAuthService {
       isValid: YAHOO_CONFIG.isConfigured,
       missing: [] as string[]
     };
+  }
+
+  // Check if Yahoo OAuth is configured
+  isConfigured(): boolean {
+    return YAHOO_CONFIG.isConfigured;
   }
 
   // 2. Connection status
@@ -56,11 +62,30 @@ export class YahooOAuthService {
     if (!tokens?.refresh_token) {
       throw new Error('No refresh token available');
     }
-    // Exchange refresh token on server or directly here
-    const response = await fetch('/api/refresh-yahoo-token', { /* ... */ });
-    const newTokens = await response.json();
-    this.storeTokens(newTokens);
-    return newTokens;
+    
+    try {
+      const response = await fetch('https://doyquitecogdnvbyiszt.supabase.co/functions/v1/yahoo-oauth', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          refreshToken: tokens.refresh_token,
+          action: 'refresh'
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const newTokens = await response.json();
+      this.storeTokens(newTokens);
+      return newTokens;
+    } catch (error) {
+      console.error('Token refresh failed:', error);
+      throw error;
+    }
   }
 
   // 7. Get valid access token
@@ -86,6 +111,7 @@ export class YahooOAuthService {
   // PKCE flow methods
   async getAuthUrl(): Promise<string> {
     // (same as before, but await generateCodeChallenge)
+    const { validateYahooConfig } = await import('./config');
     validateYahooConfig();
     const codeVerifier = generateRandomString(128);
     const codeChallenge = await generateCodeChallenge(codeVerifier);

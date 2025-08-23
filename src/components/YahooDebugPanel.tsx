@@ -195,11 +195,11 @@ export const YahooDebugPanel = () => {
                         if (!tokens) return null;
                         return (
                           <div className="space-y-1">
-                            <div>Expires: {new Date(tokens.expiresAt).toLocaleString()}</div>
-                            <div>Type: {tokens.tokenType}</div>
+                            <div>Expires: {tokens.expires_in ? new Date(Date.now() + tokens.expires_in * 1000).toLocaleString() : 'Unknown'}</div>
+                            <div>Type: {tokens.token_type || 'Unknown'}</div>
                             <div className="text-orange-600">
-                              {Date.now() >= tokens.expiresAt ? 'EXPIRED' : 
-                               Date.now() + 300000 >= tokens.expiresAt ? 'EXPIRES SOON' : 'VALID'}
+                              {tokens.expires_in ? (Date.now() + tokens.expires_in * 1000 <= Date.now() ? 'EXPIRED' : 
+                               Date.now() + 300000 >= Date.now() + tokens.expires_in * 1000 ? 'EXPIRES SOON' : 'VALID') : 'UNKNOWN'}
                             </div>
                           </div>
                         );

@@ -244,7 +244,7 @@ class YahooFantasyAPIService {
           yahooLogger.warn('YAHOO_API', 'Received 401, attempting token refresh', { 
             endpoint, 
             retryCount,
-            currentRefreshToken: yahooOAuth.getStoredTokens()?.refreshToken?.substring(0, 15) + '...'
+            currentRefreshToken: yahooOAuth.getStoredTokens()?.refresh_token?.substring(0, 15) + '...'
           });
           
           // Handle 401 errors by attempting token refresh

@@ -28,7 +28,7 @@ export const useYahooOAuth = () => {
   });
 }, []); // Empty dependency array - run only once
 
-  const connect = useCallback(() => {
+  const connect = useCallback(async () => {
     if (!yahooOAuth.isConfigured()) {
       toast({
         title: 'Configuration Error',
@@ -41,7 +41,7 @@ export const useYahooOAuth = () => {
     setState(prev => ({ ...prev, isLoading: true, error: null }));
     
     try {
-      const authUrl = yahooOAuth.getAuthUrl();
+      const authUrl = await yahooOAuth.getAuthUrl();
       window.location.href = authUrl;
     } catch (error) {
       setState(prev => ({
