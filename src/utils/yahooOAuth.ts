@@ -11,6 +11,11 @@ export class YahooOAuthService {
     validateYahooConfig();
   }
 
+  // New helper for components that call isConfigured()
+  isConfigured(): boolean {
+    return YAHOO_CONFIG.isConfigured;
+  }
+
   getConfigurationStatus() {
     return {
       isValid: YAHOO_CONFIG.isConfigured,
@@ -50,7 +55,6 @@ export class YahooOAuthService {
     if (!tokens?.refresh_token) {
       throw new Error('No refresh token available');
     }
-    // Implement refresh via your edge function or direct server call
     const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/yahoo-oauth`, {
       method: 'POST',
       headers: {
