@@ -60,7 +60,7 @@ export const useYahooData = (enabledLeagueIds: string[] = []) => {
       const data = await resp.json();
       console.log('Yahoo API leagues response:', JSON.stringify(data, null, 2));
       
-      // Navigate the Yahoo Fantasy API JSON structure with better error handling:
+      // Navigate the Yahoo Fantasy API JSON structure with proper numbered object handling:
       let leagues = [];
       try {
         const users = data?.fantasy_content?.users;
@@ -72,8 +72,17 @@ export const useYahooData = (enabledLeagueIds: string[] = []) => {
               const game = games[0]?.game;
               if (game && game.length > 0) {
                 const gameLeagues = game[0]?.leagues;
-                if (gameLeagues && gameLeagues.length > 0) {
-                  leagues = gameLeagues[0]?.league || [];
+                if (gameLeagues) {
+                  // Handle numbered objects structure ("0", "1", "2", etc.)
+                  Object.keys(gameLeagues).forEach(key => {
+                    if (key !== 'count' && gameLeagues[key]?.league) {
+                      // Each numbered object contains a league array
+                      const leagueArray = Array.isArray(gameLeagues[key].league) 
+                        ? gameLeagues[key].league 
+                        : [gameLeagues[key].league];
+                      leagues.push(...leagueArray);
+                    }
+                  });
                 }
               }
             }
