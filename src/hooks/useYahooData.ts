@@ -71,7 +71,7 @@ export const useYahooData = (enabledLeagueIds: string[] = []) => {
             if (games && games.length > 0) {
               const game = games[0]?.game;
               if (game && game.length > 0) {
-                const gameLeagues = game[0]?.leagues;
+                const gameLeagues = game[1]?.leagues;
                 if (gameLeagues) {
                   // Handle numbered objects structure ("0", "1", "2", etc.)
                   Object.keys(gameLeagues).forEach(key => {
