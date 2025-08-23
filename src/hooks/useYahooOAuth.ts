@@ -1,3 +1,5 @@
+// src/hooks/useYahooOAuth.ts
+
 import { useState, useEffect, useCallback } from 'react';
 import { YahooOAuthState, YahooUserInfo } from '../types/yahoo';
 import { yahooOAuth } from '../utils/yahooOAuth';
@@ -13,20 +15,19 @@ export const useYahooOAuth = () => {
     error: null
   });
 
+  // Initialize from stored values on mount
   useEffect(() => {
-  // Initialize state from stored data ONLY ONCE
-  const tokens = yahooOAuth.getStoredTokens();
-  const userInfo = yahooOAuth.getStoredUserInfo();
-  const isConnected = yahooOAuth.isConnected();
-
-  setState({
-    isConnected,
-    tokens,
-    userInfo,
-    isLoading: false,
-    error: null
-  });
-}, []); // Empty dependency array - run only once
+    const tokens = yahooOAuth.getStoredTokens();
+    const userInfo = yahooOAuth.getStoredUserInfo();
+    const isConnected = yahooOAuth.isConnected();
+    setState({
+      isConnected,
+      tokens,
+      userInfo,
+      isLoading: false,
+      error: null
+    });
+  }, []);
 
   const connect = useCallback(async () => {
     if (!yahooOAuth.isConfigured()) {
@@ -39,7 +40,6 @@ export const useYahooOAuth = () => {
     }
 
     setState(prev => ({ ...prev, isLoading: true, error: null }));
-    
     try {
       const authUrl = await yahooOAuth.getAuthUrl();
       window.location.href = authUrl;
@@ -65,14 +65,11 @@ export const useYahooOAuth = () => {
     });
 
     setState(prev => ({ ...prev, isLoading: true, error: null }));
-
     try {
       const tokens = await yahooOAuth.exchangeCodeForTokens(code, oauthState);
       yahooLogger.info('OAUTH_HOOK', 'Token exchange completed successfully');
-      
-      // Fetch user info after successful token exchange
+
       const accessToken = await yahooOAuth.getValidAccessToken();
-      
       const requestOptions = {
         method: 'POST',
         headers: {
@@ -80,70 +77,52 @@ export const useYahooOAuth = () => {
           'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
           'apikey': import.meta.env.VITE_SUPABASE_ANON_KEY
         },
-        body: JSON.stringify({
-          action: 'getUserInfo',
-          accessToken
-        })
+        body: JSON.stringify({ action: 'getUserInfo', accessToken })
       };
 
       yahooLogger.logAPICall('OAUTH_HOOK', 'https://doyquitecogdnvbyiszt.supabase.co/functions/v1/yahoo-oauth', requestOptions);
-
       const userInfoResponse = await fetch('https://doyquitecogdnvbyiszt.supabase.co/functions/v1/yahoo-oauth', requestOptions);
-
       yahooLogger.logAPICall('OAUTH_HOOK', 'https://doyquitecogdnvbyiszt.supabase.co/functions/v1/yahoo-oauth', requestOptions, userInfoResponse);
 
+      let userInfo: YahooUserInfo | null = null;
       if (userInfoResponse.ok) {
-        const userInfo: YahooUserInfo = await userInfoResponse.json();
+        userInfo = await userInfoResponse.json();
         yahooOAuth.storeUserInfo(userInfo);
-        
         yahooLogger.info('OAUTH_HOOK', 'User info fetched successfully', {
           userGuid: userInfo.guid,
           userNickname: userInfo.nickname
-        });
-        
-        setState(prev => ({
-          ...prev,
-          isConnected: true,
-          tokens,
-          userInfo,
-          isLoading: false
-        }));
-
-        toast({
-          title: 'Connected to Yahoo!',
-          description: `Successfully connected as ${userInfo.nickname}`,
         });
       } else {
         yahooLogger.warn('OAUTH_HOOK', 'User info fetch failed, but tokens are valid', {
           status: userInfoResponse.status,
           statusText: userInfoResponse.statusText
         });
-
-        // Even if user info fails, we still have valid tokens
-        setState(prev => ({
-          ...prev,
-          isConnected: true,
-          tokens,
-          isLoading: false
-        }));
-
-        toast({
-          title: 'Connected to Yahoo!',
-          description: 'Successfully connected to Yahoo Fantasy Sports',
-        });
       }
+
+      setState(prev => ({
+        ...prev,
+        isConnected: true,
+        tokens,
+        userInfo,
+        isLoading: false
+      }));
+
+      toast({
+        title: 'Connected to Yahoo!',
+        description: userInfo
+          ? `Successfully connected as ${userInfo.nickname}`
+          : 'Successfully connected to Yahoo Fantasy Sports'
+      });
     } catch (error) {
       yahooLogger.error('OAUTH_HOOK', 'OAuth callback failed', {
         error: error instanceof Error ? error.message : error,
         errorType: error instanceof Error ? error.constructor.name : typeof error
       });
-
       setState(prev => ({
         ...prev,
         isLoading: false,
         error: error instanceof Error ? error.message : 'Failed to complete OAuth flow'
       }));
-      
       toast({
         title: 'Connection Failed',
         description: error instanceof Error ? error.message : 'Failed to connect to Yahoo',
@@ -161,7 +140,6 @@ export const useYahooOAuth = () => {
       isLoading: false,
       error: null
     });
-    
     toast({
       title: 'Disconnected',
       description: 'Successfully disconnected from Yahoo Fantasy Sports',
@@ -199,19 +177,17 @@ export const useYahooOAuth = () => {
   }, []);
 
   const checkConnectionStatus = useCallback(() => {
-    const isConnected = yahooOAuth.isConnected();
+    const isCon = yahooOAuth.isConnected();
     const tokens = yahooOAuth.getStoredTokens();
     const userInfo = yahooOAuth.getStoredUserInfo();
-    
     setState(prev => ({
       ...prev,
-      isConnected,
+      isConnected: isCon,
       tokens,
       userInfo,
-      error: isConnected ? null : prev.error
+      error: isCon ? null : prev.error
     }));
-    
-    return isConnected;
+    return isCon;
   }, []);
 
   const getStoredTokens = useCallback(() => {
