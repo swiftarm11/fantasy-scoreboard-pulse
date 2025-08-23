@@ -3,11 +3,11 @@ import { Platform } from './fantasy';
 export interface LeagueConfig {
   id: string;
   leagueId: string;
-  customTeamName?: string;
   platform: Platform;
   enabled: boolean;
+  customTeamName?: string;
+  sleeperUserId?: string; // Add this line
 }
-
 export interface PollingConfig {
   updateFrequency: 15 | 30 | 60; // seconds
   smartPolling: boolean;
