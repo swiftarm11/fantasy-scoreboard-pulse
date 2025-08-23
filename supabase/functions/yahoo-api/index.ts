@@ -23,7 +23,7 @@ serve(async (req) => {
 
     switch (endpoint) {
       case 'getUserLeagues':
-        apiUrl = 'https://fantasysports.yahooapis.com/fantasy/v2/users;use_login=1/games;game_keys=nfl/leagues?format=json'
+        apiUrl = 'https://fantasysports.yahooapis.com/fantasy/v2/users;use_login=1/games;game_keys=423/leagues?format=json'
         break
         
       case 'getLeagueStandings':

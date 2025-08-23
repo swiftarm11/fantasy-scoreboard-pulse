@@ -214,12 +214,17 @@ export const useYahooOAuth = () => {
     return isConnected;
   }, []);
 
+  const getStoredTokens = useCallback(() => {
+    return yahooOAuth.getStoredTokens();
+  }, []);
+
   return {
     ...state,
     connect,
     disconnect,
     handleCallback,
     refreshTokens,
-    checkConnectionStatus
+    checkConnectionStatus,
+    getStoredTokens
   };
 };
