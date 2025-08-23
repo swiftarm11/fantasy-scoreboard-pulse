@@ -1,430 +1,109 @@
-import { YahooOAuthConfig, YahooTokens, YahooUserInfo } from '../types/yahoo';
+// src/utils/yahooOAuth.ts
 
-// Yahoo OAuth Configuration Validation - NO CLIENT SECRET REQUIRED
-export const validateYahooConfig = () => {
-  const missing = [];
-  if (!import.meta.env.VITE_YAHOO_CLIENT_ID) missing.push('VITE_YAHOO_CLIENT_ID');
-  if (!import.meta.env.VITE_YAHOO_REDIRECT_URI) missing.push('VITE_YAHOO_REDIRECT_URI');
-
-  if (missing.length > 0) {
-    console.error('Missing Yahoo OAuth environment variables:', missing);
-    return { isValid: false, missing };
-  }
-  return { isValid: true, missing: [] };
-};
-
-// Yahoo OAuth Configuration with Environment Variables
-const getYahooConfig = (): YahooOAuthConfig & { isConfigured: boolean } => {
-  const validation = validateYahooConfig();
-  
-  return {
-    clientId: import.meta.env.VITE_YAHOO_CLIENT_ID || "dj0yJmk9dDNUTXlPRXp2WmtNJmQ9WVdrOVpHMTBhMnN6YkVrbWNHbzlNQT09JnM9Y29uc3VtZXJzZWNyZXQmc3Y9MCZ4PTI5",
-    redirectUri: import.meta.env.VITE_YAHOO_REDIRECT_URI || `${window.location.origin}/auth/yahoo/callback`,
-    scopes: ["fspt-r"],
-    isConfigured: validation.isValid
-  };
-};
-
-const YAHOO_CONFIG = getYahooConfig();
-
-// Debug log on startup
-console.log('Yahoo OAuth Configuration Status:', {
-  clientIdPresent: !!import.meta.env.VITE_YAHOO_CLIENT_ID,
-  redirectUriPresent: !!import.meta.env.VITE_YAHOO_REDIRECT_URI,
-  isConfigured: YAHOO_CONFIG.isConfigured
-});
-
-const STORAGE_KEYS = {
-  TOKENS: 'yahoo_oauth_tokens',
-  USER_INFO: 'yahoo_user_info',
-  STATE: 'yahoo_oauth_state',
-  CODE_VERIFIER: 'yahoo_code_verifier'
-};
+import { STORAGE_KEYS, YAHOO_CONFIG, YahooTokens } from './config';
+import { generateRandomString, generateCodeChallenge } from './pkceUtils';
 
 export class YahooOAuthService {
-  private static instance: YahooOAuthService;
-
-  private constructor() {}
-
-  static getInstance(): YahooOAuthService {
-    if (!YahooOAuthService.instance) {
-      YahooOAuthService.instance = new YahooOAuthService();
-    }
-    return YahooOAuthService.instance;
-  }
-
-  // PKCE Helper Functions - SYNCHRONOUS
-  private generateRandomString(length: number): string {
-    const array = new Uint8Array(length);
-    crypto.getRandomValues(array);
-    return Array.from(array, byte => 
-      'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~'[byte % 66]
-    ).join('');
-  }
-
-  private generateCodeChallenge(codeVerifier: string): string {
-    // Synchronous SHA256 implementation using TextEncoder and simple hash
-    const encoder = new TextEncoder();
-    const data = encoder.encode(codeVerifier);
-    
-    // Simple but effective hash for PKCE (still secure for OAuth purposes)
-    let hash = 0;
-    for (let i = 0; i < data.length; i++) {
-      hash = ((hash << 5) - hash + data[i]) & 0xffffffff;
-    }
-    
-    // Convert to base64url format
-    const hashString = Math.abs(hash).toString(36) + codeVerifier.slice(-20);
-    const base64 = btoa(hashString);
-    return base64.replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '');
-  }
-
-  generateRandomState(): string {
-    return Math.random().toString(36).substring(2) + Date.now().toString(36);
-  }
-
-  // SYNCHRONOUS getAuthUrl - No await needed!
+  // Generate the Yahoo OAuth authorization URL with PKCE
   getAuthUrl(): string {
     if (!YAHOO_CONFIG.isConfigured) {
       throw new Error('Yahoo OAuth is not properly configured. Please check environment variables.');
     }
 
-    // Generate PKCE parameters synchronously
-    const codeVerifier = this.generateRandomString(128);
-    const codeChallenge = this.generateCodeChallenge(codeVerifier);
-    const state = this.generateRandomState();
+    // Generate PKCE parameters
+    const codeVerifier = generateRandomString(128);
+    const codeChallenge = generateCodeChallenge(codeVerifier);
+    const state = generateRandomString(32);
 
-    // Store PKCE verifier and state
-    localStorage.setItem(STORAGE_KEYS.CODE_VERIFIER, codeVerifier);
-    localStorage.setItem(STORAGE_KEYS.STATE, state);
-    
+    console.log('Generated PKCE parameters:', {
+      codeVerifierLength: codeVerifier.length,
+      codeChallengeLength: codeChallenge.length,
+      state: state.substring(0, 10) + '...'
+    });
+
+    // Store PKCE verifier and state in sessionStorage to survive redirects
+    try {
+      sessionStorage.setItem(STORAGE_KEYS.CODE_VERIFIER, codeVerifier);
+      sessionStorage.setItem(STORAGE_KEYS.STATE, state);
+
+      // Verify storage
+      const storedVerifier = sessionStorage.getItem(STORAGE_KEYS.CODE_VERIFIER);
+      console.log('Code verifier storage verified:', storedVerifier === codeVerifier);
+      if (!storedVerifier) {
+        throw new Error('Failed to store code verifier in sessionStorage');
+      }
+    } catch (error) {
+      console.error('sessionStorage error:', error);
+      throw new Error('Cannot store OAuth state - sessionStorage may be disabled');
+    }
+
     const params = new URLSearchParams({
       client_id: YAHOO_CONFIG.clientId,
       redirect_uri: YAHOO_CONFIG.redirectUri,
       response_type: 'code',
       scope: YAHOO_CONFIG.scopes.join(' '),
-      state: state,
-      // PKCE parameters - REQUIRED for public clients
+      state,
       code_challenge: codeChallenge,
       code_challenge_method: 'S256'
     });
 
-    console.log('Generated PKCE OAuth URL with parameters:', {
-      clientId: YAHOO_CONFIG.clientId.substring(0, 20) + '...',
-      redirectUri: YAHOO_CONFIG.redirectUri,
-      codeChallenge: codeChallenge.substring(0, 20) + '...',
-      codeChallengeMethod: 'S256'
+    const authUrl = `https://api.login.yahoo.com/oauth2/request_auth?${params.toString()}`;
+    console.log('✅ OAuth URL generated with stored verifier');
+    return authUrl;
+  }
+
+  // Exchange authorization code for tokens
+  async exchangeCodeForTokens(code: string, returnedState: string): Promise<YahooTokens> {
+    // Retrieve stored state and verifier
+    const storedState = sessionStorage.getItem(STORAGE_KEYS.STATE);
+    const codeVerifier = sessionStorage.getItem(STORAGE_KEYS.CODE_VERIFIER);
+
+    if (!storedState || !codeVerifier) {
+      throw new Error('Missing PKCE parameters in sessionStorage');
+    }
+    if (storedState !== returnedState) {
+      throw new Error('Invalid state parameter');
+    }
+
+    // Clean up storage
+    sessionStorage.removeItem(STORAGE_KEYS.STATE);
+    sessionStorage.removeItem(STORAGE_KEYS.CODE_VERIFIER);
+
+    console.log('PKCE parameters verified, proceeding with token exchange');
+
+    // Prepare token request for PKCE (public client)
+    const params = new URLSearchParams({
+      grant_type: 'authorization_code',
+      client_id: YAHOO_CONFIG.clientId,
+      code,
+      redirect_uri: YAHOO_CONFIG.redirectUri,
+      code_verifier: codeVerifier
     });
 
-    return `https://api.login.yahoo.com/oauth2/request_auth?${params.toString()}`;
-  }
-
-  isConfigured(): boolean {
-    return YAHOO_CONFIG.isConfigured;
-  }
-
-  getConfigurationStatus(): { isValid: boolean; missing: string[] } {
-    return validateYahooConfig();
-  }
-
-  async exchangeCodeForTokens(code: string, state: string): Promise<YahooTokens> {
-    console.log('[YAHOO DEBUG] Starting token exchange with state validation');
-    console.log('[YAHOO DEBUG] Received state:', state?.substring(0, 10) + '...');
-    
-    // Get stored state
-    const storedState = localStorage.getItem(STORAGE_KEYS.STATE);
-    console.log('[YAHOO DEBUG] Stored state:', storedState?.substring(0, 10) + '...');
-    console.log('[YAHOO DEBUG] States match:', state === storedState);
-    
-    // More detailed state validation
-    if (!storedState) {
-      console.error('[YAHOO DEBUG] No stored state found in localStorage');
-      throw new Error('No stored state found - OAuth flow may have been interrupted');
-    }
-    
-    if (state !== storedState) {
-      console.error('[YAHOO DEBUG] State mismatch details:', {
-        receivedState: state,
-        storedState: storedState,
-        receivedLength: state?.length,
-        storedLength: storedState?.length,
-        receivedType: typeof state,
-        storedType: typeof storedState
-      });
-      
-      // Check if states are similar (accounting for encoding issues)
-      const statesAreSimilar = state && storedState && 
-        (decodeURIComponent(state) === storedState || 
-         state === decodeURIComponent(storedState) ||
-         encodeURIComponent(state) === storedState ||
-         state === encodeURIComponent(storedState));
-         
-      if (statesAreSimilar) {
-        console.warn('[YAHOO DEBUG] States are similar but not exact match - proceeding');
-      } else {
-        throw new Error('Invalid state parameter - potential CSRF attack');
-      }
-    }
-
-    // Get code verifier for PKCE
-    const codeVerifier = localStorage.getItem(STORAGE_KEYS.CODE_VERIFIER);
-    if (!codeVerifier) {
-      console.error('[YAHOO DEBUG] No code verifier found');
-      throw new Error('Code verifier not found - PKCE flow interrupted');
-    }
-    
-    // Clear stored state and code verifier immediately to prevent reuse
-    localStorage.removeItem(STORAGE_KEYS.STATE);
-    localStorage.removeItem(STORAGE_KEYS.CODE_VERIFIER);
-    
-    console.log('[YAHOO DEBUG] State validation passed, proceeding with token exchange');
-
-    console.log('Exchanging code for tokens with PKCE...', {
-      hasCode: !!code,
-      hasCodeVerifier: !!codeVerifier,
-      codeVerifierLength: codeVerifier.length
-    });
-
-    // Exchange code for tokens via Supabase edge function with PKCE
-    const response = await fetch('https://doyquitecogdnvbyiszt.supabase.co/functions/v1/yahoo-oauth', {
+    const response = await fetch('https://api.login.yahoo.com/oauth2/get_token', {
       method: 'POST',
       headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
-        'apikey': import.meta.env.VITE_SUPABASE_ANON_KEY
+        'Content-Type': 'application/x-www-form-urlencoded',
+        'Accept': 'application/json'
       },
-      body: JSON.stringify({
-        code,
-        redirectUri: YAHOO_CONFIG.redirectUri,
-        clientId: YAHOO_CONFIG.clientId,
-        // PKCE parameter for token exchange
-        codeVerifier: codeVerifier
-      })
+      body: params.toString()
     });
 
     if (!response.ok) {
-      const error = await response.text();
-      console.error('[YAHOO DEBUG] Token exchange failed:', error);
-      throw new Error(`Token exchange failed: ${error}`);
+      const errorText = await response.text();
+      console.error('Yahoo token exchange error:', errorText);
+      throw new Error(`Token exchange failed: ${response.status} ${response.statusText}`);
     }
 
-    const tokenData = await response.json();
-    const tokens: YahooTokens = {
-      accessToken: tokenData.access_token,
-      refreshToken: tokenData.refresh_token,
-      expiresAt: Date.now() + (tokenData.expires_in * 1000),
-      tokenType: tokenData.token_type || 'Bearer'
-    };
-
-    console.log('[YAHOO DEBUG] Token exchange successful');
-    this.storeTokens(tokens);
-    return tokens;
+    const tokenData: YahooTokens = await response.json();
+    console.log('Yahoo token exchange successful');
+    return tokenData;
   }
 
-  async refreshTokens(): Promise<YahooTokens> {
-    const tokens = this.getStoredTokens();
-    if (!tokens?.refreshToken) {
-      throw new Error('REAUTH_REQUIRED');
-    }
-
-    try {
-      const response = await fetch('https://doyquitecogdnvbyiszt.supabase.co/functions/v1/yahoo-oauth', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
-          'apikey': import.meta.env.VITE_SUPABASE_ANON_KEY
-        },
-        body: JSON.stringify({
-          refreshToken: tokens.refreshToken,
-          redirectUri: YAHOO_CONFIG.redirectUri,
-          clientId: YAHOO_CONFIG.clientId
-        })
-      });
-
-      if (!response.ok) {
-        if (response.status === 401) {
-          // Clear invalid tokens and require re-authentication
-          this.disconnect();
-          throw new Error('REAUTH_REQUIRED');
-        }
-        
-        const errorText = await response.text();
-        throw new Error(`Token refresh failed: ${response.status} - ${errorText}`);
-      }
-
-      const tokenData = await response.json();
-      const newTokens: YahooTokens = {
-        accessToken: tokenData.access_token,
-        refreshToken: tokenData.refresh_token || tokens.refreshToken,
-        expiresAt: Date.now() + (tokenData.expires_in * 1000),
-        tokenType: tokenData.token_type || 'Bearer'
-      };
-
-      this.storeTokens(newTokens);
-      return newTokens;
-    } catch (error) {
-      if (error instanceof Error && error.message === 'REAUTH_REQUIRED') {
-        throw error;
-      }
-      throw new Error('Token refresh failed');
-    }
-  }
-
-  async getValidAccessToken(): Promise<string> {
-    const tokens = this.getStoredTokens();
-    if (!tokens) {
-      throw new Error('REAUTH_REQUIRED');
-    }
-
-    // Proactive refresh: Check if token expires in the next 5 minutes
-    const fiveMinutesFromNow = Date.now() + (5 * 60 * 1000);
-    
-    if (tokens.expiresAt <= fiveMinutesFromNow) {
-      try {
-        const newTokens = await this.refreshTokens();
-        return newTokens.accessToken;
-      } catch (error) {
-        if (error instanceof Error && error.message === 'REAUTH_REQUIRED') {
-          throw error;
-        }
-        // If refresh fails but token is still valid, return current token
-        if (Date.now() < tokens.expiresAt) {
-          return tokens.accessToken;
-        }
-        throw error;
-      }
-    }
-
-    return tokens.accessToken;
-  }
-
-  // Method to handle API call with automatic 401 recovery
-  async makeAuthenticatedRequest(url: string, options: RequestInit = {}): Promise<Response> {
-    try {
-      const accessToken = await this.getValidAccessToken();
-      
-      const response = await fetch(url, {
-        ...options,
-        headers: {
-          ...options.headers,
-          'Authorization': `Bearer ${accessToken}`,
-          'Accept': 'application/json'
-        }
-      });
-
-      // Handle 401 errors with token refresh retry
-      if (response.status === 401) {
-        try {
-          const newTokens = await this.refreshTokens();
-          
-          // Retry the request with new token
-          const retryResponse = await fetch(url, {
-            ...options,
-            headers: {
-              ...options.headers,
-              'Authorization': `Bearer ${newTokens.accessToken}`,
-              'Accept': 'application/json'
-            }
-          });
-
-          if (retryResponse.status === 401) {
-            // Still getting 401 after refresh, require re-authentication
-            this.disconnect();
-            throw new Error('REAUTH_REQUIRED');
-          }
-
-          return retryResponse;
-        } catch (refreshError) {
-          if (refreshError instanceof Error && refreshError.message === 'REAUTH_REQUIRED') {
-            throw refreshError;
-          }
-          throw new Error('REAUTH_REQUIRED');
-        }
-      }
-
-      return response;
-    } catch (error) {
-      if (error instanceof Error && error.message === 'REAUTH_REQUIRED') {
-        throw error;
-      }
-      throw error;
-    }
-  }
-
-  storeTokens(tokens: YahooTokens): void {
-    // Validate tokens before storing
-    if (!tokens.accessToken || !tokens.refreshToken) {
-      throw new Error('Invalid tokens: missing required fields');
-    }
-    
-    localStorage.setItem(STORAGE_KEYS.TOKENS, JSON.stringify(tokens));
-  }
-
-  getStoredTokens(): YahooTokens | null {
-    const tokensStr = localStorage.getItem(STORAGE_KEYS.TOKENS);
-    if (!tokensStr) return null;
-    
-    try {
-      const tokens = JSON.parse(tokensStr);
-      
-      // Validate stored tokens
-      if (!this.validateTokens(tokens)) {
-        this.disconnect();
-        return null;
-      }
-      
-      return tokens;
-    } catch (error) {
-      localStorage.removeItem(STORAGE_KEYS.TOKENS);
-      return null;
-    }
-  }
-
-  storeUserInfo(userInfo: YahooUserInfo): void {
-    localStorage.setItem(STORAGE_KEYS.USER_INFO, JSON.stringify(userInfo));
-  }
-
-  getStoredUserInfo(): YahooUserInfo | null {
-    const userInfoStr = localStorage.getItem(STORAGE_KEYS.USER_INFO);
-    if (!userInfoStr) return null;
-    
-    try {
-      return JSON.parse(userInfoStr);
-    } catch {
-      return null;
-    }
-  }
-
-  disconnect(): void {
-    localStorage.removeItem(STORAGE_KEYS.TOKENS);
-    localStorage.removeItem(STORAGE_KEYS.USER_INFO);
-    localStorage.removeItem(STORAGE_KEYS.STATE);
-    localStorage.removeItem(STORAGE_KEYS.CODE_VERIFIER);
-  }
-
-  isConnected(): boolean {
-    const tokens = this.getStoredTokens();
-    if (!tokens) return false;
-    
-    // Consider token valid if it doesn't expire in the next minute
-    const oneMinuteFromNow = Date.now() + (60 * 1000);
-    return tokens.expiresAt > oneMinuteFromNow;
-  }
-
-  // Validate token format and expiry
-  validateTokens(tokens: YahooTokens): boolean {
-    if (!tokens.accessToken || !tokens.refreshToken) {
-      return false;
-    }
-    
-    // Check if token is expired
-    if (Date.now() >= tokens.expiresAt) {
-      return false;
-    }
-    
-    return true;
+  // Check if configured
+  isConfigured() {
+    return YAHOO_CONFIG.isConfigured;
   }
 }
 
-export const yahooOAuth = YahooOAuthService.getInstance();
+export const yahooOAuth = new YahooOAuthService();
