@@ -26,8 +26,9 @@ export const useYahooData = (leagueConfigs: LeagueConfig[] = []) => {
       const tokens = getStoredTokens();
       if (!tokens?.access_token) throw new Error('Not authenticated');
       
+      // ✅ FIXED: Call yahoo-api function with correct endpoint
       const resp = await fetch(
-        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/yahoo-oauth`,
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/yahoo-api`,
         {
           method: 'POST',
           headers: {
@@ -36,7 +37,7 @@ export const useYahooData = (leagueConfigs: LeagueConfig[] = []) => {
             apikey: import.meta.env.VITE_SUPABASE_ANON_KEY
           },
           body: JSON.stringify({
-            action: 'getLeagues',
+            endpoint: 'getUserLeagues',  // ✅ Correct endpoint name
             accessToken: tokens.access_token
           })
         }
@@ -54,7 +55,7 @@ export const useYahooData = (leagueConfigs: LeagueConfig[] = []) => {
       for (let i = 0; i < leaguesNode.count; i++) {
         const entry = leaguesNode[i.toString()];
         if (entry?.league?.[0]) {
-          availableLeagues.push(entry.league[0]); // ✅ Fixed - extracts league object
+          availableLeagues.push(entry.league[0]); // ✅ Keep this fix
         }
       }
       
@@ -82,7 +83,6 @@ export const useYahooData = (leagueConfigs: LeagueConfig[] = []) => {
     }
   }, [isConnected, getStoredTokens]);
   
-  // ✅ Fixed - Added proper TypeScript typing
   const fetchLeagueData = useCallback(async (leagueIds: string[]) => {
     if (!isConnected || leagueIds.length === 0) {
       setState(prev => ({ ...prev, leagues: [] }));
@@ -102,8 +102,9 @@ export const useYahooData = (leagueConfigs: LeagueConfig[] = []) => {
           const leagueInfo = state.availableLeagues.find(l => l.league_key === leagueKey);
           if (!leagueInfo) continue;
           
+          // ✅ FIXED: Call yahoo-api function with correct endpoint
           const resp = await fetch(
-            `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/yahoo-oauth`,
+            `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/yahoo-api`,
             {
               method: 'POST',
               headers: {
@@ -112,7 +113,7 @@ export const useYahooData = (leagueConfigs: LeagueConfig[] = []) => {
                 apikey: import.meta.env.VITE_SUPABASE_ANON_KEY
               },
               body: JSON.stringify({
-                action: 'getLeagueScoreboard',
+                endpoint: 'getLeagueScoreboard',  // ✅ Correct endpoint name
                 accessToken: tokens.access_token,
                 leagueKey
               })
@@ -195,9 +196,8 @@ export const useYahooData = (leagueConfigs: LeagueConfig[] = []) => {
       setState(prev => ({ ...prev, error: message, isLoading: false }));
       debugLogger.error('YAHOO_API', 'Fetch league data failed', error);
     }
-  }, [isConnected, getStoredTokens, state.availableLeagues]); // ✅ Fixed - Added state.availableLeagues dependency
+  }, [isConnected, getStoredTokens, state.availableLeagues]);
   
-  // ✅ Fixed - Simplified useEffect to avoid infinite loops
   useEffect(() => {
     if (isConnected) {
       fetchAvailableLeagues();
@@ -211,7 +211,6 @@ export const useYahooData = (leagueConfigs: LeagueConfig[] = []) => {
     }
   }, [isConnected, fetchAvailableLeagues]);
   
-  // ✅ Fixed - Separate effect for league data fetching
   useEffect(() => {
     if (isConnected && state.availableLeagues.length > 0) {
       const enabledLeagueIds = leagueConfigs
@@ -224,7 +223,6 @@ export const useYahooData = (leagueConfigs: LeagueConfig[] = []) => {
     }
   }, [leagueConfigs, isConnected, state.availableLeagues.length, fetchLeagueData]);
   
-  // Simplified refetch without causing infinite loops
   const refetch = useCallback(() => {
     fetchAvailableLeagues();
   }, [fetchAvailableLeagues]);
