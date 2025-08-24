@@ -2,10 +2,8 @@
 
 import { useState, useEffect } from 'react';
 import { YahooOAuthService } from '../utils/yahooOAuth';
-import { createClient } from '../integrations/supabase/client';
+import { supabase } from '../integrations/supabase/client';
 import type { LeagueData as AppLeagueData } from '../types/fantasy';
-
-const supabase = createClient();
 
 interface YahooLeagueRaw {
   league_key: string;
@@ -59,13 +57,15 @@ export const useYahooData = () => {
 
   const oauthService = new YahooOAuthService();
 
-  const getAccessToken = (): string | null => sessionStorage.getItem('yahoo_access_token');
+  const getAccessToken = (): string | null =>
+    sessionStorage.getItem('yahoo_access_token');
 
   const parseYahooLeagues = (data: YahooRawResponse): YahooLeagueRaw[] => {
     const users = data.fantasy_content.users['0'].user;
     const gameWrapper = users.find(
       (item): item is YahooUserContent => typeof item === 'object' && 'games' in item
     ) as YahooUserContent;
+
     const game = gameWrapper.games['0'].game;
     const leaguesContent = (
       game.find(
@@ -73,9 +73,8 @@ export const useYahooData = () => {
       ) as YahooGameContent
     ).leagues;
 
-    const count = leaguesContent.count;
     const raws: YahooLeagueRaw[] = [];
-    for (let i = 0; i < count; i++) {
+    for (let i = 0; i < leaguesContent.count; i++) {
       const wrapper = leaguesContent[i.toString()];
       if (wrapper?.league?.[0]) raws.push(wrapper.league[0]);
     }
