@@ -111,96 +111,100 @@ export const useYahooData = () => {
 
   const oauthService = new YahooOAuthService();
 
-  // Corrected parsing function for Yahoo API leagues response
+  // Fixed parsing function for Yahoo API leagues response
   const parseYahooLeagues = (apiData: any): LeagueData[] => {
     try {
       console.log('Raw API data:', apiData);
 
-      // Navigate to the user array
-      const usersNode = apiData.fantasy_content.users["0"].user;
-      console.log('Users node:', usersNode);
+      // Navigate safely through the nested structure
+      const users = apiData?.fantasy_content?.users?.["0"]?.user;
+      if (!users || !Array.isArray(users)) {
+        console.error('Invalid users structure');
+        return [];
+      }
 
-      // Find the games object in the user array
-      let gamesObject = null;
-      for (const item of usersNode) {
-        if (item.games) {
-          gamesObject = item.games["0"].game;
+      console.log('Users array:', users);
+
+      // Find games object in user array
+      let gamesArray = null;
+      for (const userItem of users) {
+        if (userItem.games?.["0"]?.game) {
+          gamesArray = userItem.games["0"].game;
           break;
         }
       }
 
-      if (!gamesObject) {
-        console.error("No games object found in user data");
+      if (!gamesArray || !Array.isArray(gamesArray)) {
+        console.error('No games found');
         return [];
       }
 
-      console.log('Games object:', gamesObject);
+      console.log('Games array:', gamesArray);
 
-      // Find the leagues object in the game array
-      let leaguesObject = null;
-      for (const item of gamesObject) {
-        if (item.leagues) {
-          leaguesObject = item.leagues;
+      // Find leagues object in game array
+      let leaguesData = null;
+      for (const gameItem of gamesArray) {
+        if (gameItem.leagues) {
+          leaguesData = gameItem.leagues;
           break;
         }
       }
 
-      if (!leaguesObject) {
-        console.error("No leagues object found in game data");
+      if (!leaguesData) {
+        console.error('No leagues found');
         return [];
       }
 
-      console.log('Leagues object:', leaguesObject);
+      console.log('Leagues data:', leaguesData);
 
       // Extract leagues using the count property
       const leagues: LeagueData[] = [];
-      const leagueCount = leaguesObject.count || 0;
+      const count = leaguesData.count || 0;
+      
+      console.log(`Processing ${count} leagues`);
 
-      console.log(`Processing ${leagueCount} leagues`);
-
-      for (let i = 0; i < leagueCount; i++) {
-        const key = i.toString();
-        if (leaguesObject[key] && leaguesObject[key].league) {
-          // Each league is wrapped in an array, take the first element
-          const leagueData = leaguesObject[key].league[0];
-          console.log(`League ${i}:`, leagueData);
+      for (let i = 0; i < count; i++) {
+        const leagueWrapper = leaguesData[i.toString()];
+        if (leagueWrapper?.league?.[0]) {
+          const league = leagueWrapper.league[0];
+          console.log(`League ${i}:`, league);
 
           leagues.push({
-            league_key: leagueData.league_key,
-            name: leagueData.name,
-            season: leagueData.season,
-            game_code: leagueData.game_code,
-            league_id: leagueData.league_id,
-            url: leagueData.url,
-            logo_url: leagueData.logo_url,
-            draft_status: leagueData.draft_status,
-            num_teams: leagueData.num_teams,
-            edit_key: leagueData.edit_key,
-            weekly_deadline: leagueData.weekly_deadline,
-            league_update_timestamp: leagueData.league_update_timestamp,
-            scoring_type: leagueData.scoring_type,
-            league_type: leagueData.league_type,
-            renew: leagueData.renew,
-            renewed: leagueData.renewed,
-            iris_group_chat_id: leagueData.iris_group_chat_id,
-            allow_add_to_dl_extra_pos: leagueData.allow_add_to_dl_extra_pos,
-            is_pro_league: leagueData.is_pro_league,
-            is_cash_league: leagueData.is_cash_league,
-            current_week: leagueData.current_week,
-            start_week: leagueData.start_week,
-            start_date: leagueData.start_date,
-            end_week: leagueData.end_week,
-            end_date: leagueData.end_date,
-            game_code_full: leagueData.game_code_full
+            league_key: league.league_key,
+            name: league.name,
+            season: league.season,
+            game_code: league.game_code,
+            league_id: league.league_id,
+            url: league.url,
+            logo_url: league.logo_url,
+            draft_status: league.draft_status,
+            num_teams: league.num_teams,
+            edit_key: league.edit_key,
+            weekly_deadline: league.weekly_deadline,
+            league_update_timestamp: league.league_update_timestamp,
+            scoring_type: league.scoring_type,
+            league_type: league.league_type,
+            renew: league.renew,
+            renewed: league.renewed,
+            iris_group_chat_id: league.iris_group_chat_id,
+            allow_add_to_dl_extra_pos: league.allow_add_to_dl_extra_pos,
+            is_pro_league: league.is_pro_league,
+            is_cash_league: league.is_cash_league,
+            current_week: league.current_week,
+            start_week: league.start_week,
+            start_date: league.start_date,
+            end_week: league.end_week,
+            end_date: league.end_date,
+            game_code_full: league.game_code_full
           });
         }
       }
 
-      console.log(`Parsed leagues: ${leagues.length} leagues found`);
+      console.log(`Successfully parsed ${leagues.length} leagues`);
       return leagues;
-
+      
     } catch (error) {
-      console.error("Error parsing Yahoo leagues:", error);
+      console.error('Error parsing Yahoo leagues:', error);
       return [];
     }
   };
@@ -233,7 +237,7 @@ export const useYahooData = () => {
 
       console.log('Raw Yahoo API response:', response.data);
 
-      // Use the corrected parsing function
+      // Use the fixed parsing function
       const parsedLeagues = parseYahooLeagues(response.data);
       
       console.log('Final parsed leagues:', parsedLeagues);
@@ -272,7 +276,7 @@ export const useYahooData = () => {
       if (!response || !response.data) throw new Error('No team data received');
 
       // Parse teams data (implement similar parsing logic for teams)
-      const teamsData = response.data; // Add proper parsing here
+      const teamsData = response.data; // Add proper parsing here when needed
       
       setData(prev => ({
         ...prev,
@@ -313,7 +317,7 @@ export const useYahooData = () => {
       if (!response || !response.data) throw new Error('No scoreboard data received');
 
       // Parse scoreboard data (implement similar parsing logic for scoreboards)
-      const scoreboardData = response.data; // Add proper parsing here
+      const scoreboardData = response.data; // Add proper parsing here when needed
       
       setData(prev => ({
         ...prev,
