@@ -51,6 +51,7 @@ const transformLeague = (raw: YahooLeagueRaw): AppLeagueData => ({
 });
 
 export const useYahooData = () => {
+  // Initialize with empty arrays to prevent undefined errors
   const [availableLeagues, setAvailableLeagues] = useState<AppLeagueData[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -61,32 +62,62 @@ export const useYahooData = () => {
     sessionStorage.getItem('yahoo_access_token');
 
   const parseYahooLeagues = (data: YahooRawResponse): YahooLeagueRaw[] => {
-    const users = data.fantasy_content.users['0'].user;
-    const gameWrapper = users.find(
-      (item): item is YahooUserContent => typeof item === 'object' && 'games' in item
-    ) as YahooUserContent;
+    try {
+      // Add safety checks at each level
+      if (!data?.fantasy_content?.users?.['0']?.user) {
+        console.error('Invalid response structure');
+        return [];
+      }
 
-    const game = gameWrapper.games['0'].game;
-    const leaguesContent = (
-      game.find(
-        (item): item is YahooGameContent => typeof item === 'object' && 'leagues' in item
-      ) as YahooGameContent
-    ).leagues;
+      const users = data.fantasy_content.users['0'].user;
+      const gameWrapper = users.find(
+        (item): item is YahooUserContent => 
+          typeof item === 'object' && item !== null && 'games' in item
+      );
 
-    const raws: YahooLeagueRaw[] = [];
-    for (let i = 0; i < leaguesContent.count; i++) {
-      const wrapper = leaguesContent[i.toString()];
-      if (wrapper?.league?.[0]) raws.push(wrapper.league[0]);
+      if (!gameWrapper?.games?.['0']?.game) {
+        console.error('No games found in response');
+        return [];
+      }
+
+      const game = gameWrapper.games['0'].game;
+      const leaguesContent = game.find(
+        (item): item is YahooGameContent => 
+          typeof item === 'object' && item !== null && 'leagues' in item
+      );
+
+      if (!leaguesContent?.leagues) {
+        console.error('No leagues found in game data');
+        return [];
+      }
+
+      const leagues = leaguesContent.leagues;
+      const raws: YahooLeagueRaw[] = [];
+      const count = leagues.count || 0;
+
+      for (let i = 0; i < count; i++) {
+        const wrapper = leagues[i.toString()];
+        if (wrapper?.league?.) {
+          raws.push(wrapper.league);
+        }
+      }
+
+      return raws;
+    } catch (err) {
+      console.error('Error parsing Yahoo leagues:', err);
+      return [];
     }
-    return raws;
   };
 
   const fetchAvailableLeagues = async () => {
     setIsLoading(true);
     setError(null);
+    
     try {
       const token = getAccessToken();
-      if (!token) throw new Error('No access token found.');
+      if (!token) {
+        throw new Error('No access token found.');
+      }
 
       const { data: resp, error: fnError } = await supabase.functions.invoke(
         'yahoo-oauth',
@@ -97,27 +128,41 @@ export const useYahooData = () => {
           },
         }
       );
+
       if (fnError) throw new Error(fnError.message);
       if (!resp?.data) throw new Error('Empty Yahoo response.');
 
       const rawLeagues = parseYahooLeagues(resp.data as YahooRawResponse);
-      setAvailableLeagues(rawLeagues.map(transformLeague));
+      const transformedLeagues = rawLeagues.map(transformLeague);
+      
+      // Ensure we always set an array, never undefined
+      setAvailableLeagues(transformedLeagues || []);
+      
     } catch (err: any) {
-      setError(err.message);
+      console.error('Fetch leagues error:', err);
+      setError(err.message || 'Unknown error occurred');
+      setAvailableLeagues([]); // Ensure empty array on error
     } finally {
       setIsLoading(false);
     }
   };
 
+  // More defensive useEffect with proper dependency handling
   useEffect(() => {
-    if (oauthService.isConnected() && !isLoading && availableLeagues.length === 0) {
+    const shouldFetch = 
+      oauthService.isConnected() && 
+      !isLoading && 
+      Array.isArray(availableLeagues) && 
+      availableLeagues.length === 0;
+      
+    if (shouldFetch) {
       fetchAvailableLeagues();
     }
-  }, [availableLeagues.length, isLoading]);
+  }, [isLoading]); // Simplified dependencies
 
   return {
-    availableLeagues,
-    isLoading,
+    availableLeagues: availableLeagues || [], // Extra safety
+    isLoading: Boolean(isLoading),
     error,
     fetchAvailableLeagues,
     login: () => oauthService.connect(),
