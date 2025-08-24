@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { YahooOAuthService } from '../utils/yahooOAuth';
-import { supabase } from '@/integrations/supabase/client';
+import { supabase } from '../utils/supabase';
 
 // Interface definitions
 interface LeagueData {
@@ -111,6 +111,43 @@ export const useYahooData = () => {
 
   const oauthService = new YahooOAuthService();
 
+  // Helper function to get access token with multiple fallbacks
+  const getAccessToken = (): string | null => {
+    // Try different possible storage keys and locations
+    const possibleKeys = [
+      'yahoo_access_token',
+      'yahooAccessToken', 
+      'access_token'
+    ];
+
+    // Check sessionStorage first
+    for (const key of possibleKeys) {
+      const token = sessionStorage.getItem(key);
+      if (token) {
+        console.log(`Found access token in sessionStorage with key: ${key}`);
+        return token;
+      }
+    }
+
+    // Check localStorage as fallback
+    for (const key of possibleKeys) {
+      const token = localStorage.getItem(key);
+      if (token) {
+        console.log(`Found access token in localStorage with key: ${key}`);
+        return token;
+      }
+    }
+
+    // Check if token is available through OAuth service
+    if (oauthService.tokens?.access_token) {
+      console.log('Found access token in OAuth service');
+      return oauthService.tokens.access_token;
+    }
+
+    console.error('No access token found in any storage location');
+    return null;
+  };
+
   // Fixed parsing function for Yahoo API leagues response
   const parseYahooLeagues = (apiData: any): LeagueData[] => {
     try {
@@ -209,16 +246,23 @@ export const useYahooData = () => {
     }
   };
 
-  const fetchLeagues = async () => {
+  const fetchLeagues = async (retryCount = 0) => {
     setData(prev => ({ ...prev, loading: true, error: null }));
 
     try {
-      const accessToken = sessionStorage.getItem('yahoo_access_token');
+      const accessToken = getAccessToken();
+      
       if (!accessToken) {
-        throw new Error('No access token found');
+        // If no token found and this is first retry, wait a bit for token to be stored
+        if (retryCount === 0) {
+          console.log('No access token found, retrying in 1 second...');
+          setTimeout(() => fetchLeagues(1), 1000);
+          return;
+        }
+        throw new Error('No access token found after retry');
       }
 
-      console.log('Fetching leagues with access token');
+      console.log('Fetching leagues with access token:', accessToken.substring(0, 20) + '...');
 
       const { data: response, error } = await supabase.functions.invoke('yahoo-oauth', {
         body: { 
@@ -260,7 +304,7 @@ export const useYahooData = () => {
 
   const fetchTeams = async (leagueKey: string) => {
     try {
-      const accessToken = sessionStorage.getItem('yahoo_access_token');
+      const accessToken = getAccessToken();
       if (!accessToken) {
         throw new Error('No access token found');
       }
@@ -297,7 +341,7 @@ export const useYahooData = () => {
 
   const fetchScoreboard = async (leagueKey: string, week?: number) => {
     try {
-      const accessToken = sessionStorage.getItem('yahoo_access_token');
+      const accessToken = getAccessToken();
       if (!accessToken) {
         throw new Error('No access token found');
       }
@@ -338,8 +382,7 @@ export const useYahooData = () => {
 
   const login = async () => {
     try {
-      const authUrl = await oauthService.getAuthUrl();
-      window.location.href = authUrl;
+      await oauthService.initiateAuth();
     } catch (error) {
       console.error('Login error:', error);
       setData(prev => ({
@@ -351,7 +394,7 @@ export const useYahooData = () => {
 
   const logout = async () => {
     try {
-      oauthService.disconnect();
+      await oauthService.clearSession();
       setData({
         leagues: [],
         teams: {},
@@ -365,57 +408,56 @@ export const useYahooData = () => {
   };
 
   const isAuthenticated = () => {
-    return !!sessionStorage.getItem('yahoo_access_token');
+    const token = getAccessToken();
+    const connected = oauthService.isConnected();
+    console.log('Auth check - token exists:', !!token, 'service connected:', connected);
+    return !!token || connected;
   };
 
-  // Convert Yahoo leagues to LeagueData format
-  const convertToLeagueData = (yahooLeagues: LeagueData[]): import('../types/fantasy').LeagueData[] => {
-    return yahooLeagues.map(league => ({
-      id: league.league_key,
-      leagueName: league.name,
-      platform: 'Yahoo' as const,
-      teamName: 'My Team', // Placeholder - will be filled when teams are fetched
-      myScore: 0,
-      opponentScore: 0,
-      opponentName: 'TBD',
-      record: '0-0',
-      leaguePosition: 'TBD',
-      status: 'neutral' as const,
-      scoringEvents: [],
-      lastUpdated: new Date().toISOString(),
-      week: league.current_week,
-      winProbability: 50,
-      winProbabilityTrend: 0,
-      wins: 0,
-      losses: 0,
-      rank: 1,
-      totalTeams: league.num_teams || 10,
-      events: []
-    }));
-  };
-
-  // Auto-fetch leagues on mount if authenticated
+  // Auto-fetch leagues with proper timing
   useEffect(() => {
-    if (isAuthenticated() && data.leagues.length === 0) {
-      fetchLeagues();
-    }
-  }, []);
+    // Add a small delay to allow OAuth callback to complete token storage
+    const checkAndFetchLeagues = () => {
+      console.log('Checking authentication status...');
+      if (isAuthenticated() && data.leagues.length === 0 && !data.loading) {
+        console.log('Authenticated and no leagues loaded, fetching...');
+        fetchLeagues();
+      } else {
+        console.log('Not fetching leagues - authenticated:', isAuthenticated(), 'leagues loaded:', data.leagues.length > 0, 'loading:', data.loading);
+      }
+    };
+
+    // Check immediately
+    checkAndFetchLeagues();
+
+    // Also check after a short delay for OAuth callback scenarios
+    const timeoutId = setTimeout(checkAndFetchLeagues, 2000);
+
+    return () => clearTimeout(timeoutId);
+  }, [data.leagues.length, data.loading]); // Dependencies to trigger re-check
+
+  // Listen for storage changes (in case token is set in another tab/component)
+  useEffect(() => {
+    const handleStorageChange = (e: StorageEvent) => {
+      if (e.key?.includes('access_token') || e.key?.includes('yahoo')) {
+        console.log('Storage change detected, re-checking authentication');
+        if (isAuthenticated() && data.leagues.length === 0) {
+          fetchLeagues();
+        }
+      }
+    };
+
+    window.addEventListener('storage', handleStorageChange);
+    return () => window.removeEventListener('storage', handleStorageChange);
+  }, [data.leagues.length]);
 
   return {
-    leagues: convertToLeagueData(data.leagues),
-    teams: data.teams,
-    scoreboards: data.scoreboards,
-    loading: data.loading,
-    error: data.error,
+    ...data,
     login,
     logout,
     fetchLeagues,
     fetchTeams,
     fetchScoreboard,
-    isAuthenticated: isAuthenticated(),
-    isLoading: data.loading,
-    availableLeagues: data.leagues,
-    fetchAvailableLeagues: fetchLeagues,
-    refreshData: fetchLeagues
+    isAuthenticated: isAuthenticated()
   };
 };
