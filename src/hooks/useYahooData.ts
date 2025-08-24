@@ -12,7 +12,6 @@ interface YahooLeagueRaw {
   name: string;
   season?: string;
   game_code?: string;
-  // …other Yahoo fields as needed
 }
 
 interface YahooGameContent {
@@ -42,37 +41,37 @@ interface YahooRawResponse {
   };
 }
 
-// Map YahooLeagueRaw → AppLeagueData
 const transformLeague = (raw: YahooLeagueRaw): AppLeagueData => ({
   id: raw.league_key,
   leagueName: raw.name,
   platform: 'Yahoo',
   season: raw.season ?? '',
-  teamName: '',    // will be filled in later by fetchTeams if needed
-  myScore: 0,      // placeholder until scoreboard is fetched
+  teamName: '',
+  myScore: 0,
   opponentScore: 0,
   gameCode: raw.game_code ?? '',
 });
 
 export const useYahooData = () => {
   const [availableLeagues, setAvailableLeagues] = useState<AppLeagueData[]>([]);
-  const [isLoading, setIsLoading]         = useState(false);
-  const [error, setError]                 = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const oauthService = new YahooOAuthService();
 
-  // Helper to read the token (sessionStorage only)
-  const getAccessToken = (): string | null =>
-    sessionStorage.getItem('yahoo_access_token');
+  const getAccessToken = (): string | null => sessionStorage.getItem('yahoo_access_token');
 
-  // Parse Yahoo’s nested response and return raw arrays
   const parseYahooLeagues = (data: YahooRawResponse): YahooLeagueRaw[] => {
     const users = data.fantasy_content.users['0'].user;
-    const gameWrapper = users.find(item => typeof item !== 'object' || 'games' in item)
-      as YahooUserContent;
+    const gameWrapper = users.find(
+      (item): item is YahooUserContent => typeof item === 'object' && 'games' in item
+    ) as YahooUserContent;
     const game = gameWrapper.games['0'].game;
-    const leaguesContent = (game.find(item => typeof item === 'object' && 'leagues' in item)
-      as YahooGameContent).leagues;
+    const leaguesContent = (
+      game.find(
+        (item): item is YahooGameContent => typeof item === 'object' && 'leagues' in item
+      ) as YahooGameContent
+    ).leagues;
 
     const count = leaguesContent.count;
     const raws: YahooLeagueRaw[] = [];
@@ -83,11 +82,9 @@ export const useYahooData = () => {
     return raws;
   };
 
-  // Fetch and transform leagues
   const fetchAvailableLeagues = async () => {
     setIsLoading(true);
     setError(null);
-
     try {
       const token = getAccessToken();
       if (!token) throw new Error('No access token found.');
@@ -105,8 +102,7 @@ export const useYahooData = () => {
       if (!resp?.data) throw new Error('Empty Yahoo response.');
 
       const rawLeagues = parseYahooLeagues(resp.data as YahooRawResponse);
-      const mapped = rawLeagues.map(transformLeague);
-      setAvailableLeagues(mapped);
+      setAvailableLeagues(rawLeagues.map(transformLeague));
     } catch (err: any) {
       setError(err.message);
     } finally {
@@ -114,20 +110,18 @@ export const useYahooData = () => {
     }
   };
 
-  // Kick off fetch once authenticated
   useEffect(() => {
-    if (oauthService.isConnected() && availableLeagues.length === 0 && !isLoading) {
+    if (oauthService.isConnected() && !isLoading && availableLeagues.length === 0) {
       fetchAvailableLeagues();
     }
-  }, [oauthService, availableLeagues.length, isLoading]);
+  }, [availableLeagues.length, isLoading]);
 
-  // Expose hook API
   return {
     availableLeagues,
     isLoading,
     error,
     fetchAvailableLeagues,
-    login: () => oauthService.connect(),   // uses OAuthService’s public connect()
+    login: () => oauthService.connect(),
     logout: () => oauthService.disconnect(),
     isAuthenticated: () => oauthService.isConnected(),
   };
