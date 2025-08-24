@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { YahooOAuthService } from '../utils/yahooOAuth';
-import { supabase } from '../utils/supabase';
+import { supabase } from '@/integrations/supabase/client';
 
 // Interface definitions
 interface LeagueData {
@@ -338,7 +338,8 @@ export const useYahooData = () => {
 
   const login = async () => {
     try {
-      await oauthService.initiateAuth();
+      const authUrl = await oauthService.getAuthUrl();
+      window.location.href = authUrl;
     } catch (error) {
       console.error('Login error:', error);
       setData(prev => ({
@@ -350,7 +351,7 @@ export const useYahooData = () => {
 
   const logout = async () => {
     try {
-      await oauthService.clearSession();
+      oauthService.disconnect();
       setData({
         leagues: [],
         teams: {},
@@ -367,6 +368,32 @@ export const useYahooData = () => {
     return !!sessionStorage.getItem('yahoo_access_token');
   };
 
+  // Convert Yahoo leagues to LeagueData format
+  const convertToLeagueData = (yahooLeagues: LeagueData[]): import('../types/fantasy').LeagueData[] => {
+    return yahooLeagues.map(league => ({
+      id: league.league_key,
+      leagueName: league.name,
+      platform: 'Yahoo' as const,
+      teamName: 'My Team', // Placeholder - will be filled when teams are fetched
+      myScore: 0,
+      opponentScore: 0,
+      opponentName: 'TBD',
+      record: '0-0',
+      leaguePosition: 'TBD',
+      status: 'neutral' as const,
+      scoringEvents: [],
+      lastUpdated: new Date().toISOString(),
+      week: league.current_week,
+      winProbability: 50,
+      winProbabilityTrend: 0,
+      wins: 0,
+      losses: 0,
+      rank: 1,
+      totalTeams: league.num_teams || 10,
+      events: []
+    }));
+  };
+
   // Auto-fetch leagues on mount if authenticated
   useEffect(() => {
     if (isAuthenticated() && data.leagues.length === 0) {
@@ -375,12 +402,20 @@ export const useYahooData = () => {
   }, []);
 
   return {
-    ...data,
+    leagues: convertToLeagueData(data.leagues),
+    teams: data.teams,
+    scoreboards: data.scoreboards,
+    loading: data.loading,
+    error: data.error,
     login,
     logout,
     fetchLeagues,
     fetchTeams,
     fetchScoreboard,
-    isAuthenticated: isAuthenticated()
+    isAuthenticated: isAuthenticated(),
+    isLoading: data.loading,
+    availableLeagues: data.leagues,
+    fetchAvailableLeagues: fetchLeagues,
+    refreshData: fetchLeagues
   };
 };
