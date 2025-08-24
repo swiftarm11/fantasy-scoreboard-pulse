@@ -45,7 +45,7 @@ const DashboardContent = () => {
   
   // Yahoo leagues
   const yahooLeagueIds = config.leagues.filter(l => l.platform === 'Yahoo').map(l => l.leagueId);
-  const { leagues: yahooLeagues, loading: yahooLoading, error: yahooError, fetchLeagues: refreshYahooData } = useYahooData();
+  const { leagues: yahooLeagues, isLoading: yahooLoading, error: yahooError, refreshData: refreshYahooData } = useYahooData(yahooLeagueIds);
   
   const { isOnline } = useNetworkStatus();
   const { demoLeague, triggerManualEvent } = useDemoLeague({ 

@@ -1,172 +1,177 @@
 // src/hooks/useYahooData.ts
 
-import { useState, useEffect } from 'react';
-import { YahooOAuthService } from '../utils/yahooOAuth';
-import { supabase } from '../integrations/supabase/client';
-import type { LeagueData as AppLeagueData } from '../types/fantasy';
+import { useState, useEffect, useCallback, useRef } from 'react';
+import { LeagueData } from '../types/fantasy';
+import { useYahooOAuth } from './useYahooOAuth';
+import { debugLogger } from '../utils/debugLogger';
+import { toast } from '../components/ui/use-toast';
 
-interface YahooLeagueRaw {
-  league_key: string;
-  name: string;
-  season?: string;
-  game_code?: string;
+interface YahooDataState {
+  leagues: LeagueData[];
+  availableLeagues: any[];
+  isLoading: boolean;
+  error: string | null;
+  lastUpdated: string | null;
 }
 
-interface YahooGameContent {
-  leagues: {
-    count: number;
-    [index: string]: { league: YahooLeagueRaw[] };
-  };
-}
+export const useYahooData = (enabledLeagueIds: string[] = []) => {
+  const { isConnected, getStoredTokens } = useYahooOAuth();
+  const [state, setState] = useState<YahooDataState>({
+    leagues: [],
+    availableLeagues: [],
+    isLoading: false,
+    error: null,
+    lastUpdated: null
+  });
 
-interface YahooGameWrapper {
-  game: Array<unknown | YahooGameContent>;
-}
+  const timeoutRef = useRef<NodeJS.Timeout | null>(null);
 
-interface YahooUserContent {
-  games: {
-    '0': YahooGameWrapper;
-  };
-}
-
-interface YahooRawResponse {
-  fantasy_content: {
-    users: {
-      '0': {
-        user: Array<{ guid?: string } | YahooUserContent>;
-      };
-    };
-  };
-}
-
-const transformLeague = (raw: YahooLeagueRaw): AppLeagueData => ({
-  id: raw.league_key,
-  leagueName: raw.name,
-  platform: 'Yahoo',
-  season: raw.season ?? '',
-  teamName: '',
-  myScore: 0,
-  opponentScore: 0,
-  gameCode: raw.game_code ?? '',
-});
-
-export const useYahooData = () => {
-  // Initialize with empty arrays to prevent undefined errors
-  const [availableLeagues, setAvailableLeagues] = useState<AppLeagueData[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  const oauthService = new YahooOAuthService();
-
-  const getAccessToken = (): string | null =>
-    sessionStorage.getItem('yahoo_access_token');
-
-  const parseYahooLeagues = (data: YahooRawResponse): YahooLeagueRaw[] => {
+  const fetchAvailableLeagues = useCallback(async () => {
+    if (!isConnected) return;
+    setState(prev => ({ ...prev, isLoading: true, error: null }));
     try {
-      // Add safety checks at each level
-      if (!data?.fantasy_content?.users?.['0']?.user) {
-        console.error('Invalid response structure');
-        return [];
-      }
+      const tokens = getStoredTokens();
+      if (!tokens?.access_token) throw new Error('Not authenticated');
 
-      const users = data.fantasy_content.users['0'].user;
-      const gameWrapper = users.find(
-        (item): item is YahooUserContent => 
-          typeof item === 'object' && item !== null && 'games' in item
-      );
-
-      if (!gameWrapper?.games?.['0']?.game) {
-        console.error('No games found in response');
-        return [];
-      }
-
-      const game = gameWrapper.games['0'].game;
-      const leaguesContent = game.find(
-        (item): item is YahooGameContent => 
-          typeof item === 'object' && item !== null && 'leagues' in item
-      );
-
-      if (!leaguesContent?.leagues) {
-        console.error('No leagues found in game data');
-        return [];
-      }
-
-      const leagues = leaguesContent.leagues;
-      const raws: YahooLeagueRaw[] = [];
-      const count = leagues.count || 0;
-
-      for (let i = 0; i < count; i++) {
-        const wrapper = leagues[i.toString()];
-        if (wrapper?.league?.) {
-          raws.push(wrapper.league);
-        }
-      }
-
-      return raws;
-    } catch (err) {
-      console.error('Error parsing Yahoo leagues:', err);
-      return [];
-    }
-  };
-
-  const fetchAvailableLeagues = async () => {
-    setIsLoading(true);
-    setError(null);
-    
-    try {
-      const token = getAccessToken();
-      if (!token) {
-        throw new Error('No access token found.');
-      }
-
-      const { data: resp, error: fnError } = await supabase.functions.invoke(
-        'yahoo-oauth',
+      const resp = await fetch(
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/yahoo-oauth`,
         {
-          body: {
-            endpoint: 'users;use_login=1/games;game_codes=nfl/leagues',
-            access_token: token,
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+            apikey: import.meta.env.VITE_SUPABASE_ANON_KEY
           },
+          body: JSON.stringify({ action: 'getLeagues', accessToken: tokens.access_token })
         }
       );
+      if (!resp.ok) throw new Error(await resp.text());
 
-      if (fnError) throw new Error(fnError.message);
-      if (!resp?.data) throw new Error('Empty Yahoo response.');
+      const text = await resp.text();
+      const data = JSON.parse(text);
 
-      const rawLeagues = parseYahooLeagues(resp.data as YahooRawResponse);
-      const transformedLeagues = rawLeagues.map(transformLeague);
-      
-      // Ensure we always set an array, never undefined
-      setAvailableLeagues(transformedLeagues || []);
-      
-    } catch (err: any) {
-      console.error('Fetch leagues error:', err);
-      setError(err.message || 'Unknown error occurred');
-      setAvailableLeagues([]); // Ensure empty array on error
-    } finally {
-      setIsLoading(false);
+      const usersNode = data.fantasy_content.users["0"].user;
+      const gamesNode = usersNode[1].games["0"].game;
+      const leaguesNode = gamesNode[1].leagues;
+
+      const availableLeagues = [];
+      for (let i = 0; i < leaguesNode.count; i++) {
+        const entry = leaguesNode[i.toString()];
+        if (entry?.league?.[0]) {
+          availableLeagues.push(entry.league);
+        }
+      }
+
+      setState(prev => ({
+        ...prev,
+        availableLeagues,
+        isLoading: false,
+        lastUpdated: new Date().toISOString()
+      }));
+      debugLogger.info('YAHOO_API', 'Yahoo leagues fetched', availableLeagues);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to fetch leagues';
+      setState(prev => ({ ...prev, error: message, isLoading: false }));
+      debugLogger.error('YAHOO_API', 'Fetch leagues failed', error);
+      if (message.includes('token expired')) {
+        toast({ title: 'Yahoo Token Expired', description: 'Reconnect please', variant: 'destructive' });
+      }
     }
-  };
+  }, [isConnected, getStoredTokens]);
 
-  // More defensive useEffect with proper dependency handling
+  const fetchLeagueData = useCallback(async (leagueIds: string[]) => {
+    if (!isConnected || leagueIds.length === 0) {
+      setState(prev => ({ ...prev, leagues: [] }));
+      return;
+    }
+    setState(prev => ({ ...prev, isLoading: true, error: null }));
+
+    try {
+      const tokens = getStoredTokens();
+      if (!tokens?.access_token) throw new Error('Not authenticated');
+
+      const detailedLeagues: LeagueData[] = [];
+      for (const leagueKey of leagueIds) {
+        try {
+          const leagueInfo = state.availableLeagues.find((l: any) => l.league_key === leagueKey);
+          if (!leagueInfo) continue;
+
+          const resp = await fetch(
+            `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/yahoo-oauth`,
+            {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+                apikey: import.meta.env.VITE_SUPABASE_ANON_KEY
+              },
+              body: JSON.stringify({
+                action: 'getLeagueScoreboard',
+                accessToken: tokens.access_token,
+                leagueKey
+              })
+            }
+          );
+          if (!resp.ok) throw new Error(await resp.text());
+          const sbText = await resp.text();
+          const sb = JSON.parse(sbText);
+
+          // Map to LeagueData
+          const team0 = sb.fantasy_content.league[0].teams.team;
+          const team1 = sb.fantasy_content.league.scoreboard.teams.team[1];
+          const standings0 = team0.team_standings.outcome_totals;
+          const rank0 = sb.fantasy_content.league.scoreboard.teams.team.team_standings.rank;
+
+          const commonLeague: LeagueData = {
+            id: leagueInfo.league_key,
+            platform: 'Yahoo',
+            leagueName: leagueInfo.name,
+            teamName: team0.name[0],
+            myScore: parseFloat(team0.team_points.total),
+            opponentName: team1.name,
+            opponentScore: parseFloat(team1.team_points.total),
+            record: `${standings0.wins}-${standings0.losses}-${standings0.ties?.toString() || 0}`,
+            leaguePosition: parseInt(rank0),
+            status: sb.fantasy_content.league.scoreboard.status,
+            scoringEvents: [], 
+            lastUpdated: new Date().toISOString()
+          };
+          detailedLeagues.push(commonLeague);
+        } catch (e) {
+          debugLogger.error('YAHOO_API', `Failed detail for ${leagueKey}`, e);
+        }
+      }
+
+      setState(prev => ({ ...prev, leagues: detailedLeagues, isLoading: false, lastUpdated: new Date().toISOString() }));
+      debugLogger.success('YAHOO_API', 'Detailed leagues loaded', detailedLeagues);
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : 'Failed fetch league data';
+      setState(prev => ({ ...prev, error: msg, isLoading: false }));
+      debugLogger.error('YAHOO_API', 'Fetch league data failed', error);
+    }
+  }, [isConnected, state.availableLeagues, getStoredTokens]);
+
   useEffect(() => {
-    const shouldFetch = 
-      oauthService.isConnected() && 
-      !isLoading && 
-      Array.isArray(availableLeagues) && 
-      availableLeagues.length === 0;
-      
-    if (shouldFetch) {
-      fetchAvailableLeagues();
+    fetchAvailableLeagues();
+  }, [isConnected, fetchAvailableLeagues]);
+
+  useEffect(() => {
+    if (timeoutRef.current) clearTimeout(timeoutRef.current);
+    if (enabledLeagueIds.length && state.availableLeagues.length) {
+      timeoutRef.current = setTimeout(() => fetchLeagueData(enabledLeagueIds), 500);
     }
-  }, [isLoading]); // Simplified dependencies
+    return () => { if (timeoutRef.current) clearTimeout(timeoutRef.current); };
+  }, [enabledLeagueIds, fetchLeagueData, state.availableLeagues]);
+
+  const refreshData = useCallback(() => {
+    fetchAvailableLeagues().then(() => {
+      if (enabledLeagueIds.length) fetchLeagueData(enabledLeagueIds);
+    });
+  }, [fetchAvailableLeagues, fetchLeagueData, enabledLeagueIds]);
 
   return {
-    availableLeagues: availableLeagues || [], // Extra safety
-    isLoading: Boolean(isLoading),
-    error,
-    fetchAvailableLeagues,
-    login: () => oauthService.connect(),
-    logout: () => oauthService.disconnect(),
-    isAuthenticated: () => oauthService.isConnected(),
+    ...state,
+    refreshData,
+    fetchAvailableLeagues
   };
 };
