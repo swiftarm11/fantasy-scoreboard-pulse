@@ -130,7 +130,7 @@ export const useYahooData = (enabledLeagueIds: string[] = []) => {
             myScore: parseFloat(team0.team_points.total),
             opponentName: team1.name,
             opponentScore: parseFloat(team1.team_points.total),
-            record: `${standings0.wins}-${standings0.losses}-${standings0.ties?. || 0}`,
+            record: `${standings0.wins}-${standings0.losses}-${standings0.ties?.toString() || 0}`,
             leaguePosition: parseInt(rank0),
             status: sb.fantasy_content.league.scoreboard.status,
             scoringEvents: [], 
