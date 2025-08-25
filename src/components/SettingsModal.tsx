@@ -2,6 +2,7 @@ import { PerformanceDashboard } from './PerformanceDashboard';
 import { YahooIntegrationFlow } from './YahooIntegrationFlow';
 import { YahooRateLimitStatus } from './YahooRateLimitStatus';
 import { useYahooOAuth } from '../hooks/useYahooOAuth';
+import { useYahooData } from '../hooks/useYahooData';
 import { useState, useEffect } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from './ui/dialog';
 import { Button } from './ui/button';
@@ -13,7 +14,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from './ui/tabs';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
 import { Separator } from './ui/separator';
 import { toast } from './ui/use-toast';
-import { Trash2, Plus, Download, Upload, Loader2, GripVertical, Check, Zap } from 'lucide-react';
+import { Trash2, Plus, Download, Upload, Loader2, GripVertical, Check, Zap, RefreshCw } from 'lucide-react';
 import { DashboardConfig, LeagueConfig, DEFAULT_CONFIG } from '../types/config';
 import { Platform } from '../types/fantasy';
 import { sleeperAPIEnhanced } from '../services/SleeperAPIEnhanced';
@@ -48,6 +49,7 @@ interface SettingsModalProps {
 export const SettingsModal = ({ open, onOpenChange, onMockEvent }: SettingsModalProps) => {
   const { config, updateConfig } = useConfig();
   const { isConnected: isYahooConnected } = useYahooOAuth();
+  const { availableLeagues, savedSelections, saveLeagueSelections, isLoading: yahooLoading, fetchAvailableLeagues } = useYahooData();
   const [localConfig, setLocalConfig] = useState<DashboardConfig>(config);
   const [validatingLeague, setValidatingLeague] = useState<string | null>(null);
   const [newLeagueId, setNewLeagueId] = useState('');
@@ -224,6 +226,41 @@ export const SettingsModal = ({ open, onOpenChange, onMockEvent }: SettingsModal
     }));
   };
 
+  // New function to handle Yahoo league selection changes
+  const handleYahooLeagueToggle = (leagueKey: string, leagueName: string, enabled: boolean) => {
+    // Get current selections
+    const currentSelections = [...savedSelections];
+    
+    // Find existing selection or create new one
+    const existingIndex = currentSelections.findIndex(s => s.leagueId === leagueKey);
+    
+    if (existingIndex >= 0) {
+      // Update existing selection
+      currentSelections[existingIndex] = {
+        ...currentSelections[existingIndex],
+        enabled
+      };
+    } else {
+      // Add new selection
+      currentSelections.push({
+        leagueId: leagueKey,
+        leagueName,
+        enabled,
+        platform: 'Yahoo'
+      });
+    }
+    
+    // Save the updated selections
+    saveLeagueSelections(currentSelections);
+    
+    debugLogger.info('YAHOO_LEAGUES', 'League selection updated', { leagueKey, leagueName, enabled });
+    
+    toast({
+      title: enabled ? 'League Added' : 'League Removed',
+      description: `${leagueName} ${enabled ? 'added to' : 'removed from'} dashboard`,
+    });
+  };
+
   const handleDragEnd = (event: DragEndEvent) => {
     const { active, over } = event;
 
@@ -343,6 +380,65 @@ export const SettingsModal = ({ open, onOpenChange, onMockEvent }: SettingsModal
 
           <TabsContent value="leagues" className="space-y-4">
             <YahooIntegrationFlow />
+            
+            {/* NEW: Yahoo League Selection Section - Only show when Yahoo is connected */}
+            {isYahooConnected && (
+              <Card>
+                <CardHeader>
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <CardTitle>Yahoo League Selection</CardTitle>
+                      <CardDescription>
+                        Choose which of your Yahoo leagues to display in the dashboard
+                      </CardDescription>
+                    </div>
+                    <Button 
+                      variant="outline" 
+                      size="sm" 
+                      onClick={fetchAvailableLeagues}
+                      disabled={yahooLoading}
+                    >
+                      {yahooLoading ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <RefreshCw className="h-4 w-4" />
+                      )}
+                    </Button>
+                  </div>
+                </CardHeader>
+                <CardContent>
+                  {availableLeagues.length === 0 ? (
+                    <p className="text-muted-foreground text-center py-4">
+                      {yahooLoading ? 'Loading your Yahoo leagues...' : 'No Yahoo leagues found. Make sure you have active leagues for the current season.'}
+                    </p>
+                  ) : (
+                    <div className="space-y-3">
+                      {availableLeagues.map((league) => {
+                        const isSelected = savedSelections.find(s => s.leagueId === league.league_key)?.enabled || false;
+                        
+                        return (
+                          <div key={league.league_key} className="flex items-center justify-between p-3 border rounded-lg">
+                            <div className="flex-1">
+                              <h4 className="font-medium">{league.name}</h4>
+                              <p className="text-sm text-muted-foreground">
+                                {league.num_teams} teams • {league.league_type} league • {league.scoring_type} scoring
+                              </p>
+                              <p className="text-xs text-muted-foreground mt-1">
+                                League ID: {league.league_key}
+                              </p>
+                            </div>
+                            <Switch
+                              checked={isSelected}
+                              onCheckedChange={(enabled) => handleYahooLeagueToggle(league.league_key, league.name, enabled)}
+                            />
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            )}
             
             <Card>
               <CardHeader>
@@ -862,6 +958,10 @@ export const SettingsModal = ({ open, onOpenChange, onMockEvent }: SettingsModal
                   <div className="flex justify-between">
                     <dt className="font-medium">Connected Leagues:</dt>
                     <dd className="text-muted-foreground">{localConfig.leagues.length}</dd>
+                  </div>
+                  <div className="flex justify-between">
+                    <dt className="font-medium">Yahoo Leagues Selected:</dt>
+                    <dd className="text-muted-foreground">{savedSelections.filter(s => s.enabled).length}</dd>
                   </div>
                   <div className="flex justify-between">
                     <dt className="font-medium">Update Frequency:</dt>
