@@ -43,14 +43,9 @@ const DashboardContent = () => {
   const location = useLocation(); // Already imported - using existing import
   const { leagues: sleeperLeagues, loading, error, lastUpdated, refetch } = useSleeperData(config.leagues);
   
-  // UPDATED: Yahoo leagues - no longer pass parameters, hook manages its own state
-  const { 
-    leagues: yahooLeagues, 
-    isLoading: yahooLoading, 
-    error: yahooError, 
-    refetch: refreshYahooData,
-    savedSelections
-  } = useYahooData(); // Removed parameter - hook manages selections internally
+  // Yahoo leagues
+  const yahooLeagueIds = config.leagues.filter(l => l.platform === 'Yahoo').map(l => l.leagueId);
+  const { leagues: yahooLeagues, isLoading: yahooLoading, error: yahooError, refreshData: refreshYahooData } = useYahooData(yahooLeagueIds);
   
   const { isOnline } = useNetworkStatus();
   const { demoLeague, triggerManualEvent } = useDemoLeague({ 
@@ -70,45 +65,29 @@ const DashboardContent = () => {
   // Use keyboard navigation
   useKeyboardNavigation();
 
-  // UPDATED: Memoized combined leagues calculation with debug logging
+  // Memoized combined leagues calculation to prevent unnecessary recalculation
   const displayLeagues = useMemo(() => {
     const allLeagues: LeagueData[] = [];
     
-    // Add demo league first
+    // Add demo league
     if (demoLeague) {
       allLeagues.push(demoLeague);
-      console.log('Dashboard: Added demo league', { name: demoLeague.leagueName });
     }
-    
     // Add Sleeper leagues
     if (sleeperLeagues.length > 0) {
       allLeagues.push(...sleeperLeagues);
-      console.log('Dashboard: Added Sleeper leagues', { count: sleeperLeagues.length, leagues: sleeperLeagues.map(l => l.leagueName) });
     }
-    
-    // Add Yahoo leagues (these come from saved selections, not config)
+    // Add Yahoo leagues
     if (yahooLeagues.length > 0) {
       allLeagues.push(...yahooLeagues);
-      console.log('Dashboard: Added Yahoo leagues', { count: yahooLeagues.length, leagues: yahooLeagues.map(l => l.leagueName) });
     }
-    
     // Show mock data only if no real leagues configured, no demo league, and no loaded leagues
-    const hasRealConfig = config.leagues.length > 0 || savedSelections.some(s => s.enabled);
-    if (!hasRealConfig && !demoLeague && sleeperLeagues.length === 0 && yahooLeagues.length === 0) {
+    if (config.leagues.length === 0 && !demoLeague && sleeperLeagues.length === 0 && yahooLeagues.length === 0) {
       allLeagues.push(...mockLeagueData);
-      console.log('Dashboard: Added mock data as fallback');
     }
-    
-    console.log('Dashboard: Final displayLeagues', { 
-      total: allLeagues.length, 
-      demo: !!demoLeague, 
-      sleeper: sleeperLeagues.length,
-      yahoo: yahooLeagues.length,
-      mock: hasRealConfig ? 0 : mockLeagueData.length
-    });
     
     return allLeagues;
-  }, [demoLeague, sleeperLeagues, yahooLeagues, config.leagues.length, savedSelections]);
+  }, [demoLeague, sleeperLeagues, yahooLeagues, config.leagues.length]);
 
   // Memoized combined loading and error states
   const { combinedLoading, combinedError } = useMemo(() => ({
@@ -135,7 +114,7 @@ const DashboardContent = () => {
   // Add ref to track last refresh time
   const lastRefreshRef = useRef<number>(0);
 
-  // UPDATED: Debounced refresh function to prevent rapid successive calls
+  // Debounced refresh function to prevent rapid successive calls
   const debouncedRefetch = useCallback(async () => {
     const now = Date.now();
     if (now - lastRefreshRef.current < 2000) {
@@ -144,22 +123,12 @@ const DashboardContent = () => {
     }
     
     lastRefreshRef.current = now;
-    console.log('Dashboard: Starting refresh for both platforms');
     
     // Refresh both platforms with error handling
-    const results = await Promise.allSettled([
+    await Promise.allSettled([
       refetch(),
       refreshYahooData()
     ]);
-    
-    results.forEach((result, index) => {
-      const platform = index === 0 ? 'Sleeper' : 'Yahoo';
-      if (result.status === 'rejected') {
-        console.error(`Dashboard: ${platform} refresh failed:`, result.reason);
-      } else {
-        console.log(`Dashboard: ${platform} refresh completed successfully`);
-      }
-    });
   }, [refetch, refreshYahooData]);
 
   // Pull to refresh for mobile with throttling
@@ -271,4 +240,257 @@ const DashboardContent = () => {
               className="hover:shadow-lg transition-shadow cursor-pointer"
               onClick={() => handleLeagueClick(league)}
             />
-            {config.display?.showWinProbabilityTrends
+            {config.display?.showWinProbabilityTrends && (
+              <WinProbabilityTrend league={league} className="mt-2" />
+            )}
+          </div>
+        );
+      }
+
+      return (
+        <div
+          key={league.id}
+          className="animate-slide-in-right"
+          style={{ animationDelay: `${index * 0.1}s` }}
+          tabIndex={0}
+          role="region"
+          aria-label={`${league.leagueName} league information`}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+              e.preventDefault();
+              handleLeagueClick(league);
+            }
+          }}
+        >
+          <LeagueBlock
+            league={league}
+            onClick={() => handleLeagueClick(league)}
+          />
+        </div>
+      );
+    });
+  };
+
+  return (
+    <div 
+      ref={containerRef}
+      className="min-h-screen bg-background text-foreground dashboard-container" 
+      id="main-content"
+      {...(isMobile ? swipeHandlers : {})}
+    >
+      {/* Skip to content link for accessibility */}
+      <a 
+        href="#main-content" 
+        className="skip-to-content"
+        tabIndex={1}
+      >
+        Skip to main content
+      </a>
+      
+      {/* Pull to refresh indicator */}
+      {isPullRefreshing && (
+        <div 
+          className="pull-to-refresh-indicator flex items-center justify-center p-4"
+          style={{ transform: `translateY(${Math.min(pullDistance, 60)}px)` }}
+        >
+          <RefreshIcon className="h-6 w-6 animate-spin text-primary" />
+        </div>
+      )}
+      
+      {/* Offline banner */}
+      <OfflineBanner onRetry={handleRefresh} />
+
+      {/* Compact summary for mobile */}
+      {isMobile && displayLeagues.length > 0 && (
+        <CompactLeagueSummary 
+          leagues={displayLeagues} 
+          onLeagueSelect={handleLeagueClick}
+        />
+      )}
+
+      {/* Header */}
+      <header className={`${isMobile ? 'mobile-header' : 'p-6'} border-b border-border/50`} role="banner">
+        <div className="max-w-7xl mx-auto flex items-center justify-between">
+          <div className="space-y-1">
+            <h1 className={`${isMobile ? 'text-2xl' : 'text-3xl'} font-bold text-foreground`}>
+              {isMobile ? 'Fantasy Dashboard' : 'Fantasy Football Dashboard'}
+            </h1>
+            {!isMobile && (
+              <div className="flex items-center gap-4 text-sm text-muted-foreground">
+                <span>Last updated: {formatLastUpdate(lastUpdated)}</span>
+                <ConnectionIndicator 
+                  lastUpdated={lastUpdated} 
+                  isPolling={combinedLoading} 
+                />
+              </div>
+            )}
+          </div>
+          
+          <div className={`flex items-center ${isMobile ? 'mobile-header-controls' : 'gap-2'}`}>
+            {!isMobile && (
+              <>
+                <Button
+                  variant="outline"
+                  onClick={handleRefresh}
+                  disabled={isRefreshing || !isOnline}
+                  className="animate-scale-in"
+                  aria-label="Refresh dashboard data"
+                >
+                  <RefreshCw className={`h-4 w-4 mr-2 ${isRefreshing ? 'animate-spin' : ''}`} />
+                  Refresh
+                </Button>
+                
+                <Button
+                  variant="outline"
+                  onClick={() => setExportShareOpen(true)}
+                  className="animate-scale-in"
+                  aria-label="Export and share dashboard"
+                >
+                  <Share2 className="h-4 w-4 mr-2" />
+                  Export & Share
+                </Button>
+              </>
+            )}
+
+            {isMobile ? (
+              <MobileSettingsModal>
+                <Button
+                  variant="ghost"
+                  className="w-full justify-start mobile-touch-target"
+                  onClick={handleRefresh}
+                  disabled={isRefreshing || !isOnline}
+                >
+                  <RefreshCw className={`h-4 w-4 mr-2 ${isRefreshing ? 'animate-spin' : ''}`} />
+                  Refresh
+                </Button>
+                <Button
+                  variant="ghost"
+                  className="w-full justify-start mobile-touch-target"
+                  onClick={() => setExportShareOpen(true)}
+                >
+                  <Share2 className="h-4 w-4 mr-2" />
+                  Export & Share
+                </Button>
+              </MobileSettingsModal>
+            ) : (
+              <Button
+                variant="outline"
+                onClick={() => setSettingsOpen(true)}
+                className="animate-scale-in"
+                aria-label="Open dashboard settings"
+              >
+                <Settings className="h-4 w-4 mr-2" />
+                Settings
+              </Button>
+            )}
+          </div>
+        </div>
+      </header>
+
+      {/* Main content */}
+      <main className="dashboard-grid animate-fade-in-up" role="main" aria-label="Fantasy league dashboard">
+        {combinedError ? (
+          <div className="col-span-full flex justify-center items-center p-8">
+            <Alert variant="destructive" className="max-w-md">
+              <AlertDescription>
+                {getUserFriendlyErrorMessage(combinedError)}
+              </AlertDescription>
+            </Alert>
+          </div>
+        ) : displayLeagues.length > 0 ? (
+          renderLeagueCards()
+        ) : (
+          // Loading skeletons
+          Array.from({ length: isMobile ? 3 : 6 }).map((_, i) => (
+            <Card key={i} className={`${isMobile ? 'mobile-league-card' : 'league-block'} animate-pulse`}>
+              <div className="league-content">
+                <div className="space-y-4">
+                  <Skeleton className="h-4 w-3/4" />
+                  <Skeleton className="h-8 w-1/2" />
+                  <div className="space-y-2">
+                    <Skeleton className="h-3 w-full" />
+                    <Skeleton className="h-3 w-2/3" />
+                  </div>
+                </div>
+              </div>
+            </Card>
+          ))
+        )}
+
+        {/* Add new league placeholder */}
+        {config.leagues.length < 10 && (
+          <Card 
+            className={`${isMobile ? 'mobile-league-card' : 'league-block'} border-dashed border-2 hover:border-primary/50 transition-colors cursor-pointer animate-scale-in`}
+            onClick={() => setSettingsOpen(true)}
+            role="button"
+            tabIndex={0}
+            aria-label="Add new fantasy league"
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                setSettingsOpen(true);
+              }
+            }}
+          >
+            <div className="league-content flex items-center justify-center text-muted-foreground">
+              <div className="text-center space-y-2">
+                <Plus className={`${isMobile ? 'h-8 w-8' : 'h-12 w-12'} mx-auto opacity-50`} />
+                <p className="font-medium">Add League</p>
+                <p className="text-sm">Connect another fantasy league</p>
+              </div>
+            </div>
+          </Card>
+        )}
+      </main>
+
+      {/* Footer - Hidden on mobile */}
+      {!isMobile && (
+        <footer className="p-6 border-t border-border/50 text-center text-sm text-muted-foreground" role="contentinfo">
+          <div className="max-w-7xl mx-auto">
+            {config.leagues.length > 0 ? (
+              <p>
+                Tracking {config.leagues.length} league{config.leagues.length !== 1 ? 's' : ''} • 
+                Polling every {config.polling.updateFrequency} seconds
+                {config.polling.smartPolling && ' • Smart polling enabled'}
+              </p>
+            ) : (
+              <p>Add your first league to get started!</p>
+            )}
+          </div>
+        </footer>
+      )}
+
+      {/* Modals */}
+      <SettingsModal 
+        open={settingsOpen} 
+        onOpenChange={setSettingsOpen} 
+      />
+      
+      <ExportShareModal 
+        open={exportShareOpen} 
+        onOpenChange={setExportShareOpen}
+        dashboardData={dashboardData}
+      />
+
+      {/* Loading overlay */}
+      {(isRefreshing || isPullRefreshing) && (
+        <LoadingOverlay 
+          isVisible={true}
+          message={isPullRefreshing ? "Pull to refresh..." : "Refreshing data..."} 
+        />
+      )}
+
+      {/* Debug Console - Only shows in dev or when there are config issues */}
+      <DebugConsole />
+      <YahooDebugPanel />
+    </div>
+  );
+};
+
+export const FantasyDashboard = () => {
+  return (
+    <AccessibilityProvider>
+      <DashboardContent />
+    </AccessibilityProvider>
+  );
+};
