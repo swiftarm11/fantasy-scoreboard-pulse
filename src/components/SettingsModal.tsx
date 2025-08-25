@@ -49,7 +49,16 @@ interface SettingsModalProps {
 export const SettingsModal = ({ open, onOpenChange, onMockEvent }: SettingsModalProps) => {
   const { config, updateConfig } = useConfig();
   const { isConnected: isYahooConnected } = useYahooOAuth();
-  const { availableLeagues, savedSelections, saveLeagueSelections, isLoading: yahooLoading, fetchAvailableLeagues } = useYahooData();
+  
+  // FIXED: Safe destructuring with default values
+  const { 
+    availableLeagues = [], 
+    savedSelections = [], 
+    saveLeagueSelections, 
+    isLoading: yahooLoading = false, 
+    fetchAvailableLeagues 
+  } = useYahooData() || {};
+  
   const [localConfig, setLocalConfig] = useState<DashboardConfig>(config);
   const [validatingLeague, setValidatingLeague] = useState<string | null>(null);
   const [newLeagueId, setNewLeagueId] = useState('');
@@ -226,10 +235,10 @@ export const SettingsModal = ({ open, onOpenChange, onMockEvent }: SettingsModal
     }));
   };
 
-  // New function to handle Yahoo league selection changes
+  // FIXED: Safe handling of Yahoo league selection changes
   const handleYahooLeagueToggle = (leagueKey: string, leagueName: string, enabled: boolean) => {
-    // Get current selections
-    const currentSelections = [...savedSelections];
+    // FIXED: Safe spread with default empty array
+    const currentSelections = [...(savedSelections ?? [])];
     
     // Find existing selection or create new one
     const existingIndex = currentSelections.findIndex(s => s.leagueId === leagueKey);
@@ -250,8 +259,10 @@ export const SettingsModal = ({ open, onOpenChange, onMockEvent }: SettingsModal
       });
     }
     
-    // Save the updated selections
-    saveLeagueSelections(currentSelections);
+    // FIXED: Safe call to saveLeagueSelections
+    if (saveLeagueSelections) {
+      saveLeagueSelections(currentSelections);
+    }
     
     debugLogger.info('YAHOO_LEAGUES', 'League selection updated', { leagueKey, leagueName, enabled });
     
@@ -381,7 +392,7 @@ export const SettingsModal = ({ open, onOpenChange, onMockEvent }: SettingsModal
           <TabsContent value="leagues" className="space-y-4">
             <YahooIntegrationFlow />
             
-            {/* NEW: Yahoo League Selection Section - Only show when Yahoo is connected */}
+            {/* Yahoo League Selection Section - Only show when Yahoo is connected */}
             {isYahooConnected && (
               <Card>
                 <CardHeader>
@@ -414,7 +425,8 @@ export const SettingsModal = ({ open, onOpenChange, onMockEvent }: SettingsModal
                   ) : (
                     <div className="space-y-3">
                       {availableLeagues.map((league) => {
-                        const isSelected = savedSelections.find(s => s.leagueId === league.league_key)?.enabled || false;
+                        // FIXED: Safe access to savedSelections
+                        const isSelected = (savedSelections ?? []).find(s => s.leagueId === league.league_key)?.enabled || false;
                         
                         return (
                           <div key={league.league_key} className="flex items-center justify-between p-3 border rounded-lg">
@@ -886,8 +898,6 @@ export const SettingsModal = ({ open, onOpenChange, onMockEvent }: SettingsModal
               </CardContent>
             </Card>
 
-            {/* Debug console is now handled globally in FantasyDashboard */}
-            
             <YahooRateLimitStatus />
           </TabsContent>
 
@@ -961,7 +971,8 @@ export const SettingsModal = ({ open, onOpenChange, onMockEvent }: SettingsModal
                   </div>
                   <div className="flex justify-between">
                     <dt className="font-medium">Yahoo Leagues Selected:</dt>
-                    <dd className="text-muted-foreground">{savedSelections.filter(s => s.enabled).length}</dd>
+                    {/* FIXED: Safe access to savedSelections */}
+                    <dd className="text-muted-foreground">{(savedSelections ?? []).filter(s => s.enabled).length}</dd>
                   </div>
                   <div className="flex justify-between">
                     <dt className="font-medium">Update Frequency:</dt>
