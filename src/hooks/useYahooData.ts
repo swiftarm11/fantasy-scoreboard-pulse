@@ -17,7 +17,6 @@ export const useYahooData = (leagueConfigs: LeagueConfig[] = []) => {
     lastUpdated: null,
   });
   
-  // ✅ UPDATED: Fixed fetchAvailableLeagues function
   const fetchAvailableLeagues = useCallback(async () => {
     if (!isConnected) return;
     
@@ -27,6 +26,7 @@ export const useYahooData = (leagueConfigs: LeagueConfig[] = []) => {
       const tokens = getStoredTokens();
       if (!tokens?.access_token) throw new Error('Not authenticated');
       
+      // ✅ FIXED: Call yahoo-api function with correct endpoint
       const resp = await fetch(
         `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/yahoo-api`,
         {
@@ -37,7 +37,7 @@ export const useYahooData = (leagueConfigs: LeagueConfig[] = []) => {
             apikey: import.meta.env.VITE_SUPABASE_ANON_KEY
           },
           body: JSON.stringify({
-            endpoint: 'getUserLeagues',
+            endpoint: 'getUserLeagues',  // ✅ Correct endpoint name
             accessToken: tokens.access_token
           })
         }
@@ -47,23 +47,15 @@ export const useYahooData = (leagueConfigs: LeagueConfig[] = []) => {
       
       const text = await resp.text();
       const data = JSON.parse(text);
+      const usersNode = data.fantasy_content.users["0"].user;
+      const gamesNode = usersNode[1].games["0"].game;
+      const leaguesNode = gamesNode[1].leagues;
       
-      // ✅ FIXED: Match the actual response structure from yahoo-api
-      const leagues = data?.fantasy_content?.users?.[0]?.user?.[0]?.games?.[0]?.game?.[0]?.leagues?.[0]?.league;
-      
-      let availableLeagues = [];
-      
-      if (leagues && Array.isArray(leagues)) {
-        // If it's already an array of league objects
-        availableLeagues = leagues;
-      } else if (leagues && typeof leagues === 'object') {
-        // If it's the nested structure with count, parse it
-        const count = leagues.count || 0;
-        for (let i = 0; i < count; i++) {
-          const entry = leagues[i.toString()];
-          if (entry?.league?.[0]) {
-            availableLeagues.push(entry.league[0]);
-          }
+      const availableLeagues = [];
+      for (let i = 0; i < leaguesNode.count; i++) {
+        const entry = leaguesNode[i.toString()];
+        if (entry?.league?.[0]) {
+          availableLeagues.push(entry.league[0]); // ✅ Keep this fix
         }
       }
       
@@ -110,6 +102,7 @@ export const useYahooData = (leagueConfigs: LeagueConfig[] = []) => {
           const leagueInfo = state.availableLeagues.find(l => l.league_key === leagueKey);
           if (!leagueInfo) continue;
           
+          // ✅ FIXED: Call yahoo-api function with correct endpoint
           const resp = await fetch(
             `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/yahoo-api`,
             {
@@ -120,7 +113,7 @@ export const useYahooData = (leagueConfigs: LeagueConfig[] = []) => {
                 apikey: import.meta.env.VITE_SUPABASE_ANON_KEY
               },
               body: JSON.stringify({
-                endpoint: 'getLeagueScoreboard',
+                endpoint: 'getLeagueScoreboard',  // ✅ Correct endpoint name
                 accessToken: tokens.access_token,
                 leagueKey
               })
