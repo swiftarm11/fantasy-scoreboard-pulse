@@ -1,12 +1,22 @@
 // useYahooData.ts - Yahoo Fantasy Sports Data Hook
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { LeagueData, ScoringEvent } from '../types/fantasy';
 import { LeagueConfig } from '../types/config';
 import { useYahooOAuth } from './useYahooOAuth';
 import { debugLogger } from '../utils/debugLogger';
 import { toast } from '../components/ui/use-toast';
 
-export const useYahooData = (leagueConfigs: LeagueConfig[] = []) => {
+// Add this interface for the saved selections
+interface SavedLeagueSelection {
+  leagueId: string;
+  leagueName: string;
+  enabled: boolean;
+  platform: 'Yahoo';
+}
+
+const SAVED_LEAGUES_KEY = 'fantasy-dashboard-selected-leagues';
+
+export const useYahooData = (externalLeagueConfigs: LeagueConfig[] = []) => {
   const { isConnected, getStoredTokens } = useYahooOAuth();
   
   const [state, setState] = useState({
@@ -16,6 +26,53 @@ export const useYahooData = (leagueConfigs: LeagueConfig[] = []) => {
     error: null,
     lastUpdated: null,
   });
+
+  // Add state for saved selections
+  const [savedSelections, setSavedSelections] = useState<SavedLeagueSelection[]>([]);
+
+  // Load saved selections from localStorage
+  useEffect(() => {
+    const saved = localStorage.getItem(SAVED_LEAGUES_KEY);
+    if (saved) {
+      try {
+        const selections = JSON.parse(saved);
+        setSavedSelections(selections);
+        debugLogger.info('YAHOO_DATA', 'Loaded saved league selections', selections);
+      } catch (error) {
+        debugLogger.error('YAHOO_DATA', 'Failed to parse saved selections', error);
+      }
+    }
+  }, []);
+
+  // Function to save league selections
+  const saveLeagueSelections = useCallback((selections: SavedLeagueSelection[]) => {
+    localStorage.setItem(SAVED_LEAGUES_KEY, JSON.stringify(selections));
+    setSavedSelections(selections);
+    debugLogger.info('YAHOO_DATA', 'Saved league selections', selections);
+  }, []);
+
+  // Function to get current league configs (combines external + saved)
+  const getCurrentLeagueConfigs = useCallback((): LeagueConfig[] => {
+    // Convert saved selections to LeagueConfig format
+    const savedConfigs: LeagueConfig[] = savedSelections.map(selection => ({
+      leagueId: selection.leagueId,
+      platform: 'Yahoo' as const,
+      enabled: selection.enabled
+    }));
+
+    // Combine external configs with saved configs (external takes priority)
+    const allConfigs = [...externalLeagueConfigs, ...savedConfigs];
+    
+    // Remove duplicates, keeping the first occurrence
+    const uniqueConfigs = allConfigs.reduce((acc, config) => {
+      if (!acc.find(c => c.leagueId === config.leagueId && c.platform === config.platform)) {
+        acc.push(config);
+      }
+      return acc;
+    }, [] as LeagueConfig[]);
+
+    return uniqueConfigs;
+  }, [externalLeagueConfigs, savedSelections]);
   
   const fetchAvailableLeagues = useCallback(async () => {
     if (!isConnected) return;
@@ -26,7 +83,6 @@ export const useYahooData = (leagueConfigs: LeagueConfig[] = []) => {
       const tokens = getStoredTokens();
       if (!tokens?.access_token) throw new Error('Not authenticated');
       
-      // ✅ FIXED: Call yahoo-api function with correct endpoint
       const resp = await fetch(
         `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/yahoo-api`,
         {
@@ -37,7 +93,7 @@ export const useYahooData = (leagueConfigs: LeagueConfig[] = []) => {
             apikey: import.meta.env.VITE_SUPABASE_ANON_KEY
           },
           body: JSON.stringify({
-            endpoint: 'getUserLeagues',  // ✅ Correct endpoint name
+            endpoint: 'getUserLeagues',
             accessToken: tokens.access_token
           })
         }
@@ -55,7 +111,7 @@ export const useYahooData = (leagueConfigs: LeagueConfig[] = []) => {
       for (let i = 0; i < leaguesNode.count; i++) {
         const entry = leaguesNode[i.toString()];
         if (entry?.league?.[0]) {
-          availableLeagues.push(entry.league[0]); // ✅ Keep this fix
+          availableLeagues.push(entry.league[0]);
         }
       }
       
@@ -102,7 +158,6 @@ export const useYahooData = (leagueConfigs: LeagueConfig[] = []) => {
           const leagueInfo = state.availableLeagues.find(l => l.league_key === leagueKey);
           if (!leagueInfo) continue;
           
-          // ✅ FIXED: Call yahoo-api function with correct endpoint
           const resp = await fetch(
             `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/yahoo-api`,
             {
@@ -113,7 +168,7 @@ export const useYahooData = (leagueConfigs: LeagueConfig[] = []) => {
                 apikey: import.meta.env.VITE_SUPABASE_ANON_KEY
               },
               body: JSON.stringify({
-                endpoint: 'getLeagueScoreboard',  // ✅ Correct endpoint name
+                endpoint: 'getLeagueScoreboard',
                 accessToken: tokens.access_token,
                 leagueKey
               })
@@ -211,17 +266,24 @@ export const useYahooData = (leagueConfigs: LeagueConfig[] = []) => {
     }
   }, [isConnected, fetchAvailableLeagues]);
   
+  // Updated effect to use current league configs
   useEffect(() => {
     if (isConnected && state.availableLeagues.length > 0) {
-      const enabledLeagueIds = leagueConfigs
+      const currentConfigs = getCurrentLeagueConfigs();
+      const enabledLeagueIds = currentConfigs
         .filter(config => config.enabled && config.platform === 'Yahoo')
         .map(config => config.leagueId);
       
+      debugLogger.info('YAHOO_DATA', 'Loading leagues with configs', { currentConfigs, enabledLeagueIds });
+      
       if (enabledLeagueIds.length > 0) {
         fetchLeagueData(enabledLeagueIds);
+      } else {
+        // Clear leagues if no enabled configs
+        setState(prev => ({ ...prev, leagues: [] }));
       }
     }
-  }, [leagueConfigs, isConnected, state.availableLeagues.length, fetchLeagueData]);
+  }, [savedSelections, externalLeagueConfigs, isConnected, state.availableLeagues.length, fetchLeagueData, getCurrentLeagueConfigs]);
   
   const refetch = useCallback(() => {
     fetchAvailableLeagues();
@@ -233,6 +295,8 @@ export const useYahooData = (leagueConfigs: LeagueConfig[] = []) => {
     isLoading: state.isLoading,
     error: state.error,
     lastUpdated: state.lastUpdated,
+    savedSelections,
+    saveLeagueSelections,
     fetchAvailableLeagues,
     fetchLeagueData,
     refetch
