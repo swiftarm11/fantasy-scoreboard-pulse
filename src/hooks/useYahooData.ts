@@ -81,7 +81,7 @@ export const useYahooData = (enabledLeagueIds?: string[]) => {
     
     try {
       const tokens = getStoredTokens();
-      if (!tokens?.accesstoken) {
+      if (!tokens?.access_token) {
         throw new Error('Not authenticated');
       }
 
@@ -94,7 +94,7 @@ export const useYahooData = (enabledLeagueIds?: string[]) => {
         },
         body: JSON.stringify({
           action: 'getLeagues',
-          accessToken: tokens.accesstoken,
+          accessToken: tokens.access_token,
         }),
       });
 
@@ -151,7 +151,7 @@ export const useYahooData = (enabledLeagueIds?: string[]) => {
 
     try {
       const tokens = getStoredTokens();
-      if (!tokens?.accesstoken) {
+      if (!tokens?.access_token) {
         throw new Error('Not authenticated');
       }
 
@@ -171,7 +171,7 @@ export const useYahooData = (enabledLeagueIds?: string[]) => {
             },
             body: JSON.stringify({
               action: 'getLeagueScoreboard',
-              accessToken: tokens.accesstoken,
+              accessToken: tokens.access_token,
               leagueKey,
             }),
           });
@@ -190,7 +190,7 @@ export const useYahooData = (enabledLeagueIds?: string[]) => {
           const rank0 = sb.fantasy_content.league.scoreboard.teams.team.team_standings.rank;
 
           const commonLeague: LeagueData = {
-            id: leagueInfo.league_key,
+            id: leagueInfo.league_key.toString(),
             platform: 'Yahoo',
             leagueName: leagueInfo.name,
             teamName: team0.name[0],
@@ -198,7 +198,7 @@ export const useYahooData = (enabledLeagueIds?: string[]) => {
             opponentName: team1.name,
             opponentScore: parseFloat(team1.team_points.total),
             record: `${standings0.wins}-${standings0.losses}-${standings0.ties?.toString() || '0'}`,
-            leaguePosition: parseInt(rank0),
+            leaguePosition: `${parseInt(rank0)}`,
             status: sb.fantasy_content.league.scoreboard.status,
             scoringEvents: [],
             lastUpdated: new Date().toISOString(),

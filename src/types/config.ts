@@ -6,6 +6,7 @@ export interface LeagueConfig {
   customTeamName?: string;
   platform: Platform;
   enabled: boolean;
+  sleeperUsername?: string; // For identifying user's team in Sleeper leagues
 }
 
 export interface PollingConfig {

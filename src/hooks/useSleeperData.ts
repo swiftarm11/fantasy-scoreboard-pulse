@@ -34,9 +34,24 @@ export const useSleeperData = (leagueConfigs: LeagueConfig[]): UseSleeperDataRet
   const processSleeperData = useCallback(async (leagueData: SleeperLeagueData, config: LeagueConfig, prevMatchups: Record<string, SleeperMatchup[]>): Promise<LeagueData> => {
     const { league, users, rosters, matchups, currentWeek } = leagueData;
     
-    // Find user's roster - use first roster as fallback if no specific user identification
-    // TODO: Implement proper user identification based on login/team selection
-    const userRoster = rosters[0]; // For now, use first roster in league
+    // Find user's roster based on username if provided, otherwise use first roster
+    let userRoster = rosters[0]; // Default fallback
+    
+    if (config.sleeperUsername) {
+      // Find user by username
+      const user = users.find(u => 
+        u.username?.toLowerCase() === config.sleeperUsername?.toLowerCase() ||
+        u.display_name?.toLowerCase() === config.sleeperUsername?.toLowerCase()
+      );
+      
+      if (user) {
+        // Find roster owned by this user
+        const foundRoster = rosters.find(r => r.owner_id === user.user_id);
+        if (foundRoster) {
+          userRoster = foundRoster;
+        }
+      }
+    }
     if (!userRoster) {
       throw new Error('Could not find user roster - league has no rosters');
     }

@@ -63,6 +63,7 @@ export const SettingsModal = ({ open, onOpenChange, onMockEvent }: SettingsModal
   const [validatingLeague, setValidatingLeague] = useState<string | null>(null);
   const [newLeagueId, setNewLeagueId] = useState('');
   const [newLeaguePlatform, setNewLeaguePlatform] = useState<Platform>('Sleeper');
+  const [newSleeperUsername, setNewSleeperUsername] = useState('');
   const [isValidLeague, setIsValidLeague] = useState(false);
 
   const sensors = useSensors(
@@ -130,6 +131,7 @@ export const SettingsModal = ({ open, onOpenChange, onMockEvent }: SettingsModal
           platform: newLeaguePlatform,
           enabled: true,
           customTeamName: league.name,
+          sleeperUsername: newSleeperUsername.trim() || undefined,
         };
 
         setLocalConfig(prev => ({
@@ -189,6 +191,7 @@ export const SettingsModal = ({ open, onOpenChange, onMockEvent }: SettingsModal
         updateConfig(updatedConfig); // Auto-save to localStorage
 
         setNewLeagueId('');
+        setNewSleeperUsername('');
         setIsValidLeague(false);
         
         console.log('League added and saved:', newLeague);
@@ -460,58 +463,75 @@ export const SettingsModal = ({ open, onOpenChange, onMockEvent }: SettingsModal
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
-                <div className="grid grid-cols-3 gap-4">
-                  <div>
-                    <Label htmlFor="platform">Platform</Label>
-                    <Select value={newLeaguePlatform} onValueChange={(value: Platform) => setNewLeaguePlatform(value)}>
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="Sleeper">Sleeper</SelectItem>
-                        <SelectItem value="Yahoo">Yahoo</SelectItem>
-                        <SelectItem value="NFL.com">NFL.com (Coming Soon)</SelectItem>
-                        <SelectItem value="ESPN">ESPN (Coming Soon)</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="relative">
-                    <Label htmlFor="leagueId">League ID</Label>
+                <div className="space-y-4">
+                  <div className="grid grid-cols-3 gap-4">
+                    <div>
+                      <Label htmlFor="platform">Platform</Label>
+                      <Select value={newLeaguePlatform} onValueChange={(value: Platform) => setNewLeaguePlatform(value)}>
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="Sleeper">Sleeper</SelectItem>
+                          <SelectItem value="Yahoo">Yahoo</SelectItem>
+                          <SelectItem value="NFL.com">NFL.com (Coming Soon)</SelectItem>
+                          <SelectItem value="ESPN">ESPN (Coming Soon)</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
                     <div className="relative">
-                      <Input
-                        id="leagueId"
-                        value={newLeagueId}
-                        onChange={(e) => {
-                          setNewLeagueId(e.target.value);
-                          validateLeagueId(e.target.value);
-                        }}
-                        placeholder="Example: 1207878742588792832"
-                        className={isValidLeague && newLeagueId ? 'pr-8' : ''}
-                      />
-                      {isValidLeague && newLeagueId && (
-                        <Check className="absolute right-2 top-1/2 transform -translate-y-1/2 h-4 w-4 text-green-500" />
-                      )}
+                      <Label htmlFor="leagueId">League ID</Label>
+                      <div className="relative">
+                        <Input
+                          id="leagueId"
+                          value={newLeagueId}
+                          onChange={(e) => {
+                            setNewLeagueId(e.target.value);
+                            validateLeagueId(e.target.value);
+                          }}
+                          placeholder="Example: 1207878742588792832"
+                          className={isValidLeague && newLeagueId ? 'pr-8' : ''}
+                        />
+                        {isValidLeague && newLeagueId && (
+                          <Check className="absolute right-2 top-1/2 transform -translate-y-1/2 h-4 w-4 text-green-500" />
+                        )}
+                      </div>
+                    </div>
+                    <div className="flex items-end">
+                      <Button 
+                        onClick={validateAndAddLeague}
+                        disabled={validatingLeague !== null}
+                        className="w-full"
+                      >
+                        {validatingLeague ? (
+                          <>
+                            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                            Validating...
+                          </>
+                        ) : (
+                          <>
+                            <Plus className="h-4 w-4 mr-2" />
+                            Add League
+                          </>
+                        )}
+                      </Button>
                     </div>
                   </div>
-                  <div className="flex items-end">
-                    <Button 
-                      onClick={validateAndAddLeague}
-                      disabled={validatingLeague !== null}
-                      className="w-full"
-                    >
-                      {validatingLeague ? (
-                        <>
-                          <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                          Validating...
-                        </>
-                      ) : (
-                        <>
-                          <Plus className="h-4 w-4 mr-2" />
-                          Add League
-                        </>
-                      )}
-                    </Button>
-                  </div>
+                  
+                  {newLeaguePlatform === 'Sleeper' && (
+                    <div>
+                      <Label htmlFor="sleeperUsername">Sleeper Username (Optional)</Label>
+                      <Input
+                        id="sleeperUsername"
+                        value={newSleeperUsername}
+                        onChange={(e) => setNewSleeperUsername(e.target.value)}
+                        placeholder="Your Sleeper username to identify your team"
+                      />
+                      <p className="text-xs text-muted-foreground mt-1">
+                        Enter your Sleeper username to automatically identify your team. If not provided, we'll use the first team in the league.
+                      </p>
+                    </div>
+                  )}
                 </div>
               </CardContent>
             </Card>

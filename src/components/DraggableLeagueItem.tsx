@@ -52,22 +52,38 @@ export const DraggableLeagueItem = ({ league, onUpdate, onRemove }: DraggableLea
             </span>
             <span className="font-medium">{league.leagueId}</span>
           </div>
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <Label>Custom Team Name</Label>
-              <Input
-                value={league.customTeamName || ''}
-                onChange={(e) => onUpdate(league.id, { customTeamName: e.target.value })}
-                placeholder="Custom team name"
-              />
+          <div className="space-y-3">
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label>Custom Team Name</Label>
+                <Input
+                  value={league.customTeamName || ''}
+                  onChange={(e) => onUpdate(league.id, { customTeamName: e.target.value })}
+                  placeholder="Custom team name"
+                />
+              </div>
+              <div className="flex items-center space-x-2 pt-6">
+                <Switch
+                  checked={league.enabled}
+                  onCheckedChange={(enabled) => onUpdate(league.id, { enabled })}
+                />
+                <Label>Enabled</Label>
+              </div>
             </div>
-            <div className="flex items-center space-x-2 pt-6">
-              <Switch
-                checked={league.enabled}
-                onCheckedChange={(enabled) => onUpdate(league.id, { enabled })}
-              />
-              <Label>Enabled</Label>
-            </div>
+            
+            {league.platform === 'Sleeper' && (
+              <div>
+                <Label>Sleeper Username</Label>
+                <Input
+                  value={league.sleeperUsername || ''}
+                  onChange={(e) => onUpdate(league.id, { sleeperUsername: e.target.value })}
+                  placeholder="Your Sleeper username"
+                />
+                <p className="text-xs text-muted-foreground mt-1">
+                  Used to identify your team in this league
+                </p>
+              </div>
+            )}
           </div>
         </div>
       </div>
