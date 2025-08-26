@@ -3,7 +3,7 @@ import { YahooIntegrationFlow } from './YahooIntegrationFlow';
 import { YahooRateLimitStatus } from './YahooRateLimitStatus';
 import { useYahooOAuth } from '../hooks/useYahooOAuth';
 import { useYahooData } from '../hooks/useYahooData';
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from './ui/dialog';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
@@ -50,7 +50,7 @@ export const SettingsModal = ({ open, onOpenChange, onMockEvent }: SettingsModal
   const { config, updateConfig } = useConfig();
   const { isConnected: isYahooConnected } = useYahooOAuth();
 
-  // Yahoo: persist selections and fetch list; this aligns with FantasyDashboard expecting useYahooData persistence
+  // Yahoo: persist selections and fetch list; aligns with FantasyDashboard expecting useYahooData persistence
   const { 
     availableLeagues = [],
     savedSelections = [],
@@ -78,7 +78,7 @@ export const SettingsModal = ({ open, onOpenChange, onMockEvent }: SettingsModal
     setLocalConfig(config);
   }, [config]);
 
-  // Quality-of-life: when modal opens and Yahoo connected, auto-load leagues once
+  // QoL: when modal opens and Yahoo connected, auto-load leagues once
   useEffect(() => {
     if (open && isYahooConnected) {
       fetchAvailableLeagues?.();
@@ -158,7 +158,7 @@ export const SettingsModal = ({ open, onOpenChange, onMockEvent }: SettingsModal
           throw new Error('Please connect your Yahoo account first');
         }
         
-        // Minimal: allow manual Yahoo league addition if desired (does not affect Yahoo selection flow)
+        // Minimal: allow manual Yahoo league addition (does not affect Yahoo selection flow)
         const newLeague: LeagueConfig = {
           id: `league_${Date.now()}`,
           leagueId: newLeagueId,
@@ -327,7 +327,7 @@ export const SettingsModal = ({ open, onOpenChange, onMockEvent }: SettingsModal
   };
 
   const importConfig = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.;
+    const file = event.target.files?.; // FIXED
     if (!file) return;
 
     const reader = new FileReader();
