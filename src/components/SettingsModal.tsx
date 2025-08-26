@@ -327,7 +327,7 @@ export const SettingsModal = ({ open, onOpenChange, onMockEvent }: SettingsModal
   };
 
   const importConfig = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.; // FIXED
+    const file = event.target.files?.[0];
     if (!file) return;
 
     const reader = new FileReader();
