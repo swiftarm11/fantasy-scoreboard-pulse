@@ -333,10 +333,9 @@ export const SettingsModal = ({ open, onOpenChange, onMockEvent }: SettingsModal
     const reader = new FileReader();
     reader.onload = (e) => {
       try {
-        const imported = JSON.parse(e.target?.result as string);
+        const imported = JSON.parse((e.target?.result as string) ?? '');
         setLocalConfig({ ...DEFAULT_CONFIG, ...imported });
-        updateConfig({ ...DEFAULT_CONFIG, ...imported });
-        
+        updateConfig({ ...DEFAULT_CONFIG, ...imported }); // Auto-save
         toast({
           title: 'Success',
           description: 'Configuration imported',
@@ -350,6 +349,9 @@ export const SettingsModal = ({ open, onOpenChange, onMockEvent }: SettingsModal
       }
     };
     reader.readAsText(file);
+
+    // Optional: allow selecting the same file again immediately
+    event.target.value = '';
   };
 
   const resetToDefaults = () => {
@@ -569,166 +571,6 @@ export const SettingsModal = ({ open, onOpenChange, onMockEvent }: SettingsModal
                       </div>
                     </SortableContext>
                   </DndContext>
-                )}
-              </CardContent>
-            </Card>
-          </TabsContent>
-
-          <TabsContent value="polling" className="space-y-4">
-            <Card>
-              <CardHeader>
-                <CardTitle>Enhanced Polling Settings</CardTitle>
-                <CardDescription>
-                  Intelligent polling with game-hour optimization
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-6">
-                <div>
-                  <Label>Base Update Frequency</Label>
-                  <Select 
-                    value={localConfig.polling.updateFrequency.toString()} 
-                    onValueChange={(value) => setLocalConfig(prev => ({
-                      ...prev,
-                      polling: { ...prev.polling, updateFrequency: parseInt(value) as 15 | 30 | 60 }
-                    }))}
-                  >
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="15">Every 15 seconds</SelectItem>
-                      <SelectItem value="30">Every 30 seconds</SelectItem>
-                      <SelectItem value="60">Every 60 seconds</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <Separator />
-
-                <div className="space-y-4">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <Label>Smart Polling</Label>
-                      <p className="text-sm text-muted-foreground">
-                        Automatically adjust polling frequency during game hours
-                      </p>
-                    </div>
-                    <Switch
-                      checked={localConfig.polling.smartPolling}
-                      onCheckedChange={(smartPolling) => setLocalConfig(prev => ({
-                        ...prev,
-                        polling: { ...prev.polling, smartPolling }
-                      }))}
-                    />
-                  </div>
-
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <Label>Game Hour Polling</Label>
-                      <p className="text-sm text-muted-foreground">
-                        Use faster intervals during Sunday (1-11 PM) and Monday (8-11 PM) games
-                      </p>
-                    </div>
-                    <Switch
-                      checked={localConfig.polling.gameHourPolling}
-                      onCheckedChange={(gameHourPolling) => setLocalConfig(prev => ({
-                        ...prev,
-                        polling: { ...prev.polling, gameHourPolling }
-                      }))}
-                    />
-                  </div>
-                </div>
-
-                {localConfig.polling.gameHourPolling && (
-                  <Card className="bg-muted/50">
-                    <CardHeader className="pb-3">
-                      <CardTitle className="text-sm">Game Hour Intervals</CardTitle>
-                    </CardHeader>
-                    <CardContent className="space-y-4">
-                      <div className="grid grid-cols-3 gap-4">
-                        <div>
-                          <Label className="text-xs">Sunday Games</Label>
-                          <Select 
-                            value={localConfig.polling.gameHourIntervals?.sunday?.toString() || '15'} 
-                            onValueChange={(value) => setLocalConfig(prev => ({
-                              ...prev,
-                              polling: { 
-                                ...prev.polling, 
-                                gameHourIntervals: {
-                                  ...prev.polling.gameHourIntervals,
-                                  sunday: parseInt(value)
-                                }
-                              }
-                            }))}
-                          >
-                            <SelectTrigger>
-                              <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="10">10 seconds</SelectItem>
-                              <SelectItem value="15">15 seconds</SelectItem>
-                              <SelectItem value="30">30 seconds</SelectItem>
-                            </SelectContent>
-                          </Select>
-                        </div>
-                        <div>
-                          <Label className="text-xs">Monday Games</Label>
-                          <Select 
-                            value={localConfig.polling.gameHourIntervals?.monday?.toString() || '15'} 
-                            onValueChange={(value) => setLocalConfig(prev => ({
-                              ...prev,
-                              polling: { 
-                                ...prev.polling, 
-                                gameHourIntervals: {
-                                  ...prev.polling.gameHourIntervals,
-                                  monday: parseInt(value)
-                                }
-                              }
-                            }))}
-                          >
-                            <SelectTrigger>
-                              <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="10">10 seconds</SelectItem>
-                              <SelectItem value="15">15 seconds</SelectItem>
-                              <SelectItem value="30">30 seconds</SelectItem>
-                            </SelectContent>
-                          </Select>
-                        </div>
-                        <div>
-                          <Label className="text-xs">Off-Hours</Label>
-                          <Select 
-                            value={localConfig.polling.gameHourIntervals?.normal?.toString() || '60'} 
-                            onValueChange={(value) => setLocalConfig(prev => ({
-                              ...prev,
-                              polling: { 
-                                ...prev.polling, 
-                                gameHourIntervals: {
-                                  ...prev.polling.gameHourIntervals,
-                                  normal: parseInt(value)
-                                }
-                              }
-                            }))}
-                          >
-                            <SelectTrigger>
-                              <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="30">30 seconds</SelectItem>
-                              <SelectItem value="60">60 seconds</SelectItem>
-                              <SelectItem value="120">2 minutes</SelectItem>
-                            </SelectContent>
-                          </Select>
-                        </div>
-                      </div>
-                      <div className="text-xs text-muted-foreground">
-                        <p>• Sunday: 1 PM - 11 PM EST</p>
-                        <p>• Monday: 8 PM - 11 PM EST</p>
-                        <p>• Off-hours: All other times</p>
-                      </div>
-                    </CardContent>
-                  </Card>
                 )}
               </CardContent>
             </Card>
