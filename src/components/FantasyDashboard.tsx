@@ -1,5 +1,5 @@
 import React, { useState, useCallback, useRef, useMemo } from 'react';
-import { useLocation } from 'react-router-dom'; // Already imported - no change needed
+import { useLocation } from 'react-router-dom';
 import { LeagueBlock } from './LeagueBlock';
 import { MobileLeagueCard } from './MobileLeagueCard';
 import { CompactLeagueView } from './CompactLeagueView';
@@ -40,12 +40,17 @@ import { YahooDebugPanel } from './YahooDebugPanel';
 
 const DashboardContent = () => {
   const { config } = useConfig();
-  const location = useLocation(); // Already imported - using existing import
+  const location = useLocation();
   const { leagues: sleeperLeagues, loading, error, lastUpdated, refetch } = useSleeperData(config.leagues);
   
-  // Yahoo leagues
-  const yahooLeagueIds = config.leagues.filter(l => l.platform === 'Yahoo').map(l => l.leagueId);
-  const { leagues: yahooLeagues, isLoading: yahooLoading, error: yahooError, refreshData: refreshYahooData } = useYahooData(yahooLeagueIds);
+  // FIXED: Yahoo leagues - now properly uses saved selections from localStorage
+  const { 
+    leagues: yahooLeagues, 
+    isLoading: yahooLoading, 
+    error: yahooError, 
+    refreshData: refreshYahooData,
+    getEnabledLeagueIds  // Get enabled league IDs from saved selections
+  } = useYahooData();
   
   const { isOnline } = useNetworkStatus();
   const { demoLeague, triggerManualEvent } = useDemoLeague({ 
@@ -77,7 +82,7 @@ const DashboardContent = () => {
     if (sleeperLeagues.length > 0) {
       allLeagues.push(...sleeperLeagues);
     }
-    // Add Yahoo leagues
+    // FIXED: Add Yahoo leagues from saved selections
     if (yahooLeagues.length > 0) {
       allLeagues.push(...yahooLeagues);
     }
