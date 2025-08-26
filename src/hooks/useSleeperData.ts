@@ -94,14 +94,21 @@ export const useSleeperData = (leagueConfigs: LeagueConfig[]): UseSleeperDataRet
     const record = `${userRoster.settings.wins}-${userRoster.settings.losses}${userRoster.settings.ties > 0 ? `-${userRoster.settings.ties}` : ''}`;
     const leaguePosition = calculateLeaguePosition(rosters, userRoster.roster_id);
 
+    // Generate team names using roster metadata or user display names
+    const userTeamName = userRoster.metadata?.team_name || 
+                         `${users.find(u => u.user_id === userRoster.owner_id)?.display_name || 'Unknown'}'s Team`;
+    
+    const opponentTeamName = opponentRoster?.metadata?.team_name || 
+                            `${opponentUser?.display_name || opponentUser?.username || 'Unknown'}'s Team`;
+
     return {
       id: config.id,
       leagueName: config.customTeamName || league.name,
       platform: 'Sleeper',
-      teamName: config.customTeamName || `Team ${userRoster.roster_id}`,
+      teamName: config.customTeamName || userTeamName,
       myScore,
       opponentScore,
-      opponentName: opponentUser?.display_name || opponentUser?.username || 'Unknown',
+      opponentName: opponentTeamName,
       record,
       leaguePosition,
       status,
