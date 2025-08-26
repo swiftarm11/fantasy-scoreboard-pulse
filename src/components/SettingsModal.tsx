@@ -3,7 +3,7 @@ import { YahooIntegrationFlow } from './YahooIntegrationFlow';
 import { YahooRateLimitStatus } from './YahooRateLimitStatus';
 import { useYahooOAuth } from '../hooks/useYahooOAuth';
 import { useYahooData } from '../hooks/useYahooData';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from './ui/dialog';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
@@ -49,16 +49,17 @@ interface SettingsModalProps {
 export const SettingsModal = ({ open, onOpenChange, onMockEvent }: SettingsModalProps) => {
   const { config, updateConfig } = useConfig();
   const { isConnected: isYahooConnected } = useYahooOAuth();
-  
-  // FIXED: Safe destructuring with default values
+
+  // Yahoo: persist selections and fetch list; this aligns with FantasyDashboard expecting useYahooData persistence
   const { 
-    availableLeagues = [], 
-    savedSelections = [], 
-    saveLeagueSelections, 
-    isLoading: yahooLoading = false, 
-    fetchAvailableLeagues 
+    availableLeagues = [],
+    savedSelections = [],
+    saveLeagueSelections,
+    isLoading: yahooLoading = false,
+    fetchAvailableLeagues,
   } = useYahooData() || {};
-  
+
+  // Sleeper: preserved behavior, including optional username for team identification
   const [localConfig, setLocalConfig] = useState<DashboardConfig>(config);
   const [validatingLeague, setValidatingLeague] = useState<string | null>(null);
   const [newLeagueId, setNewLeagueId] = useState('');
@@ -77,6 +78,13 @@ export const SettingsModal = ({ open, onOpenChange, onMockEvent }: SettingsModal
     setLocalConfig(config);
   }, [config]);
 
+  // Quality-of-life: when modal opens and Yahoo connected, auto-load leagues once
+  useEffect(() => {
+    if (open && isYahooConnected) {
+      fetchAvailableLeagues?.();
+    }
+  }, [open, isYahooConnected, fetchAvailableLeagues]);
+
   const validateLeagueId = async (leagueId: string) => {
     if (!leagueId.trim()) {
       setIsValidLeague(false);
@@ -88,18 +96,16 @@ export const SettingsModal = ({ open, onOpenChange, onMockEvent }: SettingsModal
         const isValid = await sleeperAPIEnhanced.validateLeagueId(leagueId);
         setIsValidLeague(isValid);
       } else if (newLeaguePlatform === 'Yahoo') {
-        // For Yahoo, check if user is connected first
         if (!isYahooConnected) {
           setIsValidLeague(false);
           return;
         }
-        // For now, assume valid if connected (actual validation would require Yahoo API call)
+        // Yahoo validation via API would require an authenticated call; assume valid when connected
         setIsValidLeague(true);
       } else {
-        // For other platforms, assume valid for now
         setIsValidLeague(true);
       }
-    } catch (error) {
+    } catch {
       setIsValidLeague(false);
     }
   };
@@ -140,6 +146,7 @@ export const SettingsModal = ({ open, onOpenChange, onMockEvent }: SettingsModal
         }));
 
         setNewLeagueId('');
+        setNewSleeperUsername('');
         setIsValidLeague(false);
         
         toast({
@@ -147,12 +154,11 @@ export const SettingsModal = ({ open, onOpenChange, onMockEvent }: SettingsModal
           description: `Added league: ${league.name}`,
         });
       } else if (newLeaguePlatform === 'Yahoo') {
-        // For Yahoo, check if user is connected first
         if (!isYahooConnected) {
           throw new Error('Please connect your Yahoo account first');
         }
         
-        // For now, just add without full validation (actual validation would require Yahoo API call)
+        // Minimal: allow manual Yahoo league addition if desired (does not affect Yahoo selection flow)
         const newLeague: LeagueConfig = {
           id: `league_${Date.now()}`,
           leagueId: newLeagueId,
@@ -174,7 +180,6 @@ export const SettingsModal = ({ open, onOpenChange, onMockEvent }: SettingsModal
           description: `Added Yahoo league: ${newLeagueId}`,
         });
       } else {
-        // For other platforms, just add without validation for now
         const newLeague: LeagueConfig = {
           id: `league_${Date.now()}`,
           leagueId: newLeagueId,
@@ -188,7 +193,7 @@ export const SettingsModal = ({ open, onOpenChange, onMockEvent }: SettingsModal
         };
         
         setLocalConfig(updatedConfig);
-        updateConfig(updatedConfig); // Auto-save to localStorage
+        updateConfig(updatedConfig);
 
         setNewLeagueId('');
         setNewSleeperUsername('');
@@ -201,10 +206,10 @@ export const SettingsModal = ({ open, onOpenChange, onMockEvent }: SettingsModal
           description: `Added ${newLeaguePlatform} league`,
         });
       }
-    } catch (error) {
+    } catch (error: any) {
       toast({
         title: 'Error',
-        description: `Failed to add league: ${error.message}`,
+        description: `Failed to add league: ${error?.message || 'Unknown error'}`,
         variant: 'destructive',
       });
     } finally {
@@ -219,7 +224,7 @@ export const SettingsModal = ({ open, onOpenChange, onMockEvent }: SettingsModal
     };
     
     setLocalConfig(updatedConfig);
-    updateConfig(updatedConfig); // Auto-save to localStorage
+    updateConfig(updatedConfig);
     
     console.log('League removed and saved:', leagueId);
     
@@ -238,22 +243,17 @@ export const SettingsModal = ({ open, onOpenChange, onMockEvent }: SettingsModal
     }));
   };
 
-  // FIXED: Safe handling of Yahoo league selection changes
+  // Yahoo selection persistence (no change to Sleeper paths)
   const handleYahooLeagueToggle = (leagueKey: string, leagueName: string, enabled: boolean) => {
-    // FIXED: Safe spread with default empty array
     const currentSelections = [...(savedSelections ?? [])];
-    
-    // Find existing selection or create new one
     const existingIndex = currentSelections.findIndex(s => s.leagueId === leagueKey);
     
     if (existingIndex >= 0) {
-      // Update existing selection
       currentSelections[existingIndex] = {
         ...currentSelections[existingIndex],
         enabled
       };
     } else {
-      // Add new selection
       currentSelections.push({
         leagueId: leagueKey,
         leagueName,
@@ -262,22 +262,24 @@ export const SettingsModal = ({ open, onOpenChange, onMockEvent }: SettingsModal
       });
     }
     
-    // FIXED: Safe call to saveLeagueSelections
-    if (saveLeagueSelections) {
-      saveLeagueSelections(currentSelections);
+    try {
+      saveLeagueSelections?.(currentSelections);
+      debugLogger.info('YAHOO_LEAGUES', 'League selection updated', { leagueKey, leagueName, enabled });
+      toast({
+        title: enabled ? 'League Added' : 'League Removed',
+        description: `${leagueName} ${enabled ? 'added to' : 'removed from'} dashboard`,
+      });
+    } catch (e: any) {
+      toast({
+        title: 'Error',
+        description: 'Failed to update Yahoo league selection',
+        variant: 'destructive',
+      });
     }
-    
-    debugLogger.info('YAHOO_LEAGUES', 'League selection updated', { leagueKey, leagueName, enabled });
-    
-    toast({
-      title: enabled ? 'League Added' : 'League Removed',
-      description: `${leagueName} ${enabled ? 'added to' : 'removed from'} dashboard`,
-    });
   };
 
   const handleDragEnd = (event: DragEndEvent) => {
     const { active, over } = event;
-
     if (over && active.id !== over.id) {
       setLocalConfig(prev => {
         const oldIndex = prev.leagues.findIndex(l => l.id === active.id);
@@ -325,7 +327,7 @@ export const SettingsModal = ({ open, onOpenChange, onMockEvent }: SettingsModal
   };
 
   const importConfig = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
+    const file = event.target.files?.;
     if (!file) return;
 
     const reader = new FileReader();
@@ -333,13 +335,13 @@ export const SettingsModal = ({ open, onOpenChange, onMockEvent }: SettingsModal
       try {
         const imported = JSON.parse(e.target?.result as string);
         setLocalConfig({ ...DEFAULT_CONFIG, ...imported });
-        updateConfig({ ...DEFAULT_CONFIG, ...imported }); // Auto-save to localStorage
+        updateConfig({ ...DEFAULT_CONFIG, ...imported });
         
         toast({
           title: 'Success',
           description: 'Configuration imported',
         });
-      } catch (error) {
+      } catch {
         toast({
           title: 'Error',
           description: 'Invalid configuration file',
@@ -352,7 +354,7 @@ export const SettingsModal = ({ open, onOpenChange, onMockEvent }: SettingsModal
 
   const resetToDefaults = () => {
     setLocalConfig(DEFAULT_CONFIG);
-    updateConfig(DEFAULT_CONFIG); // Auto-save to localStorage
+    updateConfig(DEFAULT_CONFIG);
     
     toast({
       title: 'Settings Reset',
@@ -366,7 +368,6 @@ export const SettingsModal = ({ open, onOpenChange, onMockEvent }: SettingsModal
       demoMode: { ...prev.demoMode, enabled }
     }));
     
-    // Auto-save when demo mode is toggled
     const updatedConfig = {
       ...localConfig,
       demoMode: { ...localConfig.demoMode, enabled }
@@ -395,7 +396,6 @@ export const SettingsModal = ({ open, onOpenChange, onMockEvent }: SettingsModal
           <TabsContent value="leagues" className="space-y-4">
             <YahooIntegrationFlow />
             
-            {/* Yahoo League Selection Section - Only show when Yahoo is connected */}
             {isYahooConnected && (
               <Card>
                 <CardHeader>
@@ -427,8 +427,7 @@ export const SettingsModal = ({ open, onOpenChange, onMockEvent }: SettingsModal
                     </p>
                   ) : (
                     <div className="space-y-3">
-                      {availableLeagues.map((league) => {
-                        // FIXED: Safe access to savedSelections
+                      {availableLeagues.map((league: any) => {
                         const isSelected = (savedSelections ?? []).find(s => s.leagueId === league.league_key)?.enabled || false;
                         
                         return (
@@ -517,7 +516,7 @@ export const SettingsModal = ({ open, onOpenChange, onMockEvent }: SettingsModal
                       </Button>
                     </div>
                   </div>
-                  
+
                   {newLeaguePlatform === 'Sleeper' && (
                     <div>
                       <Label htmlFor="sleeperUsername">Sleeper Username (Optional)</Label>
@@ -991,7 +990,6 @@ export const SettingsModal = ({ open, onOpenChange, onMockEvent }: SettingsModal
                   </div>
                   <div className="flex justify-between">
                     <dt className="font-medium">Yahoo Leagues Selected:</dt>
-                    {/* FIXED: Safe access to savedSelections */}
                     <dd className="text-muted-foreground">{(savedSelections ?? []).filter(s => s.enabled).length}</dd>
                   </div>
                   <div className="flex justify-between">
@@ -1005,8 +1003,7 @@ export const SettingsModal = ({ open, onOpenChange, onMockEvent }: SettingsModal
                 </dl>
               </CardContent>
             </Card>
-          </TabsContent>
-           <TabsContent value="testing" className="space-y-4">
+
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
@@ -1047,20 +1044,6 @@ export const SettingsModal = ({ open, onOpenChange, onMockEvent }: SettingsModal
                 <div className="text-sm text-muted-foreground">
                   <p><strong>Note:</strong> The demo league appears as the first league in your dashboard when enabled. It's clearly marked with a 🎮 icon to distinguish it from real leagues.</p>
                 </div>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader>
-                <CardTitle>Manual Event Testing</CardTitle>
-                <CardDescription>
-                  Generate test events for debugging specific scenarios
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <p className="text-sm text-muted-foreground">
-                  Enable the demo league above to access manual event generation and live testing features.
-                </p>
               </CardContent>
             </Card>
           </TabsContent>
