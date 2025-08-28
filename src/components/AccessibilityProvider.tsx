@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect, useState, ReactNode } from 'react';
+import React, { createContext, useContext, useEffect, useState, ReactNode, useCallback, useMemo } from 'react';
 
 interface AccessibilityContextType {
   highContrast: boolean;
@@ -61,7 +61,7 @@ export const AccessibilityProvider = ({ children }: AccessibilityProviderProps) 
     localStorage.setItem('accessibility-high-contrast', String(highContrast));
   }, [highContrast, reducedMotion, fontSize]);
 
-  const announceMessage = (message: string) => {
+  const announceMessage = useCallback((message: string) => {
     // Create or update aria-live region
     let announcer = document.getElementById('accessibility-announcer');
     if (!announcer) {
@@ -82,34 +82,32 @@ export const AccessibilityProvider = ({ children }: AccessibilityProviderProps) 
     setTimeout(() => {
       announcer!.textContent = message;
     }, 100);
-  };
+  }, []);
 
-  const focusElement = (elementId: string) => {
+  const focusElement = useCallback((elementId: string) => {
     const element = document.getElementById(elementId);
     if (element) {
       element.focus();
       element.scrollIntoView({ behavior: reducedMotion ? 'auto' : 'smooth', block: 'center' });
     }
-  };
+  }, [reducedMotion]);
 
-  const value: AccessibilityContextType = {
+  const value: AccessibilityContextType = useMemo(() => ({
     highContrast,
     reducedMotion,
     fontSize,
     announceMessage,
     focusElement,
-  };
+  }), [highContrast, reducedMotion, fontSize, announceMessage, focusElement]);
+
+  const classNames = useMemo(() => 
+    `${highContrast ? 'accessibility-high-contrast' : ''} ${reducedMotion ? 'accessibility-reduced-motion' : ''} ${fontSize === 'large' ? 'accessibility-large-font' : ''} ${fontSize === 'xl' ? 'accessibility-xl-font' : ''}`.trim(),
+    [highContrast, reducedMotion, fontSize]
+  );
 
   return (
     <AccessibilityContext.Provider value={value}>
-      <div
-        className={`
-          ${highContrast ? 'accessibility-high-contrast' : ''}
-          ${reducedMotion ? 'accessibility-reduced-motion' : ''}
-          ${fontSize === 'large' ? 'accessibility-large-font' : ''}
-          ${fontSize === 'xl' ? 'accessibility-xl-font' : ''}
-        `}
-      >
+      <div className={classNames}>
         {children}
       </div>
     </AccessibilityContext.Provider>
