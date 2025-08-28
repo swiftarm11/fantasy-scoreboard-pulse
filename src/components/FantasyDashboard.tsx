@@ -39,7 +39,9 @@ import { DebugConsole } from './DebugConsole';
 import { YahooDebugPanel } from './YahooDebugPanel';
 
 const DashboardContent = () => {
+  console.log('🔥 FantasyDashboard: useConfig about to be called');
   const { config } = useConfig();
+  console.log('🔥 FantasyDashboard: useConfig returned', { configLeaguesLength: config.leagues.length });
   const location = useLocation();
   const { leagues: sleeperLeagues, loading, error, lastUpdated, refetch } = useSleeperData(config.leagues);
   
