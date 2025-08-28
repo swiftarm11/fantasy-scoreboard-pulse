@@ -44,6 +44,7 @@ const DashboardContent = () => {
   const { leagues: sleeperLeagues, loading, error, lastUpdated, refetch } = useSleeperData(config.leagues);
   
   // FIXED: Yahoo leagues - now properly uses saved selections from localStorage
+  console.log('🔥 FantasyDashboard: useYahooData about to be called');
   const { 
     leagues: yahooLeagues, 
     isLoading: yahooLoading, 
@@ -51,6 +52,7 @@ const DashboardContent = () => {
     refreshData: refreshYahooData,
     getEnabledLeagueIds  // Get enabled league IDs from saved selections
   } = useYahooData();
+  console.log('🔥 FantasyDashboard: useYahooData returned', { yahooLeagues: yahooLeagues?.length });
   
   const { isOnline } = useNetworkStatus();
   const { demoLeague, triggerManualEvent } = useDemoLeague({ 
