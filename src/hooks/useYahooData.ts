@@ -183,7 +183,6 @@ export const useYahooData = (enabledLeagueIds?: string[]) => {
     }
   }, [isConnected, getStoredTokens]);
 
-  // Fetch detailed league data for enabled leagues
   const fetchLeagueData = useCallback(async (leagueIds: string[]) => {
     yahooLogger.info('YAHOO_DATA', 'Starting fetchLeagueData', {
       isConnected,
@@ -210,11 +209,14 @@ export const useYahooData = (enabledLeagueIds?: string[]) => {
 
       const detailedLeagues: LeagueData[] = [];
 
+      // Get current available leagues at time of execution
+      const currentState = state;
+      
       for (const leagueKey of leagueIds) {
         yahooLogger.info('YAHOO_DATA', 'Fetching league details', { leagueKey });
         
         try {
-          const leagueInfo = state.availableLeagues.find((l: any) => l.league_key === leagueKey);
+          const leagueInfo = currentState.availableLeagues.find((l: any) => l.league_key === leagueKey);
           if (!leagueInfo) {
             yahooLogger.warn('YAHOO_DATA', 'League info not found in available leagues', { leagueKey });
             continue;
@@ -331,14 +333,17 @@ export const useYahooData = (enabledLeagueIds?: string[]) => {
         isLoading: false,
       }));
     }
-  }, [isConnected, state.availableLeagues, getStoredTokens]);
+  }, [isConnected, getStoredTokens]);
 
   // Auto-fetch available leagues when connected
   useEffect(() => {
     if (isConnected) {
-      fetchAvailableLeagues();
+      const fetchLeagues = async () => {
+        await fetchAvailableLeagues();
+      };
+      fetchLeagues();
     }
-  }, [isConnected, fetchAvailableLeagues]);
+  }, [isConnected]);
 
   // Auto-fetch league data when enabled leagues change
   useEffect(() => {
@@ -346,9 +351,10 @@ export const useYahooData = (enabledLeagueIds?: string[]) => {
       clearTimeout(timeoutRef.current);
     }
 
-    const enabledIds = getEnabledLeagueIds();
+    const enabledIds = savedSelections.filter(s => s.enabled).map(s => s.leagueId);
     if (enabledIds.length > 0 && state.availableLeagues.length > 0) {
       timeoutRef.current = setTimeout(() => {
+        // Call fetchLeagueData directly with current enabled IDs
         fetchLeagueData(enabledIds);
       }, 500);
     }
@@ -358,7 +364,7 @@ export const useYahooData = (enabledLeagueIds?: string[]) => {
         clearTimeout(timeoutRef.current);
       }
     };
-  }, [savedSelections, fetchLeagueData, state.availableLeagues, getEnabledLeagueIds]);
+  }, [savedSelections, state.availableLeagues]);
 
   // Refresh all data
   const refreshData = useCallback(async () => {
