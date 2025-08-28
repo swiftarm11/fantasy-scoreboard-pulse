@@ -1,32 +1,35 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import { DashboardConfig, DEFAULT_CONFIG } from '../types/config';
 
 const CONFIG_KEY = 'fantasy_dashboard_config';
+const INIT_KEY = 'fantasy_dashboard_config_init';
 
 export const useConfig = () => {
   console.log('🔥 useConfig: Hook called');
-  const [config, setConfig] = useState<DashboardConfig>(DEFAULT_CONFIG);
-  const hasInitializedRef = useRef(false);
-
-  // Load config from localStorage on mount only once
-  useEffect(() => {
-    console.log('🔥 useConfig: useEffect called');
-    if (!hasInitializedRef.current) {
-      try {
-        const savedConfig = localStorage.getItem(CONFIG_KEY);
-        if (savedConfig) {
-          const parsed = JSON.parse(savedConfig);
-          const newConfig = { ...DEFAULT_CONFIG, ...parsed };
-          console.log('🔥 useConfig: Setting config from localStorage', newConfig);
-          setConfig(newConfig);
-        } else {
-          console.log('🔥 useConfig: No saved config, using default');
-        }
-        hasInitializedRef.current = true;
-      } catch (error) {
-        console.error('Failed to load config from localStorage:', error);
-        hasInitializedRef.current = true;
+  const [config, setConfig] = useState<DashboardConfig>(() => {
+    // Initialize with stored config if available, otherwise use default
+    try {
+      const savedConfig = localStorage.getItem(CONFIG_KEY);
+      if (savedConfig) {
+        const parsed = JSON.parse(savedConfig);
+        console.log('🔥 useConfig: Initialized with stored config');
+        return { ...DEFAULT_CONFIG, ...parsed };
       }
+    } catch (error) {
+      console.error('Failed to load config during initialization:', error);
+    }
+    console.log('🔥 useConfig: Initialized with default config');
+    return DEFAULT_CONFIG;
+  });
+
+  // Only run effect once, and only if not already initialized
+  useEffect(() => {
+    const isInitialized = localStorage.getItem(INIT_KEY);
+    console.log('🔥 useConfig: useEffect called, isInitialized:', !!isInitialized);
+    
+    if (!isInitialized) {
+      localStorage.setItem(INIT_KEY, 'true');
+      console.log('🔥 useConfig: Marked as initialized');
     }
   }, []);
 
@@ -45,6 +48,7 @@ export const useConfig = () => {
   const clearConfig = () => {
     try {
       localStorage.removeItem(CONFIG_KEY);
+      localStorage.removeItem(INIT_KEY);
       setConfig(DEFAULT_CONFIG);
     } catch (error) {
       console.error('Failed to clear config:', error);
