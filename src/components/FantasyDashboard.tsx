@@ -497,9 +497,5 @@ const DashboardContent = () => {
 };
 
 export const FantasyDashboard = () => {
-  return (
-    <AccessibilityProvider>
-      <DashboardContent />
-    </AccessibilityProvider>
-  );
+  return <DashboardContent />;
 };
