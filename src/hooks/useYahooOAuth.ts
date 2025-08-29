@@ -7,7 +7,6 @@ import { toast } from '../components/ui/use-toast';
 import { yahooLogger } from '../utils/yahooLogger';
 
 export const useYahooOAuth = () => {
-  console.log('🔥 useYahooOAuth: Hook called');
   const [state, setState] = useState<YahooOAuthState>({
     isConnected: false,
     userInfo: null,
@@ -15,7 +14,6 @@ export const useYahooOAuth = () => {
     isLoading: false,
     error: null
   });
-  console.log('🔥 useYahooOAuth: State initialized');
 
   // Initialize from stored values on mount
   useEffect(() => {

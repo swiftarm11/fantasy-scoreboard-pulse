@@ -23,12 +23,7 @@ interface YahooLeagueSelection {
 const STORAGE_KEY = 'yahoo_league_selections';
 
 export const useYahooData = (enabledLeagueIds?: string[]) => {
-  console.log('🔥 useYahooData: Hook called');
-  
-  const oauthHookResult = useYahooOAuth();
-  console.log('🔥 useYahooData: useYahooOAuth result:', { isConnected: oauthHookResult.isConnected });
-  
-  const { isConnected, getStoredTokens } = oauthHookResult;
+  const { isConnected } = useYahooOAuth();
   const [state, setState] = useState<YahooDataState>({
     leagues: [],
     availableLeagues: [],
@@ -37,16 +32,12 @@ export const useYahooData = (enabledLeagueIds?: string[]) => {
     lastUpdated: null,
   });
 
-  console.log('🔥 useYahooData: State initialized', { isConnected });
-
   const [savedSelections, setSavedSelections] = useState<YahooLeagueSelection[]>([]);
   const timeoutRef = useRef<NodeJS.Timeout | null>(null);
   const hasInitializedRef = useRef(false);
 
   // Load saved selections from localStorage on mount only
   useEffect(() => {
-    console.log('🔥 useYahooData: First useEffect called', { hasInitialized: hasInitializedRef.current });
-    
     if (!hasInitializedRef.current) {
       try {
         const saved = localStorage.getItem(STORAGE_KEY);
@@ -54,7 +45,6 @@ export const useYahooData = (enabledLeagueIds?: string[]) => {
           setSavedSelections(JSON.parse(saved));
         }
         hasInitializedRef.current = true;
-        console.log('🔥 useYahooData: Initialization completed');
       } catch (error) {
         console.error('Error loading saved Yahoo league selections:', error);
         hasInitializedRef.current = true;
@@ -272,23 +262,13 @@ export const useYahooData = (enabledLeagueIds?: string[]) => {
 
   // Auto-fetch available leagues when connected - simple effect
   useEffect(() => {
-    console.log('🔥 useYahooData: Second useEffect called', { isConnected, hasInitialized: hasInitializedRef.current });
-    
     if (isConnected && hasInitializedRef.current) {
-      console.log('🔥 useYahooData: Calling fetchAvailableLeagues');
       fetchAvailableLeagues();
     }
   }, [isConnected, fetchAvailableLeagues]);
 
   // Auto-fetch league data when enabled leagues change - simple effect with cleanup
   useEffect(() => {
-    console.log('🔥 useYahooData: Third useEffect called', { 
-      hasInitialized: hasInitializedRef.current, 
-      isConnected, 
-      savedSelectionsLength: savedSelections.length,
-      availableLeaguesLength: state.availableLeagues.length
-    });
-    
     if (timeoutRef.current) {
       clearTimeout(timeoutRef.current);
     }

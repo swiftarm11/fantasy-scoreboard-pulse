@@ -39,30 +39,18 @@ import { DebugConsole } from './DebugConsole';
 import { YahooDebugPanel } from './YahooDebugPanel';
 
 const DashboardContent = () => {
-  console.log('🔥 FantasyDashboard: Component render started');
-  
-  // Isolate config hook
-  const configResult = useConfig();
-  const { config } = configResult;
-  console.log('🔥 FantasyDashboard: useConfig returned', { configLeaguesLength: config.leagues.length });
-  
+  const { config } = useConfig();
   const location = useLocation();
   const { leagues: sleeperLeagues, loading, error, lastUpdated, refetch } = useSleeperData(config.leagues);
   
-  // Memoize Yahoo hook result to prevent unnecessary re-renders
-  const yahooDataResult = useMemo(() => {
-    console.log('🔥 FantasyDashboard: useYahooData memoized call');
-    return useYahooData();
-  }, []); // Empty dependency array - only call once
-  
+  // FIXED: Yahoo leagues - now properly uses saved selections from localStorage
   const { 
     leagues: yahooLeagues, 
     isLoading: yahooLoading, 
     error: yahooError, 
     refreshData: refreshYahooData,
-    getEnabledLeagueIds  
-  } = yahooDataResult;
-  console.log('🔥 FantasyDashboard: useYahooData returned', { yahooLeagues: yahooLeagues?.length });
+    getEnabledLeagueIds  // Get enabled league IDs from saved selections
+  } = useYahooData();
   
   const { isOnline } = useNetworkStatus();
   const { demoLeague, triggerManualEvent } = useDemoLeague({ 
@@ -505,18 +493,5 @@ const DashboardContent = () => {
 };
 
 export const FantasyDashboard = () => {
-  return (
-    <div className="min-h-screen bg-background text-foreground p-6">
-      <h1 className="text-3xl font-bold text-foreground mb-4">
-        Fantasy Dashboard (Safe Mode)
-      </h1>
-      <div className="space-y-4">
-        <p>Dashboard temporarily disabled due to infinite re-render loop.</p>
-        <div className="bg-card p-4 rounded border">
-          <h2 className="text-xl font-semibold">Debugging Mode</h2>
-          <p>Hooks have been isolated to prevent circular dependencies.</p>
-        </div>
-      </div>
-    </div>
-  );
+  return <DashboardContent />;
 };
