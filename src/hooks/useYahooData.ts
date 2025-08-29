@@ -322,7 +322,7 @@ export const useYahooData = (enabledLeagueIds?: string[]) => {
         clearTimeout(timeoutRef.current);
       }
     };
-  }, [savedSelections, isConnected, fetchLeagueDetails]);
+  }, [savedSelections, isConnected, fetchLeagueDetails, state.availableLeagues]);
 
   // Refresh all data - simple function
   const refreshData = useCallback(async () => {
