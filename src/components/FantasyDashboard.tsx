@@ -39,21 +39,29 @@ import { DebugConsole } from './DebugConsole';
 import { YahooDebugPanel } from './YahooDebugPanel';
 
 const DashboardContent = () => {
-  console.log('🔥 FantasyDashboard: useConfig about to be called');
-  const { config } = useConfig();
+  console.log('🔥 FantasyDashboard: Component render started');
+  
+  // Isolate config hook
+  const configResult = useConfig();
+  const { config } = configResult;
   console.log('🔥 FantasyDashboard: useConfig returned', { configLeaguesLength: config.leagues.length });
+  
   const location = useLocation();
   const { leagues: sleeperLeagues, loading, error, lastUpdated, refetch } = useSleeperData(config.leagues);
   
-  // FIXED: Yahoo leagues - now properly uses saved selections from localStorage
-  console.log('🔥 FantasyDashboard: useYahooData about to be called');
+  // Memoize Yahoo hook result to prevent unnecessary re-renders
+  const yahooDataResult = useMemo(() => {
+    console.log('🔥 FantasyDashboard: useYahooData memoized call');
+    return useYahooData();
+  }, []); // Empty dependency array - only call once
+  
   const { 
     leagues: yahooLeagues, 
     isLoading: yahooLoading, 
     error: yahooError, 
     refreshData: refreshYahooData,
-    getEnabledLeagueIds  // Get enabled league IDs from saved selections
-  } = useYahooData();
+    getEnabledLeagueIds  
+  } = yahooDataResult;
   console.log('🔥 FantasyDashboard: useYahooData returned', { yahooLeagues: yahooLeagues?.length });
   
   const { isOnline } = useNetworkStatus();
