@@ -195,7 +195,7 @@ const DashboardContent = () => {
 
   // Show loading screen on initial load
   if (combinedLoading && !displayLeagues.length) {
-    return <LoadingScreen />;
+    return <LoadingScreen isLoading={true} loadingStage="Loading leagues..." progress={50} />;
   }
 
   const dashboardData = {
@@ -235,9 +235,8 @@ const DashboardContent = () => {
       }
 
       return (
-        <LeagueBlock
+        <div 
           key={league.id}
-          league={league}
           tabIndex={0}
           onKeyDown={(e) => {
             if (e.key === 'Enter' || e.key === ' ') {
@@ -246,8 +245,12 @@ const DashboardContent = () => {
             }
           }}
           aria-label={`League: ${league.leagueName}`}
-          onClick={() => handleLeagueClick(league)}
-        />
+        >
+          <LeagueBlock
+            league={league}
+            onClick={() => handleLeagueClick(league)}
+          />
+        </div>
       );
     });
   };
@@ -277,8 +280,7 @@ const DashboardContent = () => {
       {isMobile && displayLeagues.length > 0 && (
         <CompactLeagueSummary
           leagues={displayLeagues}
-          currentIndex={currentLeagueIndex}
-          onIndexChange={setCurrentLeagueIndex}
+          onLeagueSelect={handleLeagueClick}
         />
       )}
 
@@ -389,12 +391,12 @@ const DashboardContent = () => {
       )}
 
       {/* Modals */}
-      <SettingsModal isOpen={settingsOpen} onClose={() => setSettingsOpen(false)} />
-      <ExportShareModal isOpen={exportShareOpen} onClose={() => setExportShareOpen(false)} data={dashboardData} />
+      <SettingsModal open={settingsOpen} onOpenChange={setSettingsOpen} />
+      <ExportShareModal open={exportShareOpen} onOpenChange={setExportShareOpen} dashboardData={dashboardData} />
 
       {/* Loading overlay */}
       {(isRefreshing || isPullRefreshing) && (
-        <LoadingOverlay message="Refreshing leagues..." />
+        <LoadingOverlay isVisible={true} message="Refreshing leagues..." />
       )}
 
       {/* Debug Console - Only shows in dev or when there are config issues */}
