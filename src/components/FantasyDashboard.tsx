@@ -36,61 +36,64 @@ import { enhancedAPIHandler, getUserFriendlyErrorMessage } from '../utils/enhanc
 import { useSwipeable } from 'react-swipeable';
 import { RefreshCw as RefreshIcon } from 'lucide-react';
 import { DebugConsole } from './DebugConsole';
-import { YahooDebugPanel } from './YahooDebugPanel';
 
 const DashboardContent = () => {
   const { config } = useConfig();
   const location = useLocation();
   const { leagues: sleeperLeagues, loading, error, lastUpdated, refetch } = useSleeperData(config.leagues);
-  
+
   // FIXED: Yahoo leagues - now properly uses saved selections from localStorage
-  const { 
-    leagues: yahooLeagues, 
-    isLoading: yahooLoading, 
-    error: yahooError, 
+  const {
+    leagues: yahooLeagues,
+    isLoading: yahooLoading,
+    error: yahooError,
     refreshData: refreshYahooData,
-    getEnabledLeagueIds  // Get enabled league IDs from saved selections
+    getEnabledLeagueIds // Get enabled league IDs from saved selections
   } = useYahooData();
-  
+
   const { isOnline } = useNetworkStatus();
-  const { demoLeague, triggerManualEvent } = useDemoLeague({ 
+  const { demoLeague, triggerManualEvent } = useDemoLeague({
     enabled: config.demoMode.enabled,
-    updateInterval: config.demoMode.updateInterval 
+    updateInterval: config.demoMode.updateInterval
   });
+
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [exportShareOpen, setExportShareOpen] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [currentLeagueIndex, setCurrentLeagueIndex] = useState(0);
-  
+
   // Mobile and responsive hooks
   const isMobile = useIsMobile();
   const breakpoint = useResponsiveBreakpoint();
   const { hasHaptics, isTouch } = useDeviceCapabilities();
-  
+
   // Use keyboard navigation
   useKeyboardNavigation();
 
   // Memoized combined leagues calculation to prevent unnecessary recalculation
   const displayLeagues = useMemo(() => {
     const allLeagues: LeagueData[] = [];
-    
+
     // Add demo league
     if (demoLeague) {
       allLeagues.push(demoLeague);
     }
+
     // Add Sleeper leagues
     if (sleeperLeagues.length > 0) {
       allLeagues.push(...sleeperLeagues);
     }
+
     // FIXED: Add Yahoo leagues from saved selections
     if (yahooLeagues.length > 0) {
       allLeagues.push(...yahooLeagues);
     }
+
     // Show mock data only if no real leagues configured, no demo league, and no loaded leagues
     if (config.leagues.length === 0 && !demoLeague && sleeperLeagues.length === 0 && yahooLeagues.length === 0) {
       allLeagues.push(...mockLeagueData);
     }
-    
+
     return allLeagues;
   }, [demoLeague, sleeperLeagues, yahooLeagues, config.leagues.length]);
 
@@ -102,7 +105,7 @@ const DashboardContent = () => {
 
   // CHANGE: Disable polling during OAuth callback to prevent interference
   const isOnOAuthCallback = location.pathname === '/auth/yahoo/callback';
-  
+
   const { startPolling, stopPolling, isPolling } = usePolling({
     callback: refetch,
     config: config.polling,
@@ -117,7 +120,7 @@ const DashboardContent = () => {
   }, [isOnOAuthCallback]);
 
   // Add ref to track last refresh time
-  const lastRefreshRef = useRef<number>(0);
+  const lastRefreshRef = useRef(0);
 
   // Debounced refresh function to prevent rapid successive calls
   const debouncedRefetch = useCallback(async () => {
@@ -126,9 +129,8 @@ const DashboardContent = () => {
       console.log('Refresh debounced - too frequent');
       return;
     }
-    
+
     lastRefreshRef.current = now;
-    
     // Refresh both platforms with error handling
     await Promise.allSettled([
       refetch(),
@@ -150,7 +152,7 @@ const DashboardContent = () => {
   const swipeHandlers = useSwipeable({
     onSwipedLeft: () => {
       if (isMobile && displayLeagues.length > 1) {
-        setCurrentLeagueIndex((prev) => 
+        setCurrentLeagueIndex((prev) =>
           prev < displayLeagues.length - 1 ? prev + 1 : 0
         );
         if (hasHaptics) navigator.vibrate?.(25);
@@ -158,7 +160,7 @@ const DashboardContent = () => {
     },
     onSwipedRight: () => {
       if (isMobile && displayLeagues.length > 1) {
-        setCurrentLeagueIndex((prev) => 
+        setCurrentLeagueIndex((prev) =>
           prev > 0 ? prev - 1 : displayLeagues.length - 1
         );
         if (hasHaptics) navigator.vibrate?.(25);
@@ -193,14 +195,7 @@ const DashboardContent = () => {
 
   // Show loading screen on initial load
   if (combinedLoading && !displayLeagues.length) {
-    return (
-      <LoadingScreen 
-        isLoading={true}
-        loadingStage="Loading your fantasy leagues..."
-        progress={20}
-        leagues={config.leagues}
-      />
-    );
+    return <LoadingScreen />;
   }
 
   const dashboardData = {
@@ -212,220 +207,154 @@ const DashboardContent = () => {
   const renderLeagueCards = () => {
     if (isMobile) {
       return displayLeagues.map((league, index) => (
-        <div
+        <MobileLeagueCard
           key={league.id}
-          className="animate-slide-in-right"
-          style={{ animationDelay: `${index * 0.1}s` }}
-        >
-          <MobileLeagueCard
-            league={league}
-            onClick={() => handleLeagueClick(league)}
-            onLongPress={() => {
-              console.log('Long press on league:', league.leagueName);
-              // TODO: Show quick actions menu
-            }}
-          />
-        </div>
+          league={league}
+          onClick={() => handleLeagueClick(league)}
+          onLongPress={() => {
+            console.log('Long press on league:', league.leagueName);
+            // TODO: Show quick actions menu
+          }}
+        />
       ));
     }
 
     return displayLeagues.map((league, index) => {
       if (config.display?.compactView) {
         return (
-          <div
-            key={league.id}
-            className="animate-slide-in-right"
-            style={{ animationDelay: `${index * 0.1}s` }}
-            tabIndex={0}
-            role="region"
-            aria-label={`${league.leagueName} league information`}
-          >
+          <div key={league.id} className="space-y-2">
             <CompactLeagueView
               league={league}
-              className="hover:shadow-lg transition-shadow cursor-pointer"
               onClick={() => handleLeagueClick(league)}
             />
             {config.display?.showWinProbabilityTrends && (
-              <WinProbabilityTrend league={league} className="mt-2" />
+              <WinProbabilityTrend league={league} />
             )}
           </div>
         );
       }
 
       return (
-        <div
+        <LeagueBlock
           key={league.id}
-          className="animate-slide-in-right"
-          style={{ animationDelay: `${index * 0.1}s` }}
+          league={league}
           tabIndex={0}
-          role="region"
-          aria-label={`${league.leagueName} league information`}
           onKeyDown={(e) => {
             if (e.key === 'Enter' || e.key === ' ') {
               e.preventDefault();
               handleLeagueClick(league);
             }
           }}
-        >
-          <LeagueBlock
-            league={league}
-            onClick={() => handleLeagueClick(league)}
-          />
-        </div>
+          aria-label={`League: ${league.leagueName}`}
+          onClick={() => handleLeagueClick(league)}
+        />
       );
     });
   };
 
   return (
-    <div 
-      ref={containerRef}
-      className="min-h-screen bg-background text-foreground dashboard-container" 
-      id="main-content"
-      {...(isMobile ? swipeHandlers : {})}
-    >
+    <div ref={containerRef} {...swipeHandlers} className="min-h-screen bg-background">
       {/* Skip to content link for accessibility */}
-      <a 
-        href="#main-content" 
-        className="skip-to-content"
-        tabIndex={1}
+      <a
+        href="#main-content"
+        className="sr-only focus:not-sr-only focus:absolute focus:top-4 focus:left-4 bg-blue-600 text-white px-4 py-2 rounded-md z-50"
       >
         Skip to main content
       </a>
-      
+
       {/* Pull to refresh indicator */}
       {isPullRefreshing && (
-        <div 
-          className="pull-to-refresh-indicator flex items-center justify-center p-4"
-          style={{ transform: `translateY(${Math.min(pullDistance, 60)}px)` }}
-        >
-          <RefreshIcon className="h-6 w-6 animate-spin text-primary" />
+        <div className="fixed top-0 left-0 right-0 bg-blue-500 text-white text-center py-2 z-40">
+          <RefreshIcon className="inline-block animate-spin mr-2" size={16} />
+          Refreshing...
         </div>
       )}
-      
+
       {/* Offline banner */}
-      <OfflineBanner onRetry={handleRefresh} />
+      <OfflineBanner />
 
       {/* Compact summary for mobile */}
       {isMobile && displayLeagues.length > 0 && (
-        <CompactLeagueSummary 
-          leagues={displayLeagues} 
-          onLeagueSelect={handleLeagueClick}
+        <CompactLeagueSummary
+          leagues={displayLeagues}
+          currentIndex={currentLeagueIndex}
+          onIndexChange={setCurrentLeagueIndex}
         />
       )}
 
       {/* Header */}
-      <header className={`${isMobile ? 'mobile-header' : 'p-6'} border-b border-border/50`} role="banner">
-        <div className="max-w-7xl mx-auto flex items-center justify-between">
-          <div className="space-y-1">
-            <h1 className={`${isMobile ? 'text-2xl' : 'text-3xl'} font-bold text-foreground`}>
-              {isMobile ? 'Fantasy Dashboard' : 'Fantasy Football Dashboard'}
-            </h1>
-            {!isMobile && (
-              <div className="flex items-center gap-4 text-sm text-muted-foreground">
-                <span>Last updated: {formatLastUpdate(lastUpdated)}</span>
-                <ConnectionIndicator 
-                  lastUpdated={lastUpdated} 
-                  isPolling={combinedLoading} 
-                />
-              </div>
-            )}
+      <header className="sticky top-0 z-30 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+        <div className="container flex h-14 items-center">
+          <div className="mr-4 hidden md:flex">
+            <h1 className="text-xl font-semibold">Fantasy Dashboard</h1>
           </div>
           
-          <div className={`flex items-center ${isMobile ? 'mobile-header-controls' : 'gap-2'}`}>
-            {!isMobile && (
-              <>
-                <Button
-                  variant="outline"
-                  onClick={handleRefresh}
-                  disabled={isRefreshing || !isOnline}
-                  className="animate-scale-in"
-                  aria-label="Refresh dashboard data"
-                >
-                  <RefreshCw className={`h-4 w-4 mr-2 ${isRefreshing ? 'animate-spin' : ''}`} />
-                  Refresh
-                </Button>
-                
-                <Button
-                  variant="outline"
-                  onClick={() => setExportShareOpen(true)}
-                  className="animate-scale-in"
-                  aria-label="Export and share dashboard"
-                >
-                  <Share2 className="h-4 w-4 mr-2" />
-                  Export & Share
-                </Button>
-              </>
-            )}
-
-            {isMobile ? (
-              <MobileSettingsModal>
-                <Button
-                  variant="ghost"
-                  className="w-full justify-start mobile-touch-target"
-                  onClick={handleRefresh}
-                  disabled={isRefreshing || !isOnline}
-                >
-                  <RefreshCw className={`h-4 w-4 mr-2 ${isRefreshing ? 'animate-spin' : ''}`} />
-                  Refresh
-                </Button>
-                <Button
-                  variant="ghost"
-                  className="w-full justify-start mobile-touch-target"
-                  onClick={() => setExportShareOpen(true)}
-                >
-                  <Share2 className="h-4 w-4 mr-2" />
-                  Export & Share
-                </Button>
-              </MobileSettingsModal>
-            ) : (
+          <div className="flex flex-1 items-center justify-between space-x-2 md:justify-end">
+            <div className="w-full flex-1 md:w-auto md:flex-none">
+              <ConnectionIndicator />
+            </div>
+            
+            <nav className="flex items-center space-x-1">
               <Button
-                variant="outline"
-                onClick={() => setSettingsOpen(true)}
-                className="animate-scale-in"
-                aria-label="Open dashboard settings"
+                variant="ghost"
+                size="sm"
+                onClick={handleRefresh}
+                disabled={isRefreshing}
+                className="h-8 w-8 px-0"
               >
-                <Settings className="h-4 w-4 mr-2" />
-                Settings
+                <RefreshCw className={`h-4 w-4 ${isRefreshing ? 'animate-spin' : ''}`} />
+                <span className="sr-only">Refresh</span>
               </Button>
-            )}
+              
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setExportShareOpen(true)}
+                className="h-8 w-8 px-0"
+              >
+                <Share2 className="h-4 w-4" />
+                <span className="sr-only">Share</span>
+              </Button>
+              
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setSettingsOpen(true)}
+                className="h-8 w-8 px-0"
+              >
+                <Settings className="h-4 w-4" />
+                <span className="sr-only">Settings</span>
+              </Button>
+            </nav>
           </div>
         </div>
       </header>
 
       {/* Main content */}
-      <main className="dashboard-grid animate-fade-in-up" role="main" aria-label="Fantasy league dashboard">
+      <main id="main-content" className="container mx-auto px-4 py-6">
         {combinedError ? (
-          <div className="col-span-full flex justify-center items-center p-8">
-            <Alert variant="destructive" className="max-w-md">
-              <AlertDescription>
-                {getUserFriendlyErrorMessage(combinedError)}
-              </AlertDescription>
-            </Alert>
-          </div>
+          <Alert className="mb-6">
+            <AlertDescription>
+              {getUserFriendlyErrorMessage(combinedError)}
+            </AlertDescription>
+          </Alert>
         ) : displayLeagues.length > 0 ? (
-          renderLeagueCards()
+          <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+            {renderLeagueCards()}
+          </div>
         ) : (
           // Loading skeletons
-          Array.from({ length: isMobile ? 3 : 6 }).map((_, i) => (
-            <Card key={i} className={`${isMobile ? 'mobile-league-card' : 'league-block'} animate-pulse`}>
-              <div className="league-content">
-                <div className="space-y-4">
-                  <Skeleton className="h-4 w-3/4" />
-                  <Skeleton className="h-8 w-1/2" />
-                  <div className="space-y-2">
-                    <Skeleton className="h-3 w-full" />
-                    <Skeleton className="h-3 w-2/3" />
-                  </div>
-                </div>
-              </div>
-            </Card>
-          ))
+          <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+            {Array.from({ length: isMobile ? 3 : 6 }).map((_, i) => (
+              <SkeletonLoader key={i} />
+            ))}
+          </div>
         )}
 
         {/* Add new league placeholder */}
         {config.leagues.length < 10 && (
-          <Card 
-            className={`${isMobile ? 'mobile-league-card' : 'league-block'} border-dashed border-2 hover:border-primary/50 transition-colors cursor-pointer animate-scale-in`}
+          <Card
+            className="mt-6 p-8 border-2 border-dashed border-muted-foreground/25 hover:border-muted-foreground/50 transition-colors cursor-pointer"
             onClick={() => setSettingsOpen(true)}
             role="button"
             tabIndex={0}
@@ -437,12 +366,10 @@ const DashboardContent = () => {
               }
             }}
           >
-            <div className="league-content flex items-center justify-center text-muted-foreground">
-              <div className="text-center space-y-2">
-                <Plus className={`${isMobile ? 'h-8 w-8' : 'h-12 w-12'} mx-auto opacity-50`} />
-                <p className="font-medium">Add League</p>
-                <p className="text-sm">Connect another fantasy league</p>
-              </div>
+            <div className="text-center text-muted-foreground">
+              <Plus className="mx-auto h-12 w-12 mb-4" />
+              <h3 className="text-lg font-medium mb-2">Add League</h3>
+              <p className="text-sm">Connect another fantasy league</p>
             </div>
           </Card>
         )}
@@ -450,48 +377,36 @@ const DashboardContent = () => {
 
       {/* Footer - Hidden on mobile */}
       {!isMobile && (
-        <footer className="p-6 border-t border-border/50 text-center text-sm text-muted-foreground" role="contentinfo">
-          <div className="max-w-7xl mx-auto">
-            {config.leagues.length > 0 ? (
-              <p>
-                Tracking {config.leagues.length} league{config.leagues.length !== 1 ? 's' : ''} • 
-                Polling every {config.polling.updateFrequency} seconds
-                {config.polling.smartPolling && ' • Smart polling enabled'}
+        <footer className="border-t py-6 md:py-0">
+          <div className="container flex flex-col items-center justify-between gap-4 md:h-24 md:flex-row">
+            <div className="flex flex-col items-center gap-4 px-8 md:flex-row md:gap-2 md:px-0">
+              <p className="text-center text-sm leading-loose text-muted-foreground md:text-left">
+                Last updated: {formatLastUpdate(lastUpdated)}
               </p>
-            ) : (
-              <p>Add your first league to get started!</p>
-            )}
+            </div>
           </div>
         </footer>
       )}
 
       {/* Modals */}
-      <SettingsModal 
-        open={settingsOpen} 
-        onOpenChange={setSettingsOpen} 
-      />
-      
-      <ExportShareModal 
-        open={exportShareOpen} 
-        onOpenChange={setExportShareOpen}
-        dashboardData={dashboardData}
-      />
+      <SettingsModal isOpen={settingsOpen} onClose={() => setSettingsOpen(false)} />
+      <ExportShareModal isOpen={exportShareOpen} onClose={() => setExportShareOpen(false)} data={dashboardData} />
 
       {/* Loading overlay */}
       {(isRefreshing || isPullRefreshing) && (
-        <LoadingOverlay 
-          isVisible={true}
-          message={isPullRefreshing ? "Pull to refresh..." : "Refreshing data..."} 
-        />
+        <LoadingOverlay message="Refreshing leagues..." />
       )}
 
       {/* Debug Console - Only shows in dev or when there are config issues */}
       <DebugConsole />
-      <YahooDebugPanel />
     </div>
   );
 };
 
 export const FantasyDashboard = () => {
-  return <DashboardContent />;
+  return (
+    <AccessibilityProvider>
+      <DashboardContent />
+    </AccessibilityProvider>
+  );
 };
