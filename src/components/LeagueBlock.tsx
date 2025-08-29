@@ -76,7 +76,7 @@ export const LeagueBlock = React.memo(({ league, onClick }: LeagueBlockProps) =>
   return (
     <div
       id={league.id}
-      className={`league-block ${statusClass} ${platformClass} cursor-pointer transition-all duration-300 hover-scale animate-fade-in`}
+      className={`league-block ${statusClass} ${platformClass} cursor-pointer transition-all duration-300 hover-scale animate-fade-in h-full`}
       onClick={onClick}
     >
       <div className="league-overlay" />

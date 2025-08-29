@@ -189,6 +189,46 @@ const DashboardContent = () => {
     }
   };
 
+  // Calculate optimal grid layout based on number of leagues
+  const getGridLayout = useMemo(() => {
+    const leagueCount = displayLeagues.length;
+    
+    if (isMobile) {
+      return "grid grid-cols-1 gap-4";
+    }
+    
+    // Adaptive grid for desktop/laptop - optimized for 13" MacBook Air
+    if (leagueCount <= 2) {
+      return "grid grid-cols-1 lg:grid-cols-2 gap-6 max-w-4xl mx-auto";
+    } else if (leagueCount <= 4) {
+      return "grid grid-cols-2 gap-6 max-w-5xl mx-auto";
+    } else if (leagueCount <= 6) {
+      return "grid grid-cols-2 lg:grid-cols-3 gap-5 max-w-6xl mx-auto";
+    } else if (leagueCount <= 9) {
+      return "grid grid-cols-3 lg:grid-cols-3 xl:grid-cols-4 gap-4 max-w-7xl mx-auto";
+    } else if (leagueCount <= 12) {
+      return "grid grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4 max-w-7xl mx-auto";
+    } else {
+      // 13-14 leagues: compact 5-7 column layout for optimal space usage
+      return "grid grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-7 gap-3 max-w-[1600px] mx-auto";
+    }
+  }, [displayLeagues.length, isMobile]);
+
+  // Calculate card size class based on layout density
+  const getCardSizeClass = useMemo(() => {
+    const leagueCount = displayLeagues.length;
+    
+    if (leagueCount <= 2) {
+      return "min-h-[400px]"; // Large cards for few leagues
+    } else if (leagueCount <= 6) {
+      return "min-h-[350px]"; // Medium cards
+    } else if (leagueCount <= 9) {
+      return "min-h-[320px]"; // Compact cards
+    } else {
+      return "min-h-[280px]"; // Very compact for 10+ leagues
+    }
+  }, [displayLeagues.length]);
+
   const formatLastUpdate = (date: Date | null) => {
     return date ? date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'Never';
   };
@@ -245,6 +285,7 @@ const DashboardContent = () => {
             }
           }}
           aria-label={`League: ${league.leagueName}`}
+          className={getCardSizeClass}
         >
           <LeagueBlock
             league={league}
@@ -341,12 +382,12 @@ const DashboardContent = () => {
             </AlertDescription>
           </Alert>
         ) : displayLeagues.length > 0 ? (
-          <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+          <div className={getGridLayout}>
             {renderLeagueCards()}
           </div>
         ) : (
-          // Loading skeletons
-          <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+          // Loading skeletons with adaptive layout
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {Array.from({ length: isMobile ? 3 : 6 }).map((_, i) => (
               <SkeletonLoader key={i} />
             ))}
