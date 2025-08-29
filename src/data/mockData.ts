@@ -260,5 +260,249 @@ export const mockLeagueData: LeagueData[] = [
       }
     ],
     lastUpdated: '5 minutes ago'
+  },
+  {
+    id: '6',
+    leagueName: 'Beer Money League',
+    platform: 'Yahoo',
+    teamName: 'Last Call Heroes',
+    myScore: 112.3,
+    opponentScore: 87.9,
+    opponentName: 'Happy Hour Hustlers',
+    record: '6-3',
+    leaguePosition: '3rd place',
+    status: 'winning',
+    scoringEvents: [
+      {
+        id: '6-1',
+        playerName: 'D. Henry',
+        position: 'RB',
+        weeklyPoints: 21.8,
+        action: '76-yard rushing TD',
+        scoreImpact: 6.0,
+        timestamp: '3:33 PM',
+        isRecent: true
+      }
+    ],
+    lastUpdated: '4 minutes ago'
+  },
+  {
+    id: '7',
+    leagueName: 'College Buddies',
+    platform: 'ESPN',
+    teamName: 'Alma Mater Magic',
+    myScore: 156.7,
+    opponentScore: 143.2,
+    opponentName: 'Dorm Room Legends',
+    record: '9-0',
+    leaguePosition: '1st place',
+    status: 'winning',
+    scoringEvents: [
+      {
+        id: '7-1',
+        playerName: 'L. McCoy',
+        position: 'RB',
+        weeklyPoints: 18.4,
+        action: '45-yard rush',
+        scoreImpact: 4.5,
+        timestamp: '2:22 PM'
+      }
+    ],
+    lastUpdated: '8 minutes ago'
+  },
+  {
+    id: '8',
+    leagueName: 'High Stakes Championship',
+    platform: 'Sleeper',
+    teamName: 'Money Makers',
+    myScore: 73.1,
+    opponentScore: 124.8,
+    opponentName: 'Cash Collectors',
+    record: '2-7',
+    leaguePosition: '11th place',
+    status: 'losing',
+    scoringEvents: [
+      {
+        id: '8-1',
+        playerName: 'A. Brown',
+        position: 'WR',
+        weeklyPoints: 3.2,
+        action: 'Dropped pass',
+        scoreImpact: 0.0,
+        timestamp: '1:15 PM'
+      }
+    ],
+    lastUpdated: '12 minutes ago'
+  },
+  {
+    id: '9',
+    leagueName: 'Family Feud Fantasy',
+    platform: 'NFL.com',
+    teamName: 'Uncle Bob Squad',
+    myScore: 98.9,
+    opponentScore: 101.2,
+    opponentName: 'Cousin Kevin Crew',
+    record: '4-5',
+    leaguePosition: '7th place',
+    status: 'losing',
+    scoringEvents: [
+      {
+        id: '9-1',
+        playerName: 'M. Andrews',
+        position: 'TE',
+        weeklyPoints: 14.7,
+        action: '22-yard reception',
+        scoreImpact: 2.2,
+        timestamp: '4:44 PM',
+        isRecent: true
+      }
+    ],
+    lastUpdated: '6 minutes ago'
+  },
+  {
+    id: '10',
+    leagueName: 'Rookie Draft Masters',
+    platform: 'Yahoo',
+    teamName: 'Draft Day Devils',
+    myScore: 119.6,
+    opponentScore: 85.3,
+    opponentName: 'Waiver Wire Warriors',
+    record: '7-2',
+    leaguePosition: '2nd place',
+    status: 'winning',
+    scoringEvents: [
+      {
+        id: '10-1',
+        playerName: 'C. Ridley',
+        position: 'WR',
+        weeklyPoints: 19.8,
+        action: '54-yard TD reception',
+        scoreImpact: 6.0,
+        timestamp: '2:18 PM'
+      }
+    ],
+    lastUpdated: '3 minutes ago'
+  },
+  {
+    id: '11',
+    leagueName: 'Neighborhood Showdown',
+    platform: 'ESPN',
+    teamName: 'Block Party Ballers',
+    myScore: 107.4,
+    opponentScore: 108.1,
+    opponentName: 'Backyard Bashers',
+    record: '5-4',
+    leaguePosition: '5th place',
+    status: 'losing',
+    scoringEvents: [
+      {
+        id: '11-1',
+        playerName: 'R. White',
+        position: 'WR',
+        weeklyPoints: 16.2,
+        action: '33-yard reception',
+        scoreImpact: 3.3,
+        timestamp: '3:57 PM'
+      }
+    ],
+    lastUpdated: '9 minutes ago'
+  },
+  {
+    id: '12',
+    leagueName: 'Corporate Clash',
+    platform: 'Sleeper',
+    teamName: 'Executive Decisions',
+    myScore: 142.8,
+    opponentScore: 99.7,
+    opponentName: 'Management Mayhem',
+    record: '8-1',
+    leaguePosition: '1st place',
+    status: 'winning',
+    scoringEvents: [
+      {
+        id: '12-1',
+        playerName: 'S. Barkley',
+        position: 'RB',
+        weeklyPoints: 25.4,
+        action: '68-yard TD run',
+        scoreImpact: 6.0,
+        timestamp: '1:39 PM',
+        isRecent: true
+      }
+    ],
+    lastUpdated: '11 minutes ago'
+  },
+  {
+    id: '13',
+    leagueName: 'Weekend Warriors',
+    platform: 'NFL.com',
+    teamName: 'Saturday Squad',
+    myScore: 91.7,
+    opponentScore: 127.3,
+    opponentName: 'Sunday Slayers',
+    record: '3-6',
+    leaguePosition: '9th place',
+    status: 'losing',
+    scoringEvents: [
+      {
+        id: '13-1',
+        playerName: 'D. Watson',
+        position: 'QB',
+        weeklyPoints: 12.1,
+        action: 'Incomplete pass',
+        scoreImpact: 0.0,
+        timestamp: '2:55 PM'
+      }
+    ],
+    lastUpdated: '15 minutes ago'
+  },
+  {
+    id: '14',
+    leagueName: 'Championship Chase',
+    platform: 'Yahoo',
+    teamName: 'Trophy Hunters',
+    myScore: 115.2,
+    opponentScore: 114.9,
+    opponentName: 'Ring Seekers',
+    record: '6-3',
+    leaguePosition: '3rd place',
+    status: 'winning',
+    scoringEvents: [
+      {
+        id: '14-1',
+        playerName: 'M. Pittman',
+        position: 'WR',
+        weeklyPoints: 13.8,
+        action: '27-yard reception',
+        scoreImpact: 2.7,
+        timestamp: '4:11 PM'
+      }
+    ],
+    lastUpdated: '7 minutes ago'
+  },
+  {
+    id: '15',
+    leagueName: 'Elite Eight League',
+    platform: 'ESPN',
+    teamName: 'Final Four Fantasies',
+    myScore: 103.6,
+    opponentScore: 103.6,
+    opponentName: 'March Madness Mavs',
+    record: '5-4',
+    leaguePosition: '6th place',
+    status: 'neutral',
+    scoringEvents: [
+      {
+        id: '15-1',
+        playerName: 'K. Allen',
+        position: 'WR',
+        weeklyPoints: 11.4,
+        action: '18-yard catch',
+        scoreImpact: 1.8,
+        timestamp: '3:22 PM',
+        isRecent: true
+      }
+    ],
+    lastUpdated: '10 minutes ago'
   }
 ];
