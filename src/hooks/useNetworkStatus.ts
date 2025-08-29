@@ -65,7 +65,9 @@ export const useNetworkStatus = () => {
 
       // If offline, start attempting reconnection
       if (!online) {
-        const timer = setInterval(attemptReconnection, 5000);
+        const timer = setInterval(() => {
+          attemptReconnection();
+        }, 5000);
         setReconnectTimer(timer);
       }
     });
@@ -81,7 +83,7 @@ export const useNetworkStatus = () => {
         clearTimeout(reconnectTimer);
       }
     };
-  }, [attemptReconnection, reconnectTimer, testConnectionSpeed]);
+  }, [attemptReconnection, testConnectionSpeed]); // Remove reconnectTimer dependency
 
   const resetReconnectAttempts = useCallback(() => {
     setStatus(prev => ({ ...prev, reconnectAttempts: 0 }));
