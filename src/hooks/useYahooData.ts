@@ -25,7 +25,10 @@ const STORAGE_KEY = 'yahoo_league_selections';
 export const useYahooData = (enabledLeagueIds?: string[]) => {
   console.log('🔥 useYahooData: Hook called');
   
-  const { isConnected, getStoredTokens } = useYahooOAuth();
+  const oauthHookResult = useYahooOAuth();
+  console.log('🔥 useYahooData: useYahooOAuth result:', { isConnected: oauthHookResult.isConnected });
+  
+  const { isConnected, getStoredTokens } = oauthHookResult;
   const [state, setState] = useState<YahooDataState>({
     leagues: [],
     availableLeagues: [],
@@ -83,7 +86,9 @@ export const useYahooData = (enabledLeagueIds?: string[]) => {
     setState(prev => ({ ...prev, isLoading: true, error: null }));
     
     try {
-      const tokens = getStoredTokens();
+      // Get fresh tokens each time to avoid cached stale tokens
+      const raw = localStorage.getItem('yahoo_oauth_tokens');
+      const tokens = raw ? JSON.parse(raw) : null;
       yahooLogger.info('YAHOO_DATA', 'Starting fetchAvailableLeagues', {
         hasAccessToken: !!tokens?.access_token,
         tokenPreview: tokens?.access_token?.substring(0, 20) + '...'
@@ -193,7 +198,7 @@ export const useYahooData = (enabledLeagueIds?: string[]) => {
         });
       }
     }
-  }, [isConnected, getStoredTokens]);
+  }, [isConnected]); // Remove getStoredTokens dependency
 
   // Separate function for fetching league details - stable
   const fetchLeagueDetails = useCallback(async (leagueIds: string[], availableLeagues: any[]) => {
@@ -201,7 +206,9 @@ export const useYahooData = (enabledLeagueIds?: string[]) => {
       return [];
     }
 
-    const tokens = getStoredTokens();
+    // Get fresh tokens each time to avoid cached stale tokens
+    const raw = localStorage.getItem('yahoo_oauth_tokens');
+    const tokens = raw ? JSON.parse(raw) : null;
     if (!tokens?.access_token) {
       throw new Error('Not authenticated');
     }
@@ -261,7 +268,7 @@ export const useYahooData = (enabledLeagueIds?: string[]) => {
     }
 
     return detailedLeagues;
-  }, [isConnected, getStoredTokens]);
+  }, [isConnected]); // Remove getStoredTokens dependency
 
   // Auto-fetch available leagues when connected - simple effect
   useEffect(() => {
