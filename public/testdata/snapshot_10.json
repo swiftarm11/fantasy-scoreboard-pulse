@@ -1,0 +1,2333 @@
+{
+  "fantasy_content": {
+    "league": [
+      {
+        "league_key": "461.l.1127949",
+        "league_id": "1127949",
+        "name": "Real NFL Week 7 Simulation",
+        "draft_status": "postdraft",
+        "num_teams": 12,
+        "current_week": "7",
+        "start_week": "1",
+        "end_week": "17",
+        "scoring_type": "head",
+        "league_type": "private",
+        "is_finished": 0,
+        "scoreboard": {
+          "week": "7",
+          "matchups": [
+            {
+              "week": "7",
+              "week_start": "2023-10-22",
+              "week_end": "2023-10-28",
+              "status": "midevent",
+              "is_playoffs": "0",
+              "is_consolation": "0",
+              "is_tied": 0,
+              "teams": [
+                {
+                  "team_key": "461.l.1127949.t.1",
+                  "team_id": "1",
+                  "name": "DET Real Fantasy",
+                  "team_logo": "https://s.yimg.com/cv/apiv2/default/nfl/nfl_4_det.png",
+                  "managers": [
+                    {
+                      "manager_id": "1",
+                      "nickname": "DETManager"
+                    }
+                  ],
+                  "points": {
+                    "coverage_type": "week",
+                    "week": "7",
+                    "total": "68.5"
+                  },
+                  "roster": {
+                    "coverage_type": "week",
+                    "week": "7",
+                    "players": [
+                      {
+                        "player_key": "461.p.00-0033106",
+                        "player_id": "00-0033106",
+                        "name": {
+                          "full": "J.Goff",
+                          "first": "J.Goff",
+                          "last": "Unknown"
+                        },
+                        "editorial_team_key": "nfl.t.det",
+                        "editorial_team_abbr": "DET",
+                        "display_position": "QB",
+                        "eligible_positions": [
+                          {
+                            "position": "QB"
+                          }
+                        ],
+                        "selected_position": {
+                          "coverage_type": "week",
+                          "week": "7",
+                          "position": "QB"
+                        },
+                        "player_points": {
+                          "coverage_type": "week",
+                          "week": "7",
+                          "total": "3.7"
+                        },
+                        "player_stats": {
+                          "coverage_type": "week",
+                          "week": "7",
+                          "stats": [
+                            {
+                              "stat_id": "4",
+                              "value": "113"
+                            }
+                          ]
+                        }
+                      },
+                      {
+                        "player_key": "461.p.00-0039139",
+                        "player_id": "00-0039139",
+                        "name": {
+                          "full": "J.Gibbs",
+                          "first": "J.Gibbs",
+                          "last": "Unknown"
+                        },
+                        "editorial_team_key": "nfl.t.det",
+                        "editorial_team_abbr": "DET",
+                        "display_position": "RB",
+                        "eligible_positions": [
+                          {
+                            "position": "RB"
+                          }
+                        ],
+                        "selected_position": {
+                          "coverage_type": "week",
+                          "week": "7",
+                          "position": "RB"
+                        },
+                        "player_points": {
+                          "coverage_type": "week",
+                          "week": "7",
+                          "total": "11.0"
+                        },
+                        "player_stats": {
+                          "coverage_type": "week",
+                          "week": "7",
+                          "stats": [
+                            {
+                              "stat_id": "9",
+                              "value": "27"
+                            },
+                            {
+                              "stat_id": "11",
+                              "value": "3"
+                            },
+                            {
+                              "stat_id": "12",
+                              "value": "23"
+                            }
+                          ]
+                        }
+                      },
+                      {
+                        "player_key": "461.p.00-0036963",
+                        "player_id": "00-0036963",
+                        "name": {
+                          "full": "A.St. Brown",
+                          "first": "A.St.",
+                          "last": "Brown"
+                        },
+                        "editorial_team_key": "nfl.t.det",
+                        "editorial_team_abbr": "DET",
+                        "display_position": "WR",
+                        "eligible_positions": [
+                          {
+                            "position": "WR"
+                          }
+                        ],
+                        "selected_position": {
+                          "coverage_type": "week",
+                          "week": "7",
+                          "position": "WR"
+                        },
+                        "player_points": {
+                          "coverage_type": "week",
+                          "week": "7",
+                          "total": "9.3"
+                        },
+                        "player_stats": {
+                          "coverage_type": "week",
+                          "week": "7",
+                          "stats": [
+                            {
+                              "stat_id": "11",
+                              "value": "5"
+                            },
+                            {
+                              "stat_id": "12",
+                              "value": "40"
+                            }
+                          ]
+                        }
+                      },
+                      {
+                        "player_key": "461.p.00-0039065",
+                        "player_id": "00-0039065",
+                        "name": {
+                          "full": "S.LaPorta",
+                          "first": "S.LaPorta",
+                          "last": "Unknown"
+                        },
+                        "editorial_team_key": "nfl.t.det",
+                        "editorial_team_abbr": "DET",
+                        "display_position": "TE",
+                        "eligible_positions": [
+                          {
+                            "position": "TE"
+                          }
+                        ],
+                        "selected_position": {
+                          "coverage_type": "week",
+                          "week": "7",
+                          "position": "TE"
+                        },
+                        "player_points": {
+                          "coverage_type": "week",
+                          "week": "7",
+                          "total": "4.5"
+                        },
+                        "player_stats": {
+                          "coverage_type": "week",
+                          "week": "7",
+                          "stats": [
+                            {
+                              "stat_id": "11",
+                              "value": "2"
+                            },
+                            {
+                              "stat_id": "12",
+                              "value": "20"
+                            }
+                          ]
+                        }
+                      }
+                    ]
+                  }
+                },
+                {
+                  "team_key": "461.l.1127949.t.2",
+                  "team_id": "2",
+                  "name": "BAL Real Fantasy",
+                  "team_logo": "https://s.yimg.com/cv/apiv2/default/nfl/nfl_4_bal.png",
+                  "managers": [
+                    {
+                      "manager_id": "2",
+                      "nickname": "BALManager"
+                    }
+                  ],
+                  "points": {
+                    "coverage_type": "week",
+                    "week": "7",
+                    "total": "75.6"
+                  },
+                  "roster": {
+                    "coverage_type": "week",
+                    "week": "7",
+                    "players": [
+                      {
+                        "player_key": "461.p.00-0034796",
+                        "player_id": "00-0034796",
+                        "name": {
+                          "full": "L.Jackson",
+                          "first": "L.Jackson",
+                          "last": "Unknown"
+                        },
+                        "editorial_team_key": "nfl.t.bal",
+                        "editorial_team_abbr": "BAL",
+                        "display_position": "QB",
+                        "eligible_positions": [
+                          {
+                            "position": "QB"
+                          }
+                        ],
+                        "selected_position": {
+                          "coverage_type": "week",
+                          "week": "7",
+                          "position": "QB"
+                        },
+                        "player_points": {
+                          "coverage_type": "week",
+                          "week": "7",
+                          "total": "13.6"
+                        },
+                        "player_stats": {
+                          "coverage_type": "week",
+                          "week": "7",
+                          "stats": [
+                            {
+                              "stat_id": "4",
+                              "value": "142"
+                            },
+                            {
+                              "stat_id": "5",
+                              "value": "1"
+                            },
+                            {
+                              "stat_id": "9",
+                              "value": "14"
+                            }
+                          ]
+                        }
+                      },
+                      {
+                        "player_key": "461.p.00-0034184",
+                        "player_id": "00-0034184",
+                        "name": {
+                          "full": "G.Edwards",
+                          "first": "G.Edwards",
+                          "last": "Unknown"
+                        },
+                        "editorial_team_key": "nfl.t.bal",
+                        "editorial_team_abbr": "BAL",
+                        "display_position": "RB",
+                        "eligible_positions": [
+                          {
+                            "position": "RB"
+                          }
+                        ],
+                        "selected_position": {
+                          "coverage_type": "week",
+                          "week": "7",
+                          "position": "RB"
+                        },
+                        "player_points": {
+                          "coverage_type": "week",
+                          "week": "7",
+                          "total": "8.6"
+                        },
+                        "player_stats": {
+                          "coverage_type": "week",
+                          "week": "7",
+                          "stats": [
+                            {
+                              "stat_id": "9",
+                              "value": "25"
+                            },
+                            {
+                              "stat_id": "12",
+                              "value": "32"
+                            }
+                          ]
+                        }
+                      },
+                      {
+                        "player_key": "461.p.00-0039064",
+                        "player_id": "00-0039064",
+                        "name": {
+                          "full": "Z.Flowers",
+                          "first": "Z.Flowers",
+                          "last": "Unknown"
+                        },
+                        "editorial_team_key": "nfl.t.bal",
+                        "editorial_team_abbr": "BAL",
+                        "display_position": "WR",
+                        "eligible_positions": [
+                          {
+                            "position": "WR"
+                          }
+                        ],
+                        "selected_position": {
+                          "coverage_type": "week",
+                          "week": "7",
+                          "position": "WR"
+                        },
+                        "player_points": {
+                          "coverage_type": "week",
+                          "week": "7",
+                          "total": "4.6"
+                        },
+                        "player_stats": {
+                          "coverage_type": "week",
+                          "week": "7",
+                          "stats": [
+                            {
+                              "stat_id": "11",
+                              "value": "1"
+                            },
+                            {
+                              "stat_id": "12",
+                              "value": "30"
+                            }
+                          ]
+                        }
+                      },
+                      {
+                        "player_key": "461.p.00-0034753",
+                        "player_id": "00-0034753",
+                        "name": {
+                          "full": "M.Andrews",
+                          "first": "M.Andrews",
+                          "last": "Unknown"
+                        },
+                        "editorial_team_key": "nfl.t.bal",
+                        "editorial_team_abbr": "BAL",
+                        "display_position": "TE",
+                        "eligible_positions": [
+                          {
+                            "position": "TE"
+                          }
+                        ],
+                        "selected_position": {
+                          "coverage_type": "week",
+                          "week": "7",
+                          "position": "TE"
+                        },
+                        "player_points": {
+                          "coverage_type": "week",
+                          "week": "7",
+                          "total": "8.9"
+                        },
+                        "player_stats": {
+                          "coverage_type": "week",
+                          "week": "7",
+                          "stats": [
+                            {
+                              "stat_id": "11",
+                              "value": "1"
+                            },
+                            {
+                              "stat_id": "12",
+                              "value": "25"
+                            }
+                          ]
+                        }
+                      }
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "week": "7",
+              "week_start": "2023-10-22",
+              "week_end": "2023-10-28",
+              "status": "midevent",
+              "is_playoffs": "0",
+              "is_consolation": "0",
+              "is_tied": 0,
+              "teams": [
+                {
+                  "team_key": "461.l.1127949.t.3",
+                  "team_id": "3",
+                  "name": "LV Real Fantasy",
+                  "team_logo": "https://s.yimg.com/cv/apiv2/default/nfl/nfl_4_lv.png",
+                  "managers": [
+                    {
+                      "manager_id": "3",
+                      "nickname": "LVManager"
+                    }
+                  ],
+                  "points": {
+                    "coverage_type": "week",
+                    "week": "7",
+                    "total": "53.0"
+                  },
+                  "roster": {
+                    "coverage_type": "week",
+                    "week": "7",
+                    "players": [
+                      {
+                        "player_key": "461.p.00-0038579",
+                        "player_id": "00-0038579",
+                        "name": {
+                          "full": "A.O'Connell",
+                          "first": "A.O'Connell",
+                          "last": "Unknown"
+                        },
+                        "editorial_team_key": "nfl.t.lv",
+                        "editorial_team_abbr": "LV",
+                        "display_position": "QB",
+                        "eligible_positions": [
+                          {
+                            "position": "QB"
+                          }
+                        ],
+                        "selected_position": {
+                          "coverage_type": "week",
+                          "week": "7",
+                          "position": "QB"
+                        },
+                        "player_points": {
+                          "coverage_type": "week",
+                          "week": "7",
+                          "total": "2.0"
+                        },
+                        "player_stats": {
+                          "coverage_type": "week",
+                          "week": "7",
+                          "stats": [
+                            {
+                              "stat_id": "4",
+                              "value": "30"
+                            }
+                          ]
+                        }
+                      },
+                      {
+                        "player_key": "461.p.00-0038040",
+                        "player_id": "00-0038040",
+                        "name": {
+                          "full": "Z.White",
+                          "first": "Z.White",
+                          "last": "Unknown"
+                        },
+                        "editorial_team_key": "nfl.t.lv",
+                        "editorial_team_abbr": "LV",
+                        "display_position": "RB",
+                        "eligible_positions": [
+                          {
+                            "position": "RB"
+                          }
+                        ],
+                        "selected_position": {
+                          "coverage_type": "week",
+                          "week": "7",
+                          "position": "RB"
+                        },
+                        "player_points": {
+                          "coverage_type": "week",
+                          "week": "7",
+                          "total": "2.3"
+                        },
+                        "player_stats": {
+                          "coverage_type": "week",
+                          "week": "7",
+                          "stats": [
+                            {
+                              "stat_id": "11",
+                              "value": "1"
+                            },
+                            {
+                              "stat_id": "12",
+                              "value": "10"
+                            }
+                          ]
+                        }
+                      },
+                      {
+                        "player_key": "461.p.00-0034960",
+                        "player_id": "00-0034960",
+                        "name": {
+                          "full": "J.Meyers",
+                          "first": "J.Meyers",
+                          "last": "Unknown"
+                        },
+                        "editorial_team_key": "nfl.t.lv",
+                        "editorial_team_abbr": "LV",
+                        "display_position": "WR",
+                        "eligible_positions": [
+                          {
+                            "position": "WR"
+                          }
+                        ],
+                        "selected_position": {
+                          "coverage_type": "week",
+                          "week": "7",
+                          "position": "WR"
+                        },
+                        "player_points": {
+                          "coverage_type": "week",
+                          "week": "7",
+                          "total": "7.2"
+                        },
+                        "player_stats": {
+                          "coverage_type": "week",
+                          "week": "7",
+                          "stats": [
+                            {
+                              "stat_id": "11",
+                              "value": "2"
+                            },
+                            {
+                              "stat_id": "12",
+                              "value": "20"
+                            }
+                          ]
+                        }
+                      },
+                      {
+                        "player_key": "461.p.00-0032392",
+                        "player_id": "00-0032392",
+                        "name": {
+                          "full": "A.Hooper",
+                          "first": "A.Hooper",
+                          "last": "Unknown"
+                        },
+                        "editorial_team_key": "nfl.t.lv",
+                        "editorial_team_abbr": "LV",
+                        "display_position": "TE",
+                        "eligible_positions": [
+                          {
+                            "position": "TE"
+                          }
+                        ],
+                        "selected_position": {
+                          "coverage_type": "week",
+                          "week": "7",
+                          "position": "TE"
+                        },
+                        "player_points": {
+                          "coverage_type": "week",
+                          "week": "7",
+                          "total": "1.5"
+                        },
+                        "player_stats": {
+                          "coverage_type": "week",
+                          "week": "7",
+                          "stats": [
+                            {
+                              "stat_id": "12",
+                              "value": "7"
+                            }
+                          ]
+                        }
+                      }
+                    ]
+                  }
+                },
+                {
+                  "team_key": "461.l.1127949.t.4",
+                  "team_id": "4",
+                  "name": "CHI Real Fantasy",
+                  "team_logo": "https://s.yimg.com/cv/apiv2/default/nfl/nfl_4_chi.png",
+                  "managers": [
+                    {
+                      "manager_id": "4",
+                      "nickname": "CHIManager"
+                    }
+                  ],
+                  "points": {
+                    "coverage_type": "week",
+                    "week": "7",
+                    "total": "64.8"
+                  },
+                  "roster": {
+                    "coverage_type": "week",
+                    "week": "7",
+                    "players": [
+                      {
+                        "player_key": "461.p.00-0038416",
+                        "player_id": "00-0038416",
+                        "name": {
+                          "full": "T.Bagent",
+                          "first": "T.Bagent",
+                          "last": "Unknown"
+                        },
+                        "editorial_team_key": "nfl.t.chi",
+                        "editorial_team_abbr": "CHI",
+                        "display_position": "QB",
+                        "eligible_positions": [
+                          {
+                            "position": "QB"
+                          }
+                        ],
+                        "selected_position": {
+                          "coverage_type": "week",
+                          "week": "7",
+                          "position": "QB"
+                        },
+                        "player_points": {
+                          "coverage_type": "week",
+                          "week": "7",
+                          "total": "5.2"
+                        },
+                        "player_stats": {
+                          "coverage_type": "week",
+                          "week": "7",
+                          "stats": [
+                            {
+                              "stat_id": "4",
+                              "value": "64"
+                            },
+                            {
+                              "stat_id": "9",
+                              "value": "9"
+                            }
+                          ]
+                        }
+                      },
+                      {
+                        "player_key": "461.p.00-0033925",
+                        "player_id": "00-0033925",
+                        "name": {
+                          "full": "D.Foreman",
+                          "first": "D.Foreman",
+                          "last": "Unknown"
+                        },
+                        "editorial_team_key": "nfl.t.chi",
+                        "editorial_team_abbr": "CHI",
+                        "display_position": "RB",
+                        "eligible_positions": [
+                          {
+                            "position": "RB"
+                          }
+                        ],
+                        "selected_position": {
+                          "coverage_type": "week",
+                          "week": "7",
+                          "position": "RB"
+                        },
+                        "player_points": {
+                          "coverage_type": "week",
+                          "week": "7",
+                          "total": "13.2"
+                        },
+                        "player_stats": {
+                          "coverage_type": "week",
+                          "week": "7",
+                          "stats": [
+                            {
+                              "stat_id": "9",
+                              "value": "35"
+                            },
+                            {
+                              "stat_id": "11",
+                              "value": "1"
+                            },
+                            {
+                              "stat_id": "12",
+                              "value": "12"
+                            }
+                          ]
+                        }
+                      },
+                      {
+                        "player_key": "461.p.00-0034827",
+                        "player_id": "00-0034827",
+                        "name": {
+                          "full": "D.Moore",
+                          "first": "D.Moore",
+                          "last": "Unknown"
+                        },
+                        "editorial_team_key": "nfl.t.chi",
+                        "editorial_team_abbr": "CHI",
+                        "display_position": "WR",
+                        "eligible_positions": [
+                          {
+                            "position": "WR"
+                          }
+                        ],
+                        "selected_position": {
+                          "coverage_type": "week",
+                          "week": "7",
+                          "position": "WR"
+                        },
+                        "player_points": {
+                          "coverage_type": "week",
+                          "week": "7",
+                          "total": "5.4"
+                        },
+                        "player_stats": {
+                          "coverage_type": "week",
+                          "week": "7",
+                          "stats": [
+                            {
+                              "stat_id": "11",
+                              "value": "3"
+                            },
+                            {
+                              "stat_id": "12",
+                              "value": "21"
+                            }
+                          ]
+                        }
+                      },
+                      {
+                        "player_key": "461.p.00-0024243",
+                        "player_id": "00-0024243",
+                        "name": {
+                          "full": "M.Lewis",
+                          "first": "M.Lewis",
+                          "last": "Unknown"
+                        },
+                        "editorial_team_key": "nfl.t.chi",
+                        "editorial_team_abbr": "CHI",
+                        "display_position": "TE",
+                        "eligible_positions": [
+                          {
+                            "position": "TE"
+                          }
+                        ],
+                        "selected_position": {
+                          "coverage_type": "week",
+                          "week": "7",
+                          "position": "TE"
+                        },
+                        "player_points": {
+                          "coverage_type": "week",
+                          "week": "7",
+                          "total": "1.0"
+                        },
+                        "player_stats": {
+                          "coverage_type": "week",
+                          "week": "7",
+                          "stats": [
+                            {
+                              "stat_id": "12",
+                              "value": "6"
+                            }
+                          ]
+                        }
+                      }
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "week": "7",
+              "week_start": "2023-10-22",
+              "week_end": "2023-10-28",
+              "status": "midevent",
+              "is_playoffs": "0",
+              "is_consolation": "0",
+              "is_tied": 0,
+              "teams": [
+                {
+                  "team_key": "461.l.1127949.t.5",
+                  "team_id": "5",
+                  "name": "CLE Real Fantasy",
+                  "team_logo": "https://s.yimg.com/cv/apiv2/default/nfl/nfl_4_cle.png",
+                  "managers": [
+                    {
+                      "manager_id": "5",
+                      "nickname": "CLEManager"
+                    }
+                  ],
+                  "points": {
+                    "coverage_type": "week",
+                    "week": "7",
+                    "total": "57.2"
+                  },
+                  "roster": {
+                    "coverage_type": "week",
+                    "week": "7",
+                    "players": [
+                      {
+                        "player_key": "461.p.00-0033275",
+                        "player_id": "00-0033275",
+                        "name": {
+                          "full": "P.Walker",
+                          "first": "P.Walker",
+                          "last": "Unknown"
+                        },
+                        "editorial_team_key": "nfl.t.cle",
+                        "editorial_team_abbr": "CLE",
+                        "display_position": "QB",
+                        "eligible_positions": [
+                          {
+                            "position": "QB"
+                          }
+                        ],
+                        "selected_position": {
+                          "coverage_type": "week",
+                          "week": "7",
+                          "position": "QB"
+                        },
+                        "player_points": {
+                          "coverage_type": "week",
+                          "week": "7",
+                          "total": "2.2"
+                        },
+                        "player_stats": {
+                          "coverage_type": "week",
+                          "week": "7",
+                          "stats": [
+                            {
+                              "stat_id": "4",
+                              "value": "71"
+                            },
+                            {
+                              "stat_id": "9",
+                              "value": "1"
+                            }
+                          ]
+                        }
+                      },
+                      {
+                        "player_key": "461.p.00-0037267",
+                        "player_id": "00-0037267",
+                        "name": {
+                          "full": "J.Ford",
+                          "first": "J.Ford",
+                          "last": "Unknown"
+                        },
+                        "editorial_team_key": "nfl.t.cle",
+                        "editorial_team_abbr": "CLE",
+                        "display_position": "RB",
+                        "eligible_positions": [
+                          {
+                            "position": "RB"
+                          }
+                        ],
+                        "selected_position": {
+                          "coverage_type": "week",
+                          "week": "7",
+                          "position": "RB"
+                        },
+                        "player_points": {
+                          "coverage_type": "week",
+                          "week": "7",
+                          "total": "7.0"
+                        },
+                        "player_stats": {
+                          "coverage_type": "week",
+                          "week": "7",
+                          "stats": [
+                            {
+                              "stat_id": "9",
+                              "value": "29"
+                            },
+                            {
+                              "stat_id": "12",
+                              "value": "8"
+                            }
+                          ]
+                        }
+                      },
+                      {
+                        "player_key": "461.p.00-0036980",
+                        "player_id": "00-0036980",
+                        "name": {
+                          "full": "E.Moore",
+                          "first": "E.Moore",
+                          "last": "Unknown"
+                        },
+                        "editorial_team_key": "nfl.t.cle",
+                        "editorial_team_abbr": "CLE",
+                        "display_position": "WR",
+                        "eligible_positions": [
+                          {
+                            "position": "WR"
+                          }
+                        ],
+                        "selected_position": {
+                          "coverage_type": "week",
+                          "week": "7",
+                          "position": "WR"
+                        },
+                        "player_points": {
+                          "coverage_type": "week",
+                          "week": "7",
+                          "total": "4.0"
+                        },
+                        "player_stats": {
+                          "coverage_type": "week",
+                          "week": "7",
+                          "stats": [
+                            {
+                              "stat_id": "11",
+                              "value": "1"
+                            },
+                            {
+                              "stat_id": "12",
+                              "value": "23"
+                            }
+                          ]
+                        }
+                      },
+                      {
+                        "player_key": "461.p.00-0033885",
+                        "player_id": "00-0033885",
+                        "name": {
+                          "full": "D.Njoku",
+                          "first": "D.Njoku",
+                          "last": "Unknown"
+                        },
+                        "editorial_team_key": "nfl.t.cle",
+                        "editorial_team_abbr": "CLE",
+                        "display_position": "TE",
+                        "eligible_positions": [
+                          {
+                            "position": "TE"
+                          }
+                        ],
+                        "selected_position": {
+                          "coverage_type": "week",
+                          "week": "7",
+                          "position": "TE"
+                        },
+                        "player_points": {
+                          "coverage_type": "week",
+                          "week": "7",
+                          "total": "4.2"
+                        },
+                        "player_stats": {
+                          "coverage_type": "week",
+                          "week": "7",
+                          "stats": [
+                            {
+                              "stat_id": "11",
+                              "value": "2"
+                            },
+                            {
+                              "stat_id": "12",
+                              "value": "21"
+                            }
+                          ]
+                        }
+                      }
+                    ]
+                  }
+                },
+                {
+                  "team_key": "461.l.1127949.t.6",
+                  "team_id": "6",
+                  "name": "IND Real Fantasy",
+                  "team_logo": "https://s.yimg.com/cv/apiv2/default/nfl/nfl_4_ind.png",
+                  "managers": [
+                    {
+                      "manager_id": "6",
+                      "nickname": "INDManager"
+                    }
+                  ],
+                  "points": {
+                    "coverage_type": "week",
+                    "week": "7",
+                    "total": "68.8"
+                  },
+                  "roster": {
+                    "coverage_type": "week",
+                    "week": "7",
+                    "players": [
+                      {
+                        "player_key": "461.p.00-0035289",
+                        "player_id": "00-0035289",
+                        "name": {
+                          "full": "G.Minshew",
+                          "first": "G.Minshew",
+                          "last": "Unknown"
+                        },
+                        "editorial_team_key": "nfl.t.ind",
+                        "editorial_team_abbr": "IND",
+                        "display_position": "QB",
+                        "eligible_positions": [
+                          {
+                            "position": "QB"
+                          }
+                        ],
+                        "selected_position": {
+                          "coverage_type": "week",
+                          "week": "7",
+                          "position": "QB"
+                        },
+                        "player_points": {
+                          "coverage_type": "week",
+                          "week": "7",
+                          "total": "10.8"
+                        },
+                        "player_stats": {
+                          "coverage_type": "week",
+                          "week": "7",
+                          "stats": [
+                            {
+                              "stat_id": "4",
+                              "value": "122"
+                            },
+                            {
+                              "stat_id": "9",
+                              "value": "11"
+                            }
+                          ]
+                        }
+                      },
+                      {
+                        "player_key": "461.p.00-0036223",
+                        "player_id": "00-0036223",
+                        "name": {
+                          "full": "J.Taylor",
+                          "first": "J.Taylor",
+                          "last": "Unknown"
+                        },
+                        "editorial_team_key": "nfl.t.ind",
+                        "editorial_team_abbr": "IND",
+                        "display_position": "RB",
+                        "eligible_positions": [
+                          {
+                            "position": "RB"
+                          }
+                        ],
+                        "selected_position": {
+                          "coverage_type": "week",
+                          "week": "7",
+                          "position": "RB"
+                        },
+                        "player_points": {
+                          "coverage_type": "week",
+                          "week": "7",
+                          "total": "8.4"
+                        },
+                        "player_stats": {
+                          "coverage_type": "week",
+                          "week": "7",
+                          "stats": [
+                            {
+                              "stat_id": "9",
+                              "value": "30"
+                            },
+                            {
+                              "stat_id": "11",
+                              "value": "1"
+                            },
+                            {
+                              "stat_id": "12",
+                              "value": "18"
+                            }
+                          ]
+                        }
+                      },
+                      {
+                        "player_key": "461.p.00-0038997",
+                        "player_id": "00-0038997",
+                        "name": {
+                          "full": "J.Downs",
+                          "first": "J.Downs",
+                          "last": "Unknown"
+                        },
+                        "editorial_team_key": "nfl.t.ind",
+                        "editorial_team_abbr": "IND",
+                        "display_position": "WR",
+                        "eligible_positions": [
+                          {
+                            "position": "WR"
+                          }
+                        ],
+                        "selected_position": {
+                          "coverage_type": "week",
+                          "week": "7",
+                          "position": "WR"
+                        },
+                        "player_points": {
+                          "coverage_type": "week",
+                          "week": "7",
+                          "total": "9.4"
+                        },
+                        "player_stats": {
+                          "coverage_type": "week",
+                          "week": "7",
+                          "stats": [
+                            {
+                              "stat_id": "11",
+                              "value": "2"
+                            },
+                            {
+                              "stat_id": "12",
+                              "value": "50"
+                            }
+                          ]
+                        }
+                      },
+                      {
+                        "player_key": "461.p.00-0033217",
+                        "player_id": "00-0033217",
+                        "name": {
+                          "full": "M.Alie-Cox",
+                          "first": "M.Alie-Cox",
+                          "last": "Unknown"
+                        },
+                        "editorial_team_key": "nfl.t.ind",
+                        "editorial_team_abbr": "IND",
+                        "display_position": "TE",
+                        "eligible_positions": [
+                          {
+                            "position": "TE"
+                          }
+                        ],
+                        "selected_position": {
+                          "coverage_type": "week",
+                          "week": "7",
+                          "position": "TE"
+                        },
+                        "player_points": {
+                          "coverage_type": "week",
+                          "week": "7",
+                          "total": "0.2"
+                        },
+                        "player_stats": {
+                          "coverage_type": "week",
+                          "week": "7",
+                          "stats": []
+                        }
+                      }
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "week": "7",
+              "week_start": "2023-10-22",
+              "week_end": "2023-10-28",
+              "status": "midevent",
+              "is_playoffs": "0",
+              "is_consolation": "0",
+              "is_tied": 0,
+              "teams": [
+                {
+                  "team_key": "461.l.1127949.t.7",
+                  "team_id": "7",
+                  "name": "BUF Real Fantasy",
+                  "team_logo": "https://s.yimg.com/cv/apiv2/default/nfl/nfl_4_buf.png",
+                  "managers": [
+                    {
+                      "manager_id": "7",
+                      "nickname": "BUFManager"
+                    }
+                  ],
+                  "points": {
+                    "coverage_type": "week",
+                    "week": "7",
+                    "total": "70.7"
+                  },
+                  "roster": {
+                    "coverage_type": "week",
+                    "week": "7",
+                    "players": [
+                      {
+                        "player_key": "461.p.00-0034857",
+                        "player_id": "00-0034857",
+                        "name": {
+                          "full": "J.Allen",
+                          "first": "J.Allen",
+                          "last": "Unknown"
+                        },
+                        "editorial_team_key": "nfl.t.buf",
+                        "editorial_team_abbr": "BUF",
+                        "display_position": "QB",
+                        "eligible_positions": [
+                          {
+                            "position": "QB"
+                          }
+                        ],
+                        "selected_position": {
+                          "coverage_type": "week",
+                          "week": "7",
+                          "position": "QB"
+                        },
+                        "player_points": {
+                          "coverage_type": "week",
+                          "week": "7",
+                          "total": "9.7"
+                        },
+                        "player_stats": {
+                          "coverage_type": "week",
+                          "week": "7",
+                          "stats": [
+                            {
+                              "stat_id": "4",
+                              "value": "106"
+                            },
+                            {
+                              "stat_id": "9",
+                              "value": "6"
+                            }
+                          ]
+                        }
+                      },
+                      {
+                        "player_key": "461.p.00-0037248",
+                        "player_id": "00-0037248",
+                        "name": {
+                          "full": "J.Cook",
+                          "first": "J.Cook",
+                          "last": "Unknown"
+                        },
+                        "editorial_team_key": "nfl.t.buf",
+                        "editorial_team_abbr": "BUF",
+                        "display_position": "RB",
+                        "eligible_positions": [
+                          {
+                            "position": "RB"
+                          }
+                        ],
+                        "selected_position": {
+                          "coverage_type": "week",
+                          "week": "7",
+                          "position": "RB"
+                        },
+                        "player_points": {
+                          "coverage_type": "week",
+                          "week": "7",
+                          "total": "7.7"
+                        },
+                        "player_stats": {
+                          "coverage_type": "week",
+                          "week": "7",
+                          "stats": [
+                            {
+                              "stat_id": "9",
+                              "value": "22"
+                            },
+                            {
+                              "stat_id": "11",
+                              "value": "1"
+                            },
+                            {
+                              "stat_id": "12",
+                              "value": "18"
+                            }
+                          ]
+                        }
+                      },
+                      {
+                        "player_key": "461.p.00-0031588",
+                        "player_id": "00-0031588",
+                        "name": {
+                          "full": "S.Diggs",
+                          "first": "S.Diggs",
+                          "last": "Unknown"
+                        },
+                        "editorial_team_key": "nfl.t.buf",
+                        "editorial_team_abbr": "BUF",
+                        "display_position": "WR",
+                        "eligible_positions": [
+                          {
+                            "position": "WR"
+                          }
+                        ],
+                        "selected_position": {
+                          "coverage_type": "week",
+                          "week": "7",
+                          "position": "WR"
+                        },
+                        "player_points": {
+                          "coverage_type": "week",
+                          "week": "7",
+                          "total": "7.1"
+                        },
+                        "player_stats": {
+                          "coverage_type": "week",
+                          "week": "7",
+                          "stats": [
+                            {
+                              "stat_id": "11",
+                              "value": "2"
+                            },
+                            {
+                              "stat_id": "12",
+                              "value": "23"
+                            }
+                          ]
+                        }
+                      },
+                      {
+                        "player_key": "461.p.00-0038933",
+                        "player_id": "00-0038933",
+                        "name": {
+                          "full": "D.Kincaid",
+                          "first": "D.Kincaid",
+                          "last": "Unknown"
+                        },
+                        "editorial_team_key": "nfl.t.buf",
+                        "editorial_team_abbr": "BUF",
+                        "display_position": "TE",
+                        "eligible_positions": [
+                          {
+                            "position": "TE"
+                          }
+                        ],
+                        "selected_position": {
+                          "coverage_type": "week",
+                          "week": "7",
+                          "position": "TE"
+                        },
+                        "player_points": {
+                          "coverage_type": "week",
+                          "week": "7",
+                          "total": "6.2"
+                        },
+                        "player_stats": {
+                          "coverage_type": "week",
+                          "week": "7",
+                          "stats": [
+                            {
+                              "stat_id": "11",
+                              "value": "3"
+                            },
+                            {
+                              "stat_id": "12",
+                              "value": "30"
+                            }
+                          ]
+                        }
+                      }
+                    ]
+                  }
+                },
+                {
+                  "team_key": "461.l.1127949.t.8",
+                  "team_id": "8",
+                  "name": "NE Real Fantasy",
+                  "team_logo": "https://s.yimg.com/cv/apiv2/default/nfl/nfl_4_ne.png",
+                  "managers": [
+                    {
+                      "manager_id": "8",
+                      "nickname": "NEManager"
+                    }
+                  ],
+                  "points": {
+                    "coverage_type": "week",
+                    "week": "7",
+                    "total": "63.7"
+                  },
+                  "roster": {
+                    "coverage_type": "week",
+                    "week": "7",
+                    "players": [
+                      {
+                        "player_key": "461.p.00-0036972",
+                        "player_id": "00-0036972",
+                        "name": {
+                          "full": "M.Jones",
+                          "first": "M.Jones",
+                          "last": "Unknown"
+                        },
+                        "editorial_team_key": "nfl.t.ne",
+                        "editorial_team_abbr": "NE",
+                        "display_position": "QB",
+                        "eligible_positions": [
+                          {
+                            "position": "QB"
+                          }
+                        ],
+                        "selected_position": {
+                          "coverage_type": "week",
+                          "week": "7",
+                          "position": "QB"
+                        },
+                        "player_points": {
+                          "coverage_type": "week",
+                          "week": "7",
+                          "total": "8.0"
+                        },
+                        "player_stats": {
+                          "coverage_type": "week",
+                          "week": "7",
+                          "stats": [
+                            {
+                              "stat_id": "4",
+                              "value": "108"
+                            },
+                            {
+                              "stat_id": "9",
+                              "value": "4"
+                            }
+                          ]
+                        }
+                      },
+                      {
+                        "player_key": "461.p.00-0036875",
+                        "player_id": "00-0036875",
+                        "name": {
+                          "full": "R.Stevenson",
+                          "first": "R.Stevenson",
+                          "last": "Unknown"
+                        },
+                        "editorial_team_key": "nfl.t.ne",
+                        "editorial_team_abbr": "NE",
+                        "display_position": "RB",
+                        "eligible_positions": [
+                          {
+                            "position": "RB"
+                          }
+                        ],
+                        "selected_position": {
+                          "coverage_type": "week",
+                          "week": "7",
+                          "position": "RB"
+                        },
+                        "player_points": {
+                          "coverage_type": "week",
+                          "week": "7",
+                          "total": "5.8"
+                        },
+                        "player_stats": {
+                          "coverage_type": "week",
+                          "week": "7",
+                          "stats": [
+                            {
+                              "stat_id": "9",
+                              "value": "13"
+                            },
+                            {
+                              "stat_id": "11",
+                              "value": "2"
+                            },
+                            {
+                              "stat_id": "12",
+                              "value": "20"
+                            }
+                          ]
+                        }
+                      },
+                      {
+                        "player_key": "461.p.00-0033307",
+                        "player_id": "00-0033307",
+                        "name": {
+                          "full": "K.Bourne",
+                          "first": "K.Bourne",
+                          "last": "Unknown"
+                        },
+                        "editorial_team_key": "nfl.t.ne",
+                        "editorial_team_abbr": "NE",
+                        "display_position": "WR",
+                        "eligible_positions": [
+                          {
+                            "position": "WR"
+                          }
+                        ],
+                        "selected_position": {
+                          "coverage_type": "week",
+                          "week": "7",
+                          "position": "WR"
+                        },
+                        "player_points": {
+                          "coverage_type": "week",
+                          "week": "7",
+                          "total": "6.5"
+                        },
+                        "player_stats": {
+                          "coverage_type": "week",
+                          "week": "7",
+                          "stats": [
+                            {
+                              "stat_id": "11",
+                              "value": "2"
+                            },
+                            {
+                              "stat_id": "12",
+                              "value": "25"
+                            }
+                          ]
+                        }
+                      },
+                      {
+                        "player_key": "461.p.00-0034829",
+                        "player_id": "00-0034829",
+                        "name": {
+                          "full": "M.Gesicki",
+                          "first": "M.Gesicki",
+                          "last": "Unknown"
+                        },
+                        "editorial_team_key": "nfl.t.ne",
+                        "editorial_team_abbr": "NE",
+                        "display_position": "TE",
+                        "eligible_positions": [
+                          {
+                            "position": "TE"
+                          }
+                        ],
+                        "selected_position": {
+                          "coverage_type": "week",
+                          "week": "7",
+                          "position": "TE"
+                        },
+                        "player_points": {
+                          "coverage_type": "week",
+                          "week": "7",
+                          "total": "3.4"
+                        },
+                        "player_stats": {
+                          "coverage_type": "week",
+                          "week": "7",
+                          "stats": [
+                            {
+                              "stat_id": "12",
+                              "value": "2"
+                            }
+                          ]
+                        }
+                      }
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "week": "7",
+              "week_start": "2023-10-22",
+              "week_end": "2023-10-28",
+              "status": "midevent",
+              "is_playoffs": "0",
+              "is_consolation": "0",
+              "is_tied": 0,
+              "teams": [
+                {
+                  "team_key": "461.l.1127949.t.9",
+                  "team_id": "9",
+                  "name": "WAS Real Fantasy",
+                  "team_logo": "https://s.yimg.com/cv/apiv2/default/nfl/nfl_4_was.png",
+                  "managers": [
+                    {
+                      "manager_id": "9",
+                      "nickname": "WASManager"
+                    }
+                  ],
+                  "points": {
+                    "coverage_type": "week",
+                    "week": "7",
+                    "total": "56.7"
+                  },
+                  "roster": {
+                    "coverage_type": "week",
+                    "week": "7",
+                    "players": [
+                      {
+                        "player_key": "461.p.00-0037077",
+                        "player_id": "00-0037077",
+                        "name": {
+                          "full": "S.Howell",
+                          "first": "S.Howell",
+                          "last": "Unknown"
+                        },
+                        "editorial_team_key": "nfl.t.was",
+                        "editorial_team_abbr": "WAS",
+                        "display_position": "QB",
+                        "eligible_positions": [
+                          {
+                            "position": "QB"
+                          }
+                        ],
+                        "selected_position": {
+                          "coverage_type": "week",
+                          "week": "7",
+                          "position": "QB"
+                        },
+                        "player_points": {
+                          "coverage_type": "week",
+                          "week": "7",
+                          "total": "3.8"
+                        },
+                        "player_stats": {
+                          "coverage_type": "week",
+                          "week": "7",
+                          "stats": [
+                            {
+                              "stat_id": "4",
+                              "value": "99"
+                            },
+                            {
+                              "stat_id": "9",
+                              "value": "6"
+                            }
+                          ]
+                        }
+                      },
+                      {
+                        "player_key": "461.p.00-0037746",
+                        "player_id": "00-0037746",
+                        "name": {
+                          "full": "B.Robinson",
+                          "first": "B.Robinson",
+                          "last": "Unknown"
+                        },
+                        "editorial_team_key": "nfl.t.was",
+                        "editorial_team_abbr": "WAS",
+                        "display_position": "RB",
+                        "eligible_positions": [
+                          {
+                            "position": "RB"
+                          }
+                        ],
+                        "selected_position": {
+                          "coverage_type": "week",
+                          "week": "7",
+                          "position": "RB"
+                        },
+                        "player_points": {
+                          "coverage_type": "week",
+                          "week": "7",
+                          "total": "3.3"
+                        },
+                        "player_stats": {
+                          "coverage_type": "week",
+                          "week": "7",
+                          "stats": [
+                            {
+                              "stat_id": "9",
+                              "value": "9"
+                            }
+                          ]
+                        }
+                      },
+                      {
+                        "player_key": "461.p.00-0035659",
+                        "player_id": "00-0035659",
+                        "name": {
+                          "full": "T.McLaurin",
+                          "first": "T.McLaurin",
+                          "last": "Unknown"
+                        },
+                        "editorial_team_key": "nfl.t.was",
+                        "editorial_team_abbr": "WAS",
+                        "display_position": "WR",
+                        "eligible_positions": [
+                          {
+                            "position": "WR"
+                          }
+                        ],
+                        "selected_position": {
+                          "coverage_type": "week",
+                          "week": "7",
+                          "position": "WR"
+                        },
+                        "player_points": {
+                          "coverage_type": "week",
+                          "week": "7",
+                          "total": "6.0"
+                        },
+                        "player_stats": {
+                          "coverage_type": "week",
+                          "week": "7",
+                          "stats": [
+                            {
+                              "stat_id": "11",
+                              "value": "2"
+                            },
+                            {
+                              "stat_id": "12",
+                              "value": "36"
+                            }
+                          ]
+                        }
+                      },
+                      {
+                        "player_key": "461.p.00-0031260",
+                        "player_id": "00-0031260",
+                        "name": {
+                          "full": "L.Thomas",
+                          "first": "L.Thomas",
+                          "last": "Unknown"
+                        },
+                        "editorial_team_key": "nfl.t.was",
+                        "editorial_team_abbr": "WAS",
+                        "display_position": "TE",
+                        "eligible_positions": [
+                          {
+                            "position": "TE"
+                          }
+                        ],
+                        "selected_position": {
+                          "coverage_type": "week",
+                          "week": "7",
+                          "position": "TE"
+                        },
+                        "player_points": {
+                          "coverage_type": "week",
+                          "week": "7",
+                          "total": "3.6"
+                        },
+                        "player_stats": {
+                          "coverage_type": "week",
+                          "week": "7",
+                          "stats": [
+                            {
+                              "stat_id": "11",
+                              "value": "1"
+                            },
+                            {
+                              "stat_id": "12",
+                              "value": "20"
+                            }
+                          ]
+                        }
+                      }
+                    ]
+                  }
+                },
+                {
+                  "team_key": "461.l.1127949.t.10",
+                  "team_id": "10",
+                  "name": "NYG Real Fantasy",
+                  "team_logo": "https://s.yimg.com/cv/apiv2/default/nfl/nfl_4_nyg.png",
+                  "managers": [
+                    {
+                      "manager_id": "10",
+                      "nickname": "NYGManager"
+                    }
+                  ],
+                  "points": {
+                    "coverage_type": "week",
+                    "week": "7",
+                    "total": "69.1"
+                  },
+                  "roster": {
+                    "coverage_type": "week",
+                    "week": "7",
+                    "players": [
+                      {
+                        "player_key": "461.p.00-0028118",
+                        "player_id": "00-0028118",
+                        "name": {
+                          "full": "T.Taylor",
+                          "first": "T.Taylor",
+                          "last": "Unknown"
+                        },
+                        "editorial_team_key": "nfl.t.nyg",
+                        "editorial_team_abbr": "NYG",
+                        "display_position": "QB",
+                        "eligible_positions": [
+                          {
+                            "position": "QB"
+                          }
+                        ],
+                        "selected_position": {
+                          "coverage_type": "week",
+                          "week": "7",
+                          "position": "QB"
+                        },
+                        "player_points": {
+                          "coverage_type": "week",
+                          "week": "7",
+                          "total": "8.7"
+                        },
+                        "player_stats": {
+                          "coverage_type": "week",
+                          "week": "7",
+                          "stats": [
+                            {
+                              "stat_id": "4",
+                              "value": "111"
+                            },
+                            {
+                              "stat_id": "9",
+                              "value": "10"
+                            }
+                          ]
+                        }
+                      },
+                      {
+                        "player_key": "461.p.00-0034844",
+                        "player_id": "00-0034844",
+                        "name": {
+                          "full": "S.Barkley",
+                          "first": "S.Barkley",
+                          "last": "Unknown"
+                        },
+                        "editorial_team_key": "nfl.t.nyg",
+                        "editorial_team_abbr": "NYG",
+                        "display_position": "RB",
+                        "eligible_positions": [
+                          {
+                            "position": "RB"
+                          }
+                        ],
+                        "selected_position": {
+                          "coverage_type": "week",
+                          "week": "7",
+                          "position": "RB"
+                        },
+                        "player_points": {
+                          "coverage_type": "week",
+                          "week": "7",
+                          "total": "7.5"
+                        },
+                        "player_stats": {
+                          "coverage_type": "week",
+                          "week": "7",
+                          "stats": [
+                            {
+                              "stat_id": "9",
+                              "value": "30"
+                            },
+                            {
+                              "stat_id": "11",
+                              "value": "1"
+                            },
+                            {
+                              "stat_id": "12",
+                              "value": "16"
+                            }
+                          ]
+                        }
+                      },
+                      {
+                        "player_key": "461.p.00-0038938",
+                        "player_id": "00-0038938",
+                        "name": {
+                          "full": "J.Hyatt",
+                          "first": "J.Hyatt",
+                          "last": "Unknown"
+                        },
+                        "editorial_team_key": "nfl.t.nyg",
+                        "editorial_team_abbr": "NYG",
+                        "display_position": "WR",
+                        "eligible_positions": [
+                          {
+                            "position": "WR"
+                          }
+                        ],
+                        "selected_position": {
+                          "coverage_type": "week",
+                          "week": "7",
+                          "position": "WR"
+                        },
+                        "player_points": {
+                          "coverage_type": "week",
+                          "week": "7",
+                          "total": "3.8"
+                        },
+                        "player_stats": {
+                          "coverage_type": "week",
+                          "week": "7",
+                          "stats": [
+                            {
+                              "stat_id": "12",
+                              "value": "30"
+                            }
+                          ]
+                        }
+                      },
+                      {
+                        "player_key": "461.p.00-0031610",
+                        "player_id": "00-0031610",
+                        "name": {
+                          "full": "D.Waller",
+                          "first": "D.Waller",
+                          "last": "Unknown"
+                        },
+                        "editorial_team_key": "nfl.t.nyg",
+                        "editorial_team_abbr": "NYG",
+                        "display_position": "TE",
+                        "eligible_positions": [
+                          {
+                            "position": "TE"
+                          }
+                        ],
+                        "selected_position": {
+                          "coverage_type": "week",
+                          "week": "7",
+                          "position": "TE"
+                        },
+                        "player_points": {
+                          "coverage_type": "week",
+                          "week": "7",
+                          "total": "9.1"
+                        },
+                        "player_stats": {
+                          "coverage_type": "week",
+                          "week": "7",
+                          "stats": [
+                            {
+                              "stat_id": "11",
+                              "value": "2"
+                            },
+                            {
+                              "stat_id": "12",
+                              "value": "39"
+                            }
+                          ]
+                        }
+                      }
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "week": "7",
+              "week_start": "2023-10-22",
+              "week_end": "2023-10-28",
+              "status": "midevent",
+              "is_playoffs": "0",
+              "is_consolation": "0",
+              "is_tied": 0,
+              "teams": [
+                {
+                  "team_key": "461.l.1127949.t.11",
+                  "team_id": "11",
+                  "name": "ATL Real Fantasy",
+                  "team_logo": "https://s.yimg.com/cv/apiv2/default/nfl/nfl_4_atl.png",
+                  "managers": [
+                    {
+                      "manager_id": "11",
+                      "nickname": "ATLManager"
+                    }
+                  ],
+                  "points": {
+                    "coverage_type": "week",
+                    "week": "7",
+                    "total": "60.4"
+                  },
+                  "roster": {
+                    "coverage_type": "week",
+                    "week": "7",
+                    "players": [
+                      {
+                        "player_key": "461.p.00-0038122",
+                        "player_id": "00-0038122",
+                        "name": {
+                          "full": "D.Ridder",
+                          "first": "D.Ridder",
+                          "last": "Unknown"
+                        },
+                        "editorial_team_key": "nfl.t.atl",
+                        "editorial_team_abbr": "ATL",
+                        "display_position": "QB",
+                        "eligible_positions": [
+                          {
+                            "position": "QB"
+                          }
+                        ],
+                        "selected_position": {
+                          "coverage_type": "week",
+                          "week": "7",
+                          "position": "QB"
+                        },
+                        "player_points": {
+                          "coverage_type": "week",
+                          "week": "7",
+                          "total": "7.1"
+                        },
+                        "player_stats": {
+                          "coverage_type": "week",
+                          "week": "7",
+                          "stats": [
+                            {
+                              "stat_id": "4",
+                              "value": "100"
+                            },
+                            {
+                              "stat_id": "9",
+                              "value": "15"
+                            }
+                          ]
+                        }
+                      },
+                      {
+                        "player_key": "461.p.00-0037263",
+                        "player_id": "00-0037263",
+                        "name": {
+                          "full": "T.Allgeier",
+                          "first": "T.Allgeier",
+                          "last": "Unknown"
+                        },
+                        "editorial_team_key": "nfl.t.atl",
+                        "editorial_team_abbr": "ATL",
+                        "display_position": "RB",
+                        "eligible_positions": [
+                          {
+                            "position": "RB"
+                          }
+                        ],
+                        "selected_position": {
+                          "coverage_type": "week",
+                          "week": "7",
+                          "position": "RB"
+                        },
+                        "player_points": {
+                          "coverage_type": "week",
+                          "week": "7",
+                          "total": "5.7"
+                        },
+                        "player_stats": {
+                          "coverage_type": "week",
+                          "week": "7",
+                          "stats": [
+                            {
+                              "stat_id": "9",
+                              "value": "23"
+                            },
+                            {
+                              "stat_id": "11",
+                              "value": "1"
+                            },
+                            {
+                              "stat_id": "12",
+                              "value": "21"
+                            }
+                          ]
+                        }
+                      },
+                      {
+                        "player_key": "461.p.00-0037238",
+                        "player_id": "00-0037238",
+                        "name": {
+                          "full": "D.London",
+                          "first": "D.London",
+                          "last": "Unknown"
+                        },
+                        "editorial_team_key": "nfl.t.atl",
+                        "editorial_team_abbr": "ATL",
+                        "display_position": "WR",
+                        "eligible_positions": [
+                          {
+                            "position": "WR"
+                          }
+                        ],
+                        "selected_position": {
+                          "coverage_type": "week",
+                          "week": "7",
+                          "position": "WR"
+                        },
+                        "player_points": {
+                          "coverage_type": "week",
+                          "week": "7",
+                          "total": "4.6"
+                        },
+                        "player_stats": {
+                          "coverage_type": "week",
+                          "week": "7",
+                          "stats": [
+                            {
+                              "stat_id": "11",
+                              "value": "2"
+                            },
+                            {
+                              "stat_id": "12",
+                              "value": "21"
+                            }
+                          ]
+                        }
+                      },
+                      {
+                        "player_key": "461.p.00-0036970",
+                        "player_id": "00-0036970",
+                        "name": {
+                          "full": "K.Pitts",
+                          "first": "K.Pitts",
+                          "last": "Unknown"
+                        },
+                        "editorial_team_key": "nfl.t.atl",
+                        "editorial_team_abbr": "ATL",
+                        "display_position": "TE",
+                        "eligible_positions": [
+                          {
+                            "position": "TE"
+                          }
+                        ],
+                        "selected_position": {
+                          "coverage_type": "week",
+                          "week": "7",
+                          "position": "TE"
+                        },
+                        "player_points": {
+                          "coverage_type": "week",
+                          "week": "7",
+                          "total": "3.1"
+                        },
+                        "player_stats": {
+                          "coverage_type": "week",
+                          "week": "7",
+                          "stats": [
+                            {
+                              "stat_id": "11",
+                              "value": "1"
+                            },
+                            {
+                              "stat_id": "12",
+                              "value": "18"
+                            }
+                          ]
+                        }
+                      }
+                    ]
+                  }
+                },
+                {
+                  "team_key": "461.l.1127949.t.12",
+                  "team_id": "12",
+                  "name": "TB Real Fantasy",
+                  "team_logo": "https://s.yimg.com/cv/apiv2/default/nfl/nfl_4_tb.png",
+                  "managers": [
+                    {
+                      "manager_id": "12",
+                      "nickname": "TBManager"
+                    }
+                  ],
+                  "points": {
+                    "coverage_type": "week",
+                    "week": "7",
+                    "total": "64.6"
+                  },
+                  "roster": {
+                    "coverage_type": "week",
+                    "week": "7",
+                    "players": [
+                      {
+                        "player_key": "461.p.00-0034855",
+                        "player_id": "00-0034855",
+                        "name": {
+                          "full": "B.Mayfield",
+                          "first": "B.Mayfield",
+                          "last": "Unknown"
+                        },
+                        "editorial_team_key": "nfl.t.tb",
+                        "editorial_team_abbr": "TB",
+                        "display_position": "QB",
+                        "eligible_positions": [
+                          {
+                            "position": "QB"
+                          }
+                        ],
+                        "selected_position": {
+                          "coverage_type": "week",
+                          "week": "7",
+                          "position": "QB"
+                        },
+                        "player_points": {
+                          "coverage_type": "week",
+                          "week": "7",
+                          "total": "6.5"
+                        },
+                        "player_stats": {
+                          "coverage_type": "week",
+                          "week": "7",
+                          "stats": [
+                            {
+                              "stat_id": "4",
+                              "value": "110"
+                            },
+                            {
+                              "stat_id": "9",
+                              "value": "12"
+                            }
+                          ]
+                        }
+                      },
+                      {
+                        "player_key": "461.p.00-0037256",
+                        "player_id": "00-0037256",
+                        "name": {
+                          "full": "R.White",
+                          "first": "R.White",
+                          "last": "Unknown"
+                        },
+                        "editorial_team_key": "nfl.t.tb",
+                        "editorial_team_abbr": "TB",
+                        "display_position": "RB",
+                        "eligible_positions": [
+                          {
+                            "position": "RB"
+                          }
+                        ],
+                        "selected_position": {
+                          "coverage_type": "week",
+                          "week": "7",
+                          "position": "RB"
+                        },
+                        "player_points": {
+                          "coverage_type": "week",
+                          "week": "7",
+                          "total": "6.4"
+                        },
+                        "player_stats": {
+                          "coverage_type": "week",
+                          "week": "7",
+                          "stats": [
+                            {
+                              "stat_id": "9",
+                              "value": "13"
+                            },
+                            {
+                              "stat_id": "11",
+                              "value": "2"
+                            },
+                            {
+                              "stat_id": "12",
+                              "value": "26"
+                            }
+                          ]
+                        }
+                      },
+                      {
+                        "player_key": "461.p.00-0031408",
+                        "player_id": "00-0031408",
+                        "name": {
+                          "full": "M.Evans",
+                          "first": "M.Evans",
+                          "last": "Unknown"
+                        },
+                        "editorial_team_key": "nfl.t.tb",
+                        "editorial_team_abbr": "TB",
+                        "display_position": "WR",
+                        "eligible_positions": [
+                          {
+                            "position": "WR"
+                          }
+                        ],
+                        "selected_position": {
+                          "coverage_type": "week",
+                          "week": "7",
+                          "position": "WR"
+                        },
+                        "player_points": {
+                          "coverage_type": "week",
+                          "week": "7",
+                          "total": "8.1"
+                        },
+                        "player_stats": {
+                          "coverage_type": "week",
+                          "week": "7",
+                          "stats": [
+                            {
+                              "stat_id": "11",
+                              "value": "2"
+                            },
+                            {
+                              "stat_id": "12",
+                              "value": "32"
+                            }
+                          ]
+                        }
+                      },
+                      {
+                        "player_key": "461.p.00-0038129",
+                        "player_id": "00-0038129",
+                        "name": {
+                          "full": "C.Otton",
+                          "first": "C.Otton",
+                          "last": "Unknown"
+                        },
+                        "editorial_team_key": "nfl.t.tb",
+                        "editorial_team_abbr": "TB",
+                        "display_position": "TE",
+                        "eligible_positions": [
+                          {
+                            "position": "TE"
+                          }
+                        ],
+                        "selected_position": {
+                          "coverage_type": "week",
+                          "week": "7",
+                          "position": "TE"
+                        },
+                        "player_points": {
+                          "coverage_type": "week",
+                          "week": "7",
+                          "total": "3.7"
+                        },
+                        "player_stats": {
+                          "coverage_type": "week",
+                          "week": "7",
+                          "stats": [
+                            {
+                              "stat_id": "11",
+                              "value": "2"
+                            },
+                            {
+                              "stat_id": "12",
+                              "value": "17"
+                            }
+                          ]
+                        }
+                      }
+                    ]
+                  }
+                }
+              ]
+            }
+          ]
+        }
+      }
+    ]
+  }
+}
