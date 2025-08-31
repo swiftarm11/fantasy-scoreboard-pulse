@@ -16,7 +16,7 @@ const defaultConfig: SimulationConfig = {
   latencyMin: 200,
   latencyMax: 500,
   currentSnapshot: 0,
-  totalSnapshots: 30,
+  totalSnapshots: 25,
 };
 
 // Global simulation state
