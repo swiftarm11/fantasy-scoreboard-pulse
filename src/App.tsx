@@ -6,6 +6,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { AccessibilityProvider } from "@/components/AccessibilityProvider";
 import { SimulationControls } from "@/components/SimulationControls";
+import { SimulationProvider } from "@/contexts/SimulationContext";
 import Index from "./pages/Index";
 import NotFound from "./pages/NotFound";
 import { YahooCallback } from "./pages/YahooCallback";
@@ -39,16 +40,18 @@ const App = () => {
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
         <AccessibilityProvider>
-          <Toaster />
-          <Sonner />
-          <BrowserRouter>
-            <Routes>
-              <Route path="/" element={<Index />} />
-              <Route path="/auth/yahoo/callback" element={<YahooCallback />} />
-              <Route path="*" element={<NotFound />} />
-            </Routes>
-          </BrowserRouter>
-          <SimulationControls />
+          <SimulationProvider>
+            <Toaster />
+            <Sonner />
+            <BrowserRouter>
+              <Routes>
+                <Route path="/" element={<Index />} />
+                <Route path="/auth/yahoo/callback" element={<YahooCallback />} />
+                <Route path="*" element={<NotFound />} />
+              </Routes>
+            </BrowserRouter>
+            <SimulationControls />
+          </SimulationProvider>
         </AccessibilityProvider>
       </TooltipProvider>
     </QueryClientProvider>

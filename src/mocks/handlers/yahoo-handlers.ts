@@ -1,6 +1,5 @@
 import { http, HttpResponse } from 'msw';
-// TODO: Import fixture data when available
-// import { yahooSnapshots } from '../fixtures/yahoo-snapshots';
+import { yahooSnapshots, type YahooApiResponse } from '../fixtures/yahoo-snapshots';
 
 interface SimulationConfig {
   enabled: boolean;
@@ -129,53 +128,114 @@ const yahooApiHandler = http.post('*/functions/v1/yahoo-api', async ({ request }
 
   try {
     const body = await request.json() as any;
+    const { endpoint, leagueKey, week } = body;
     
-    // TODO: Replace with actual fixture data when available
-    const mockLeagueData = {
-      league: {
-        league_key: 'mock_league_123',
-        name: 'Mock Fantasy League',
-        season: '2024',
-        game_code: 'nfl',
-        is_finished: false,
-        current_week: 10,
-      },
-      teams: [
-        {
-          team_key: 'mock_team_1',
-          name: 'Mock Team 1',
-          points: 95.7,
-          projected_points: 105.2,
-        },
-        {
-          team_key: 'mock_team_2', 
-          name: 'Mock Team 2',
-          points: 87.3,
-          projected_points: 92.8,
-        }
-      ],
-      matchups: [
-        {
-          week: 10,
-          team1: 'mock_team_1',
-          team2: 'mock_team_2',
-          team1_points: 95.7,
-          team2_points: 87.3,
-          is_live: true,
-        }
-      ],
-      snapshot_index: simulationConfig.currentSnapshot,
-      simulation: true,
-      timestamp: new Date().toISOString(),
-    };
+    console.log(`[MSW] Yahoo API Simulation - Endpoint: ${endpoint}, League: ${leagueKey}, Week: ${week}, Snapshot: ${simulationConfig.currentSnapshot + 1}`);
 
-    return HttpResponse.json(
-      mockLeagueData,
-      { headers: createSimulationHeaders() }
-    );
+    // Handle different endpoints
+    switch (endpoint) {
+      case 'getLeagueScoreboard': {
+        // This is the main endpoint your app uses for live data
+        const snapshotIndex = simulationConfig.currentSnapshot + 1; // Convert to 1-based
+        const snapshotData = await yahooSnapshots.getSnapshot(snapshotIndex);
+        
+        if (!snapshotData) {
+          console.error(`[MSW] Failed to load snapshot ${snapshotIndex}`);
+          return createErrorResponse(`Failed to load snapshot ${snapshotIndex}`, 404);
+        }
+
+        // Add simulation metadata to the response
+        const responseData = {
+          ...snapshotData,
+          _simulation: {
+            enabled: true,
+            snapshot_index: simulationConfig.currentSnapshot,
+            total_snapshots: simulationConfig.totalSnapshots,
+            timestamp: new Date().toISOString(),
+            endpoint: endpoint
+          }
+        };
+
+        console.log(`[MSW] Returning snapshot ${snapshotIndex} data:`, {
+          matchups: snapshotData.fantasy_content.league[0].scoreboard.matchups.length,
+          status: snapshotData.fantasy_content.league[0].scoreboard.matchups[0]?.status,
+          teams: snapshotData.fantasy_content.league[0].scoreboard.matchups.reduce((total, m) => total + m.teams.length, 0)
+        });
+
+        return HttpResponse.json(responseData, { 
+          headers: createSimulationHeaders(simulationConfig.currentSnapshot) 
+        });
+      }
+
+      case 'getUserLeagues': {
+        // Return a simplified league list for simulation
+        const mockLeagueList = {
+          fantasy_content: {
+            users: [{
+              user: [{
+                games: [{
+                  game: [{
+                    leagues: [{
+                      league: [{
+                        league_key: '461.l.1127949',
+                        league_id: '1127949', 
+                        name: 'Real NFL Week 7 Simulation',
+                        season: '2023',
+                        league_type: 'private',
+                        num_teams: 12,
+                        scoring_type: 'head',
+                        current_week: '7'
+                      }]
+                    }]
+                  }]
+                }]
+              }]
+            }]
+          },
+          _simulation: {
+            enabled: true,
+            endpoint: endpoint,
+            timestamp: new Date().toISOString()
+          }
+        };
+
+        return HttpResponse.json(mockLeagueList, { 
+          headers: createSimulationHeaders() 
+        });
+      }
+
+      case 'getLeagueStandings':
+      case 'getLeagueSettings': {
+        // For other endpoints, return basic mock data
+        const mockResponse = {
+          fantasy_content: {
+            league: [{
+              league_key: leagueKey || '461.l.1127949',
+              name: 'Real NFL Week 7 Simulation',
+              message: `Simulated response for ${endpoint}`
+            }]
+          },
+          _simulation: {
+            enabled: true,
+            endpoint: endpoint,
+            timestamp: new Date().toISOString()
+          }
+        };
+
+        return HttpResponse.json(mockResponse, { 
+          headers: createSimulationHeaders() 
+        });
+      }
+
+      default: {
+        console.warn(`[MSW] Unknown Yahoo API endpoint: ${endpoint}`);
+        return createErrorResponse(`Unknown endpoint: ${endpoint}`, 400);
+      }
+    }
 
   } catch (error) {
-    return createErrorResponse('Failed to fetch league data');
+    console.error('[MSW] Yahoo API handler error:', error);
+    return createErrorResponse('Failed to process Yahoo API request');
   }
 });
 
