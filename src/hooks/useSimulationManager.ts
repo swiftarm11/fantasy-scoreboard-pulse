@@ -1,159 +1,70 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
-import { SimulationManager, createSimulationManager } from '@/mocks/simulation';
-import { useToast } from '@/hooks/use-toast';
+// src/hooks/useSimulationManager.ts
+import { useState, useEffect } from 'react';
 
-interface UseSimulationManagerOptions {
-  autoStart?: boolean;
-  onSnapshotChange?: (index: number) => void;
-  onPlayStateChange?: (isPlaying: boolean) => void;
+export interface SimulationConfig {
+  enabled: boolean;
+  currentWeek: number;
+  availableWeeks: number[];
 }
 
-export const useSimulationManager = (options: UseSimulationManagerOptions = {}) => {
-  const { autoStart = false, onSnapshotChange, onPlayStateChange } = options;
-  const { toast } = useToast();
-  
-  const [simulationManager, setSimulationManager] = useState<SimulationManager | null>(null);
-  const [currentIndex, setCurrentIndex] = useState(0);
-  const [isPlaying, setIsPlaying] = useState(false);
-  const [speed, setSpeed] = useState(1.0);
-  const [maxSnapshots, setMaxSnapshots] = useState(25);
-  
-  const managerRef = useRef<SimulationManager | null>(null);
+export const useSimulationManager = () => {
+  const [simulationConfig, setSimulationConfig] = useState<SimulationConfig>({
+    enabled: false,
+    currentWeek: 1,
+    availableWeeks: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17]
+  });
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  // Initialize simulation manager
-  useEffect(() => {
-    const manager = createSimulationManager({
-      onIndexChange: (index) => {
-        setCurrentIndex(index);
-        onSnapshotChange?.(index);
-        
-        // Trigger a data refresh by updating simulation config
-        if (window.navigator.vibrate) {
-          window.navigator.vibrate(50); // Haptic feedback if available
-        }
-      },
-      onPlayStateChange: (playing) => {
-        setIsPlaying(playing);
-        onPlayStateChange?.(playing);
-      },
-      onSpeedChange: (newSpeed) => {
-        setSpeed(newSpeed);
+  const fetchSimulationStatus = async () => {
+    setLoading(true);
+    setError(null);
+    
+    try {
+      // First try to fetch from local public directory
+      const response = await fetch('/testdata/simulation-config.json');
+      
+      if (!response.ok) {
+        // If local file doesn't exist, use environment variable
+        const envSimulation = import.meta.env.VITE_YAHOO_SIMULATION === 'true';
+        setSimulationConfig(prev => ({ ...prev, enabled: envSimulation }));
+        console.log('Using environment simulation setting:', envSimulation);
+        return;
       }
-    });
 
-    setSimulationManager(manager);
-    managerRef.current = manager;
-    setMaxSnapshots(manager.maxSnapshots);
-
-    if (autoStart) {
-      setTimeout(() => manager.play(), 1000);
+      const config = await response.json();
+      setSimulationConfig(config);
+      console.log('Simulation config loaded:', config);
+      
+    } catch (err) {
+      console.error('Failed to fetch simulation status:', err);
+      // Fallback to environment variable
+      const envSimulation = import.meta.env.VITE_YAHOO_SIMULATION === 'true';
+      setSimulationConfig(prev => ({ ...prev, enabled: envSimulation }));
+      setError('Using fallback simulation config');
+    } finally {
+      setLoading(false);
     }
+  };
 
-    return () => {
-      manager.destroy();
-      managerRef.current = null;
-    };
-  }, [autoStart]); // Remove callbacks from deps to prevent infinite loops
+  const toggleSimulation = () => {
+    setSimulationConfig(prev => ({ ...prev, enabled: !prev.enabled }));
+  };
 
-  // Control functions
-  const play = useCallback(() => {
-    if (managerRef.current) {
-      managerRef.current.play();
-      toast({
-        title: "Simulation Started",
-        description: "Fantasy scores are now updating live",
-      });
-    }
-  }, [toast]);
+  const setCurrentWeek = (week: number) => {
+    setSimulationConfig(prev => ({ ...prev, currentWeek: week }));
+  };
 
-  const pause = useCallback(() => {
-    if (managerRef.current) {
-      managerRef.current.pause();
-      toast({
-        title: "Simulation Paused",
-        description: "Score updates have been paused",
-      });
-    }
-  }, [toast]);
-
-  const stop = useCallback(() => {
-    if (managerRef.current) {
-      managerRef.current.stop();
-      toast({
-        title: "Simulation Stopped",
-        description: "Reset to beginning of game simulation",
-      });
-    }
-  }, [toast]);
-
-  const setIndex = useCallback((index: number) => {
-    if (managerRef.current) {
-      managerRef.current.setIndex(index);
-      toast({
-        title: "Jumped to Snapshot",
-        description: `Now viewing snapshot ${index + 1} of ${maxSnapshots}`,
-      });
-    }
-  }, [maxSnapshots, toast]);
-
-  const next = useCallback(() => {
-    if (managerRef.current) {
-      managerRef.current.next();
-    }
+  useEffect(() => {
+    fetchSimulationStatus();
   }, []);
-
-  const previous = useCallback(() => {
-    if (managerRef.current) {
-      managerRef.current.previous();
-    }
-  }, []);
-
-  const setPlaybackSpeed = useCallback((newSpeed: number) => {
-    if (managerRef.current) {
-      managerRef.current.setSpeed(newSpeed);
-      toast({
-        title: "Speed Changed",
-        description: `Playback speed set to ${newSpeed}x`,
-      });
-    }
-  }, [toast]);
-
-  const reset = useCallback(() => {
-    if (managerRef.current) {
-      managerRef.current.reset();
-      toast({
-        title: "Simulation Reset",
-        description: "All settings restored to defaults",
-      });
-    }
-  }, [toast]);
-
-  // Progress calculation
-  const progress = (currentIndex / maxSnapshots) * 100;
 
   return {
-    // State
-    simulationManager,
-    currentIndex,
-    isPlaying,
-    speed,
-    maxSnapshots,
-    progress,
-    
-    // Controls
-    play,
-    pause,
-    stop,
-    setIndex,
-    next,
-    previous,
-    setSpeed: setPlaybackSpeed,
-    reset,
-    
-    // Utilities
-    isAtEnd: currentIndex >= maxSnapshots,
-    isAtStart: currentIndex === 0,
-    canPlay: !isPlaying && currentIndex < maxSnapshots,
-    canPause: isPlaying,
+    simulationConfig,
+    loading,
+    error,
+    toggleSimulation,
+    setCurrentWeek,
+    refetch: fetchSimulationStatus
   };
 };
