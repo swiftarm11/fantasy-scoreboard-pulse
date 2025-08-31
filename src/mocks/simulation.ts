@@ -16,7 +16,7 @@ export class SimulationManager {
     currentIndex: 0,
     isPlaying: false,
     speed: 1.0,
-    maxSnapshots: 30
+    maxSnapshots: 25
   };
 
   private timer: NodeJS.Timeout | null = null;
