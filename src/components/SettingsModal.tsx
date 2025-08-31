@@ -55,22 +55,11 @@ export const SettingsModal = ({ open, onOpenChange, onMockEvent }: SettingsModal
   // Yahoo: persist selections and fetch list; aligns with FantasyDashboard expecting useYahooData persistence
   const { 
     availableLeagues = [],
+    savedSelections = [],
+    saveLeagueSelections,
     isLoading: yahooLoading = false,
     fetchAvailableLeagues,
   } = useYahooData() || {};
-  
-  // Use config for league selections instead
-  const savedSelections = config.leagues.filter(l => l.platform === 'Yahoo');
-  const saveLeagueSelections = (selections: any[]) => {
-    const updatedConfig = {
-      ...config,
-      leagues: [
-        ...config.leagues.filter(l => l.platform !== 'Yahoo'),
-        ...selections
-      ]
-    };
-    updateConfig(updatedConfig);
-  };
 
   // Sleeper: preserved behavior, including optional username for team identification
   const [localConfig, setLocalConfig] = useState<DashboardConfig>(config);
@@ -258,7 +247,7 @@ export const SettingsModal = ({ open, onOpenChange, onMockEvent }: SettingsModal
 
   // Yahoo selection persistence (no change to Sleeper paths)
   const handleYahooLeagueToggle = (leagueKey: string, leagueName: string, enabled: boolean) => {
-    const currentSelections = [...savedSelections];
+    const currentSelections = [...(savedSelections ?? [])];
     const existingIndex = currentSelections.findIndex(s => s.leagueId === leagueKey);
     
     if (existingIndex >= 0) {
@@ -268,16 +257,15 @@ export const SettingsModal = ({ open, onOpenChange, onMockEvent }: SettingsModal
       };
     } else {
       currentSelections.push({
-        id: `yahoo_${Date.now()}_${Math.random()}`,
         leagueId: leagueKey,
-        customTeamName: leagueName,
+        leagueName,
         enabled,
-        platform: 'Yahoo' as const
+        platform: 'Yahoo'
       });
     }
     
     try {
-      saveLeagueSelections(currentSelections);
+      saveLeagueSelections?.(currentSelections);
       debugLogger.info('YAHOO_LEAGUES', 'League selection updated', { leagueKey, leagueName, enabled });
       toast({
         title: enabled ? 'League Added' : 'League Removed',

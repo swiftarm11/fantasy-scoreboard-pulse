@@ -47,7 +47,8 @@ const DashboardContent = () => {
     leagues: yahooLeagues,
     isLoading: yahooLoading,
     error: yahooError,
-    refreshData: refreshYahooData
+    refreshData: refreshYahooData,
+    getEnabledLeagueIds // Get enabled league IDs from saved selections
   } = useYahooData();
 
   const { isOnline } = useNetworkStatus();

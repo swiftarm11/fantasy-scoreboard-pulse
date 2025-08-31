@@ -1,428 +1,346 @@
 // src/hooks/useYahooData.ts
+
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { yahooOAuth } from '../utils/yahooOAuth';
-import { useSimulationManager } from './useSimulationManager';
-import type { LeagueData, MatchupData, PlayerData, Platform } from '../types/fantasy';
+import { LeagueData } from '../types/fantasy';
+import { useYahooOAuth } from './useYahooOAuth';
+import { debugLogger } from '../utils/debugLogger';
+import { toast } from '../components/ui/use-toast';
+import { yahooLogger } from '../utils/yahooLogger';
 
-// Types for our data structures
-interface YahooApiResponse {
-  fantasy_content: {
-    users: Array<{
-      user: Array<{
-        games: {
-          [key: string]: {
-            game: Array<{
-              leagues?: {
-                [key: string]: {
-                  league: LeagueData[];
-                };
-              };
-            }>;
-          };
-        };
-      }>;
-    }>;
-  };
-}
-
-interface UseYahooDataReturn {
+interface YahooDataState {
   leagues: LeagueData[];
-  loading: boolean;
-  error: string | null;
-  isConnected: boolean;
-  refreshData: () => Promise<void>;
-  fetchLeagueMatchups: (leagueKey: string, week?: number) => Promise<MatchupData[]>;
-  fetchLeagueRosters: (leagueKey: string) => Promise<PlayerData[]>;
-  lastUpdated: Date | null;
-  availableLeagues: LeagueData[];
+  availableLeagues: any[];
   isLoading: boolean;
-  fetchAvailableLeagues: () => Promise<void>;
+  error: string | null;
+  lastUpdated: string | null;
 }
 
-export const useYahooData = (): UseYahooDataReturn => {
-  // Simulation integration
-  const { simulationConfig } = useSimulationManager();
+interface YahooLeagueSelection {
+  leagueId: string;
+  leagueName: string;
+  enabled: boolean;
+  platform: string;
+}
+
+const STORAGE_KEY = 'yahoo_league_selections';
+
+export const useYahooData = (enabledLeagueIds?: string[]) => {
+  const { isConnected } = useYahooOAuth();
   
-  // State management
-  const [leagues, setLeagues] = useState<LeagueData[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
-  
-  // Refs for polling control
-  const pollingRef = useRef<NodeJS.Timeout | null>(null);
-  const lastFetchTime = useRef<number>(0);
-  const MINIMUM_FETCH_INTERVAL = 5000; // 5 second minimum between fetches
+  const [state, setState] = useState<YahooDataState>({
+    leagues: [],
+    availableLeagues: [],
+    isLoading: false,
+    error: null,
+    lastUpdated: null,
+  });
 
-  // Check if we're connected to Yahoo OAuth
-  const isConnected = yahooOAuth?.isConnected() || false;
+  const [savedSelections, setSavedSelections] = useState<YahooLeagueSelection[]>([]);
+  const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const hasInitializedRef = useRef(false);
 
-  // Fetch simulation data
-  const fetchSimulationData = async (): Promise<LeagueData[]> => {
-    console.log('🎮 [SIMULATION] Fetching mock league data');
-    
-    try {
-      // Try to fetch from local testdata first
-      const response = await fetch('/testdata/leagues.json');
-      
-      if (response.ok) {
-        const mockData = await response.json();
-        console.log('🎮 [SIMULATION] Successfully loaded mock data:', {
-          leaguesCount: mockData.leagues?.length || 0,
-          dataSource: 'local'
-        });
-        
-        // Transform mock data to match your LeagueData interface
-        return mockData.leagues || mockData || [];
-      }
-      
-      // Fallback to GitHub raw if local doesn't exist
-      const githubResponse = await fetch('https://raw.githubusercontent.com/swiftarm11/fantasy-scoreboard-pulse/main/public/testdata/leagues.json');
-      
-      if (githubResponse.ok) {
-        const mockData = await githubResponse.json();
-        console.log('🎮 [SIMULATION] Successfully loaded mock data from GitHub:', {
-          leaguesCount: mockData.leagues?.length || 0,
-          dataSource: 'github'
-        });
-        
-        return mockData.leagues || mockData || [];
-      }
-      
-      throw new Error('Mock data not available');
-      
-    } catch (error) {
-      console.warn('🎮 [SIMULATION] Failed to fetch mock data, using fallback:', error);
-      
-      // Return fallback mock data
-      return [
-        {
-          id: 'sim_league_1',
-          leagueName: 'Simulation League 1',
-          platform: 'Yahoo' as Platform,
-          teamName: 'My Team',
-          myScore: 105.6,
-          opponentScore: 98.3,
-          opponentName: 'Opponent Team',
-          record: '5-3',
-          leaguePosition: '2nd',
-          status: 'winning' as const,
-          scoringEvents: [],
-          lastUpdated: new Date().toISOString(),
-          league_key: 'sim_league_1',
-          league_id: '1',
-          name: 'Simulation League 1',
-          num_teams: 12,
-          season: '2024',
-          current_week: simulationConfig.currentWeek.toString(),
-          start_week: '1',
-          end_week: '17',
-          is_finished: 0,
-          url: '',
-          logo_url: '',
-          draft_status: 'postdraft',
-          max_teams: 12,
-          weekly_deadline: '',
-          league_update_timestamp: Date.now().toString(),
-          scoring_type: 'head2head',
-          league_type: 'private',
-          renew: '',
-          renewed: '',
-          iris_group_chat_id: '',
-          allow_add_to_dl_extra_pos: 1,
-          is_pro_league: '0',
-          is_cash_league: '0',
-          current_week_number: simulationConfig.currentWeek,
-          teams: []
-        }
-      ];
-    }
-  };
-
-  // Fetch real Yahoo data
-  const fetchYahooData = async (): Promise<LeagueData[]> => {
-    console.log('[YAHOO INFO] YAHOO_DATA: Starting fetchAvailableLeagues', {
-      hasAccessToken: !!yahooOAuth?.getStoredTokens()?.access_token,
-      tokenPreview: yahooOAuth?.getStoredTokens()?.access_token?.substring(0, 20) + '...'
-    });
-
-    if (!yahooOAuth?.isConnected()) {
-      throw new Error('Yahoo OAuth not connected');
-    }
-
-    const tokens = yahooOAuth?.getStoredTokens();
-    if (!tokens?.access_token) {
-      throw new Error('No access token available');
-    }
-
-    // Prepare request payload
-    const payload = {
-      endpoint: 'getUserLeagues',
-      accessToken: tokens.access_token
-    };
-
-    console.log('[YAHOO INFO] YAHOO_DATA: Request payload prepared', {
-      endpoint: payload.endpoint
-    });
-
-    // Make API call through Supabase edge function
-    const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/yahoo-api`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
-      },
-      body: JSON.stringify(payload)
-    });
-
-    console.log('[YAHOO INFO] YAHOO_DATA: API call completed', {
-      request: payload,
-      response: {
-        status: response.status,
-        statusText: response.statusText,
-        ok: response.ok
-      }
-    });
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error('[YAHOO ERROR] API call failed:', {
-        status: response.status,
-        statusText: response.statusText,
-        error: errorText
-      });
-      throw new Error(`Yahoo API call failed: ${response.status} ${response.statusText}`);
-    }
-
-    console.log('[YAHOO INFO] YAHOO_DATA: Received API response', {
-      status: response.status,
-      statusText: response.statusText,
-      ok: response.ok
-    });
-
-    const responseText = await response.text();
-    
-    console.log('[YAHOO DEBUG] YAHOO_DATA: Raw response text received', {
-      textLength: responseText.length,
-      textPreview: responseText.substring(0, 100) + '...'
-    });
-
-    let parsedResponse: YahooApiResponse;
-    try {
-      parsedResponse = JSON.parse(responseText);
-    } catch (parseError) {
-      console.error('[YAHOO ERROR] Failed to parse API response:', parseError);
-      throw new Error('Invalid JSON response from Yahoo API');
-    }
-
-    console.log('[YAHOO DEBUG] YAHOO_DATA: Parsed API response', {
-      hasFantasyContent: !!parsedResponse.fantasy_content,
-      hasUsers: !!parsedResponse.fantasy_content?.users,
-      dataStructure: Object.keys(parsedResponse)
-    });
-
-    // Extract leagues from the response
-    const extractedLeagues: LeagueData[] = [];
-    
-    try {
-      const users = parsedResponse.fantasy_content?.users;
-      if (users && Array.isArray(users)) {
-        users.forEach(userWrapper => {
-          const user = userWrapper.user;
-          if (Array.isArray(user)) {
-            user.forEach(userItem => {
-              const games = userItem.games;
-              if (games) {
-                Object.values(games).forEach(gameWrapper => {
-                  if (gameWrapper.game && Array.isArray(gameWrapper.game)) {
-                    gameWrapper.game.forEach(gameItem => {
-                      const leagues = gameItem.leagues;
-                      if (leagues) {
-                        Object.values(leagues).forEach(leagueWrapper => {
-                          if (leagueWrapper.league && Array.isArray(leagueWrapper.league)) {
-                            extractedLeagues.push(...leagueWrapper.league);
-                          }
-                        });
-                      }
-                    });
-                  }
-                });
-              }
-            });
-          }
-        });
-      }
-    } catch (extractError) {
-      console.error('[YAHOO ERROR] Failed to extract leagues from response:', extractError);
-      throw new Error('Failed to parse league data from Yahoo response');
-    }
-
-    console.log('[YAHOO INFO] YAHOO_DATA: Yahoo leagues successfully fetched and stored', {
-      count: extractedLeagues.length,
-      leagueNames: extractedLeagues.slice(0, 3).map(l => l.name || l.leagueName)
-    });
-
-    return extractedLeagues;
-  };
-
-  // Main fetch function that handles simulation vs real data
-  const fetchAvailableLeagues = useCallback(async (): Promise<void> => {
-    // Debouncing to prevent rapid consecutive calls
-    const now = Date.now();
-    if (now - lastFetchTime.current < MINIMUM_FETCH_INTERVAL) {
-      console.info('Debouncing data fetch - minimum interval enforced');
-      return;
-    }
-    lastFetchTime.current = now;
-
-    setLoading(true);
-    setError(null);
-
-    try {
-      let fetchedLeagues: LeagueData[];
-
-      // Check if simulation mode is enabled
-      if (simulationConfig.enabled) {
-        console.log('🎮 [SIMULATION] Mode enabled - fetching mock data');
-        fetchedLeagues = await fetchSimulationData();
-      } else {
-        console.log('📊 [LIVE] Mode enabled - fetching real Yahoo data');
-        fetchedLeagues = await fetchYahooData();
-      }
-
-      setLeagues(fetchedLeagues);
-      setLastUpdated(new Date());
-      
-      console.log(`✅ Data fetch completed - ${simulationConfig.enabled ? 'SIMULATION' : 'LIVE'} mode`, {
-        leagueCount: fetchedLeagues.length,
-        timestamp: new Date().toISOString()
-      });
-
-    } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : 'Unknown error occurred';
-      console.error('❌ Data fetch failed:', err);
-      setError(errorMessage);
-    } finally {
-      setLoading(false);
-    }
-  }, [simulationConfig.enabled, simulationConfig.currentWeek]);
-
-  // Fetch league matchups
-  const fetchLeagueMatchups = useCallback(async (leagueKey: string, week?: number): Promise<MatchupData[]> => {
-    console.log(`[MATCHUPS] Fetching for league: ${leagueKey}, week: ${week || 'current'}`);
-    
-    if (simulationConfig.enabled) {
+  // Load saved selections from localStorage on mount only
+  useEffect(() => {
+    if (!hasInitializedRef.current) {
       try {
-        const weekParam = week || simulationConfig.currentWeek;
-        const response = await fetch(`/testdata/matchups/league_${leagueKey}_week_${weekParam}.json`);
-        if (response.ok) {
-          const mockMatchups = await response.json();
-          return mockMatchups.matchups || [];
+        const saved = localStorage.getItem(STORAGE_KEY);
+        if (saved) {
+          setSavedSelections(JSON.parse(saved));
         }
+        hasInitializedRef.current = true;
       } catch (error) {
-        console.warn('Mock matchups not available, returning empty array');
+        console.error('Error loading saved Yahoo league selections:', error);
+        hasInitializedRef.current = true;
       }
-      return [];
-    }
-
-    // Real Yahoo API matchup fetching would go here
-    // For now, return empty array
-    return [];
-  }, [simulationConfig.enabled, simulationConfig.currentWeek]);
-
-  // Fetch league rosters
-  const fetchLeagueRosters = useCallback(async (leagueKey: string): Promise<PlayerData[]> => {
-    console.log(`[ROSTERS] Fetching for league: ${leagueKey}`);
-    
-    if (simulationConfig.enabled) {
-      try {
-        const response = await fetch(`/testdata/rosters/league_${leagueKey}.json`);
-        if (response.ok) {
-          const mockRosters = await response.json();
-          return mockRosters.players || [];
-        }
-      } catch (error) {
-        console.warn('Mock rosters not available, returning empty array');
-      }
-      return [];
-    }
-
-    // Real Yahoo API roster fetching would go here
-    // For now, return empty array
-    return [];
-  }, [simulationConfig.enabled]);
-
-  // Manual refresh function
-  const refreshData = useCallback(async (): Promise<void> => {
-    console.log('🔄 Manual data refresh triggered');
-    await fetchAvailableLeagues();
-  }, [fetchAvailableLeagues]);
-
-  // Auto-polling setup
-  const startPolling = useCallback(() => {
-    if (pollingRef.current) {
-      clearInterval(pollingRef.current);
-    }
-    
-    const POLLING_INTERVAL = 15000; // 15 seconds
-    console.info(`Starting polling with ${POLLING_INTERVAL}ms interval`);
-    
-    pollingRef.current = setInterval(() => {
-      fetchAvailableLeagues();
-    }, POLLING_INTERVAL);
-  }, [fetchAvailableLeagues]);
-
-  const stopPolling = useCallback(() => {
-    if (pollingRef.current) {
-      console.info('Stopped polling');
-      clearInterval(pollingRef.current);
-      pollingRef.current = null;
     }
   }, []);
 
-  // Effects
-  useEffect(() => {
-    if (isConnected) {
-      fetchAvailableLeagues();
-      startPolling();
-    } else {
-      stopPolling();
+  // Save league selections to localStorage
+  const saveLeagueSelections = useCallback((selections: YahooLeagueSelection[]) => {
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(selections));
+      setSavedSelections(selections);
+      debugLogger.info('YAHOO_LEAGUES', 'League selections saved', { count: selections.length });
+    } catch (error) {
+      console.error('Error saving Yahoo league selections:', error);
+      throw error;
     }
+  }, []);
 
-    return () => {
-      stopPolling();
-    };
-  }, [isConnected, fetchAvailableLeagues, startPolling, stopPolling]);
+  // Get enabled league IDs from saved selections
+  const getEnabledLeagueIds = useCallback(() => {
+    return savedSelections.filter(s => s.enabled).map(s => s.leagueId);
+  }, [savedSelections]);
 
-  // Re-fetch when simulation config changes
-  useEffect(() => {
-    if (isConnected) {
-      console.log('🔄 Simulation config changed - refreshing data', {
-        enabled: simulationConfig.enabled,
-        currentWeek: simulationConfig.currentWeek
+  // Fetch available leagues from Yahoo API - stable function
+  const fetchAvailableLeagues = useCallback(async () => {
+    if (!isConnected) return;
+
+    setState(prev => ({ ...prev, isLoading: true, error: null }));
+    
+    try {
+      // Get fresh tokens each time to avoid cached stale tokens
+      const raw = localStorage.getItem('yahoo_oauth_tokens');
+      const tokens = raw ? JSON.parse(raw) : null;
+      yahooLogger.info('YAHOO_DATA', 'Starting fetchAvailableLeagues', {
+        hasAccessToken: !!tokens?.access_token,
+        tokenPreview: tokens?.access_token?.substring(0, 20) + '...'
       });
+
+      if (!tokens?.access_token) {
+        yahooLogger.error('YAHOO_DATA', 'No access token available');
+        throw new Error('Not authenticated');
+      }
+
+      const requestPayload = {
+        endpoint: 'getUserLeagues',
+        accessToken: tokens.access_token,
+      };
+      
+      yahooLogger.info('YAHOO_DATA', 'Request payload prepared', { endpoint: requestPayload.endpoint });
+
+      const requestOptions: RequestInit = {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+          'apikey': `${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+        },
+        body: JSON.stringify(requestPayload),
+      };
+
+      yahooLogger.logAPICall('YAHOO_DATA', `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/yahoo-api`, requestOptions);
+      
+      const resp = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/yahoo-api`, requestOptions);
+
+      yahooLogger.info('YAHOO_DATA', 'Received API response', { 
+        status: resp.status, 
+        statusText: resp.statusText,
+        ok: resp.ok 
+      });
+      
+      if (!resp.ok) {
+        const errorText = await resp.text();
+        yahooLogger.error('YAHOO_DATA', 'API request failed', {
+          status: resp.status,
+          statusText: resp.statusText,
+          errorResponse: errorText
+        });
+        throw new Error(`API Error: ${resp.status} - ${errorText}`);
+      }
+
+      const text = await resp.text();
+      yahooLogger.debug('YAHOO_DATA', 'Raw response text received', { 
+        textLength: text.length,
+        textPreview: text.substring(0, 200) + '...'
+      });
+      
+      const data = JSON.parse(text);
+      yahooLogger.debug('YAHOO_DATA', 'Parsed API response', {
+        hasFantasyContent: !!data?.fantasy_content,
+        hasUsers: !!data?.fantasy_content?.users,
+        dataStructure: Object.keys(data || {})
+      });
+
+      // Parse Yahoo API response structure - handle multiple possible formats
+      const availableLeagues: any[] = [];
+      
+      // Try primary array format first: users[0].user[0].games[0].game[0].leagues[0].league
+      const primaryLeagues = data?.fantasy_content?.users?.[0]?.user?.[0]?.games?.[0]?.game?.[0]?.leagues?.[0]?.league;
+      
+      if (Array.isArray(primaryLeagues)) {
+        availableLeagues.push(...primaryLeagues);
+      } else {
+        // Fallback to object format with string keys: users["0"].user[1].games["0"].game[1].leagues
+        const usersNode = data?.fantasy_content?.users?.["0"]?.user;
+        const gamesNode = usersNode?.[1]?.games?.["0"]?.game;
+        const leaguesNode = gamesNode?.[1]?.leagues;
+
+        if (leaguesNode && leaguesNode.count > 0) {
+          for (let i = 0; i < leaguesNode.count; i++) {
+            const entry = leaguesNode[i.toString()];
+            const leagueObj = entry?.league?.[0];
+            if (leagueObj) {
+              availableLeagues.push(leagueObj);
+            }
+          }
+        }
+      }
+
+      setState(prev => ({
+        ...prev,
+        availableLeagues,
+        isLoading: false,
+        lastUpdated: new Date().toISOString(),
+      }));
+
+      yahooLogger.info('YAHOO_DATA', 'Yahoo leagues successfully fetched and stored', { 
+        count: availableLeagues.length,
+        leagueNames: availableLeagues.map((l: any) => l.name).slice(0, 3)
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to fetch leagues';
+      yahooLogger.error('YAHOO_DATA', 'fetchAvailableLeagues failed', {
+        error: message,
+        errorType: error instanceof Error ? error.constructor.name : typeof error,
+        stack: error instanceof Error ? error.stack : undefined
+      });
+      
+      setState(prev => ({
+        ...prev,
+        error: message,
+        isLoading: false,
+      }));
+      
+      if (message.includes('token expired') || message.includes('401')) {
+        yahooLogger.warn('YAHOO_DATA', 'Token appears to be expired, requesting reconnection');
+        toast({
+          title: 'Yahoo Token Expired',
+          description: 'Please reconnect to Yahoo',
+          variant: 'destructive',
+        });
+      }
+    }
+  }, [isConnected]);
+
+  // Separate function for fetching league details - stable
+  const fetchLeagueDetails = useCallback(async (leagueIds: string[], availableLeagues: any[]) => {
+    if (!isConnected || leagueIds.length === 0) {
+      return [] as LeagueData[];
+    }
+
+    // Get fresh tokens each time to avoid cached stale tokens
+    const raw = localStorage.getItem('yahoo_oauth_tokens');
+    const tokens = raw ? JSON.parse(raw) : null;
+    if (!tokens?.access_token) {
+      throw new Error('Not authenticated');
+    }
+
+    const detailedLeagues: LeagueData[] = [];
+    
+    for (const leagueKey of leagueIds) {
+      try {
+        const leagueInfo = availableLeagues.find((l: any) => l.league_key === leagueKey);
+        if (!leagueInfo) continue;
+
+        const requestPayload = {
+          endpoint: 'getLeagueScoreboard',
+          accessToken: tokens.access_token,
+          leagueKey,
+        };
+
+        const resp = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/yahoo-api`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+            'apikey': `${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+          },
+          body: JSON.stringify(requestPayload),
+        });
+
+        if (!resp.ok) continue;
+
+        const sbText = await resp.text();
+        const sb = JSON.parse(sbText);
+
+        const team0 = sb?.fantasy_content?.league?.[0]?.teams?.team;
+        const team1 = sb?.fantasy_content?.league?.scoreboard?.teams?.team?.[1];
+        const standings0 = team0?.team_standings?.outcome_totals;
+        const rank0 = sb?.fantasy_content?.league?.scoreboard?.teams?.team?.team_standings?.rank;
+
+        const commonLeague: LeagueData = {
+          id: leagueInfo.league_key,
+          platform: 'Yahoo',
+          leagueName: leagueInfo.name,
+          teamName: team0?.name?.[0] ?? 'Your Team',
+          myScore: parseFloat(team0?.team_points?.total ?? '0'),
+          opponentName: team1?.name ?? 'Opponent',
+          opponentScore: parseFloat(team1?.team_points?.total ?? '0'),
+          record: `${standings0?.wins ?? 0}-${standings0?.losses ?? 0}-${standings0?.ties ?? 0}`,
+          leaguePosition: (rank0 ? parseInt(rank0) : 1) as any,
+          status: sb?.fantasy_content?.league?.scoreboard?.status ?? 'active',
+          scoringEvents: [],
+          lastUpdated: new Date().toISOString(),
+        };
+
+        detailedLeagues.push(commonLeague);
+      } catch (e) {
+        console.error('Failed to fetch league details:', e);
+      }
+    }
+
+    return detailedLeagues;
+  }, [isConnected]);
+
+  // Auto-fetch available leagues when connected - simple effect
+  useEffect(() => {
+    if (isConnected && hasInitializedRef.current) {
       fetchAvailableLeagues();
     }
-  }, [simulationConfig.enabled, simulationConfig.currentWeek, fetchAvailableLeagues, isConnected]);
+  }, [isConnected, fetchAvailableLeagues]);
 
-  // Cleanup on unmount
+  // Auto-fetch league data when enabled leagues change - simple effect with cleanup
   useEffect(() => {
+    if (timeoutRef.current) {
+      clearTimeout(timeoutRef.current);
+    }
+
+    if (!hasInitializedRef.current || !isConnected) {
+      return;
+    }
+
+    const enabledIds = savedSelections.filter(s => s.enabled).map(s => s.leagueId);
+    
+    if (enabledIds.length > 0 && state.availableLeagues.length > 0) {
+      timeoutRef.current = setTimeout(async () => {
+        setState(prev => ({ ...prev, isLoading: true }));
+        
+        try {
+          const detailedLeagues = await fetchLeagueDetails(enabledIds, state.availableLeagues);
+          setState(prev => ({
+            ...prev,
+            leagues: detailedLeagues,
+            isLoading: false,
+            lastUpdated: new Date().toISOString(),
+          }));
+        } catch (error) {
+          setState(prev => ({
+            ...prev,
+            error: error instanceof Error ? error.message : 'Failed to fetch league data',
+            isLoading: false,
+          }));
+        }
+      }, 500);
+    } else {
+      setState(prev => ({ ...prev, leagues: [] }));
+    }
+
     return () => {
-      stopPolling();
+      if (timeoutRef.current) {
+        clearTimeout(timeoutRef.current);
+      }
     };
-  }, [stopPolling]);
+  }, [savedSelections, isConnected, fetchLeagueDetails, state.availableLeagues]);
+
+  // Refresh all data - simple function
+  const refreshData = useCallback(async () => {
+    yahooLogger.info('YAHOO_DATA', 'Starting full data refresh');
+    try {
+      await fetchAvailableLeagues();
+    } catch (error) {
+      yahooLogger.error('YAHOO_DATA', 'Full data refresh failed', {
+        error: error instanceof Error ? error.message : error
+      });
+    }
+  }, [fetchAvailableLeagues]);
 
   return {
-    leagues,
-    loading,
-    error,
-    isConnected,
+    ...state,
+    savedSelections,
+    saveLeagueSelections,
+    getEnabledLeagueIds,
     refreshData,
-    fetchLeagueMatchups,
-    fetchLeagueRosters,
-    lastUpdated,
-    availableLeagues: leagues,
-    isLoading: loading,
-    fetchAvailableLeagues
+    fetchAvailableLeagues,
   };
 };
