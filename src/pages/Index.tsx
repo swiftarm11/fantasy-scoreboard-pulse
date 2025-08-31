@@ -25,7 +25,8 @@ const Index = () => {
       // Expose env vars for console debugging
       window.appEnv = {
         YAHOO_CLIENT_ID: import.meta.env.VITE_YAHOO_CLIENT_ID,
-        YAHOO_REDIRECT_URI: import.meta.env.VITE_YAHOO_REDIRECT_URI
+        YAHOO_REDIRECT_URI: import.meta.env.VITE_YAHOO_REDIRECT_URI,
+        YAHOO_SIMULATION: import.meta.env.VITE_YAHOO_SIMULATION
       };
       console.log('Environment variables exposed to window.appEnv');
       

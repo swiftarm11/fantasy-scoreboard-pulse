@@ -1,4 +1,7 @@
 import { RequestHandler } from 'msw';
+import { yahooHandlers } from './yahoo-handlers';
 
-// Empty handlers array for now - will be populated with specific handlers
-export const handlers: RequestHandler[] = [];
+// Combine all handlers
+export const handlers: RequestHandler[] = [
+  ...yahooHandlers,
+];
