@@ -53,7 +53,7 @@ export const useSimulationManager = (options: UseSimulationManagerOptions = {}) 
       manager.destroy();
       managerRef.current = null;
     };
-  }, [autoStart, onSnapshotChange, onPlayStateChange]);
+  }, [autoStart]); // Remove callbacks from deps to prevent infinite loops
 
   // Control functions
   const play = useCallback(() => {

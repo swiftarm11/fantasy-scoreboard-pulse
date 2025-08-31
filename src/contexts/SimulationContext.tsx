@@ -1,5 +1,6 @@
-import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import React, { createContext, useContext, useState, useEffect, ReactNode, useCallback } from 'react';
 import { useSimulationManager } from '@/hooks/useSimulationManager';
+import { debugLogger } from '@/utils/debugLogger';
 
 interface SimulationContextType {
   isSimulationMode: boolean;
@@ -8,6 +9,7 @@ interface SimulationContextType {
   progress: number;
   maxSnapshots: number;
   triggerDataRefresh: () => void;
+  setSimulationMode: (enabled: boolean) => void;
 }
 
 const SimulationContext = createContext<SimulationContextType | undefined>(undefined);
@@ -18,22 +20,33 @@ interface SimulationProviderProps {
 
 export const SimulationProvider: React.FC<SimulationProviderProps> = ({ children }) => {
   const [refreshTrigger, setRefreshTrigger] = useState(0);
+  const [localSimulationMode, setLocalSimulationMode] = useState(() => {
+    return localStorage.getItem('simulation-mode') === 'true';
+  });
   
   // Check if simulation mode is enabled
   const isSimulationMode = 
+    localSimulationMode ||
     new URLSearchParams(window.location.search).get('simulation') === 'true' ||
     import.meta.env.VITE_YAHOO_SIMULATION === 'true';
 
+  const setSimulationMode = useCallback((enabled: boolean) => {
+    debugLogger.info('SIMULATION', `Simulation mode ${enabled ? 'enabled' : 'disabled'}`, { enabled });
+    setLocalSimulationMode(enabled);
+    localStorage.setItem('simulation-mode', enabled.toString());
+    setRefreshTrigger(prev => prev + 1);
+  }, []);
+
   // Only use simulation manager if in simulation mode
   const simulationManager = useSimulationManager({
-    onSnapshotChange: (index) => {
-      console.log(`[SimulationContext] Snapshot changed to ${index + 1}`);
+    onSnapshotChange: useCallback((index) => {
+      debugLogger.info('SIMULATION', `Snapshot changed to ${index + 1}`, { index, timestamp: Date.now() });
       // Trigger data refresh when snapshot changes
       setRefreshTrigger(prev => prev + 1);
-    },
-    onPlayStateChange: (isPlaying) => {
-      console.log(`[SimulationContext] Play state changed to ${isPlaying}`);
-    }
+    }, []),
+    onPlayStateChange: useCallback((isPlaying) => {
+      debugLogger.info('SIMULATION', `Play state changed to ${isPlaying}`, { isPlaying, timestamp: Date.now() });
+    }, [])
   });
 
   const triggerDataRefresh = () => {
@@ -54,7 +67,8 @@ export const SimulationProvider: React.FC<SimulationProviderProps> = ({ children
     isPlaying: isSimulationMode ? simulationManager.isPlaying : false,
     progress: isSimulationMode ? simulationManager.progress : 0,
     maxSnapshots: isSimulationMode ? simulationManager.maxSnapshots : 25,
-    triggerDataRefresh
+    triggerDataRefresh,
+    setSimulationMode
   };
 
   return (

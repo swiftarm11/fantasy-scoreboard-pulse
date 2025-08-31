@@ -45,7 +45,8 @@ class DebugLogger {
     const emoji = this.getEmoji(type);
     const timestamp = new Date().toLocaleTimeString();
     
-    if (this.debugEnabled) {
+    // Always log simulation and error messages, even if debug is disabled
+    if (this.debugEnabled || type === 'error' || category === 'SIMULATION') {
       console.log(`${emoji} [${category}] ${message}`, {
         timestamp,
         data,

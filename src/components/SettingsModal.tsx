@@ -24,6 +24,7 @@ import { generateMockScoringEvent } from '../utils/mockEventGenerator';
 import { TestingTab } from './TestingTab';
 import { debugLogger } from '../utils/debugLogger';
 import { DebugConsole } from './DebugConsole';
+import { useSimulationContext } from '../contexts/SimulationContext';
 import {
   DndContext,
   closestCenter,
@@ -49,6 +50,7 @@ interface SettingsModalProps {
 export const SettingsModal = ({ open, onOpenChange, onMockEvent }: SettingsModalProps) => {
   const { config, updateConfig } = useConfig();
   const { isConnected: isYahooConnected } = useYahooOAuth();
+  const { isSimulationMode, setSimulationMode } = useSimulationContext();
 
   // Yahoo: persist selections and fetch list; aligns with FantasyDashboard expecting useYahooData persistence
   const { 
@@ -617,21 +619,49 @@ export const SettingsModal = ({ open, onOpenChange, onMockEvent }: SettingsModal
                   />
                 </div>
 
-                <div className="flex items-center justify-between">
-                  <div>
-                    <Label>Performance Metrics</Label>
-                    <p className="text-sm text-muted-foreground">
-                      Display API response times and success rates
-                    </p>
-                  </div>
-                  <Switch
-                    checked={localConfig.display?.showPerformanceMetrics || false}
-                    onCheckedChange={(showPerformanceMetrics) => setLocalConfig(prev => ({
-                      ...prev,
-                      display: { ...prev.display, showPerformanceMetrics }
-                    }))}
-                  />
-                </div>
+                 <div className="flex items-center justify-between">
+                   <div>
+                     <Label>Performance Metrics</Label>
+                     <p className="text-sm text-muted-foreground">
+                       Display API response times and success rates
+                     </p>
+                   </div>
+                   <Switch
+                     checked={localConfig.display?.showPerformanceMetrics || false}
+                     onCheckedChange={(showPerformanceMetrics) => setLocalConfig(prev => ({
+                       ...prev,
+                       display: { ...prev.display, showPerformanceMetrics }
+                     }))}
+                   />
+                 </div>
+
+                 <Separator />
+
+                 <div className="flex items-center justify-between">
+                   <div>
+                     <Label>Simulation Mode</Label>
+                     <p className="text-sm text-muted-foreground">
+                       Use test data snapshots to simulate live games for testing
+                     </p>
+                   </div>
+                   <Switch
+                     checked={isSimulationMode}
+                     onCheckedChange={setSimulationMode}
+                   />
+                 </div>
+
+                 {isSimulationMode && (
+                   <div className="p-4 bg-muted/50 rounded-lg space-y-2">
+                     <h4 className="font-medium text-sm">🔬 Simulation Mode Active</h4>
+                     <ul className="text-sm text-muted-foreground space-y-1">
+                       <li>• Uses real Yahoo Fantasy API snapshots from a complete gameday</li>
+                       <li>• Shows exactly how scores evolved during actual NFL games</li>
+                       <li>• Perfect for testing dashboard accuracy and performance</li>
+                       <li>• Control playback speed and jump to specific moments</li>
+                       <li>• All data flows through the same systems as live games</li>
+                     </ul>
+                   </div>
+                 )}
               </CardContent>
             </Card>
           </TabsContent>
