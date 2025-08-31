@@ -2,7 +2,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { yahooOAuth } from '../utils/yahooOAuth';
 import { useSimulationManager } from './useSimulationManager';
-import type { LeagueData, MatchupData, PlayerData } from '../utils/config';
+import type { LeagueData, MatchupData, PlayerData, Platform } from '../types/fantasy';
 
 // Types for our data structures
 interface YahooApiResponse {
@@ -34,6 +34,9 @@ interface UseYahooDataReturn {
   fetchLeagueMatchups: (leagueKey: string, week?: number) => Promise<MatchupData[]>;
   fetchLeagueRosters: (leagueKey: string) => Promise<PlayerData[]>;
   lastUpdated: Date | null;
+  availableLeagues: LeagueData[];
+  isLoading: boolean;
+  fetchAvailableLeagues: () => Promise<void>;
 }
 
 export const useYahooData = (): UseYahooDataReturn => {
@@ -94,6 +97,18 @@ export const useYahooData = (): UseYahooDataReturn => {
       // Return fallback mock data
       return [
         {
+          id: 'sim_league_1',
+          leagueName: 'Simulation League 1',
+          platform: 'Yahoo' as Platform,
+          teamName: 'My Team',
+          myScore: 105.6,
+          opponentScore: 98.3,
+          opponentName: 'Opponent Team',
+          record: '5-3',
+          leaguePosition: '2nd',
+          status: 'winning' as const,
+          scoringEvents: [],
+          lastUpdated: new Date().toISOString(),
           league_key: 'sim_league_1',
           league_id: '1',
           name: 'Simulation League 1',
@@ -127,15 +142,15 @@ export const useYahooData = (): UseYahooDataReturn => {
   // Fetch real Yahoo data
   const fetchYahooData = async (): Promise<LeagueData[]> => {
     console.log('[YAHOO INFO] YAHOO_DATA: Starting fetchAvailableLeagues', {
-      hasAccessToken: !!yahooOAuth?.getTokens()?.access_token,
-      tokenPreview: yahooOAuth?.getTokens()?.access_token?.substring(0, 20) + '...'
+      hasAccessToken: !!yahooOAuth?.getStoredTokens()?.access_token,
+      tokenPreview: yahooOAuth?.getStoredTokens()?.access_token?.substring(0, 20) + '...'
     });
 
     if (!yahooOAuth?.isConnected()) {
       throw new Error('Yahoo OAuth not connected');
     }
 
-    const tokens = yahooOAuth.getTokens();
+    const tokens = yahooOAuth?.getStoredTokens();
     if (!tokens?.access_token) {
       throw new Error('No access token available');
     }
@@ -244,7 +259,7 @@ export const useYahooData = (): UseYahooDataReturn => {
 
     console.log('[YAHOO INFO] YAHOO_DATA: Yahoo leagues successfully fetched and stored', {
       count: extractedLeagues.length,
-      leagueNames: extractedLeagues.slice(0, 3).map(l => l.name)
+      leagueNames: extractedLeagues.slice(0, 3).map(l => l.name || l.leagueName)
     });
 
     return extractedLeagues;
@@ -405,6 +420,9 @@ export const useYahooData = (): UseYahooDataReturn => {
     refreshData,
     fetchLeagueMatchups,
     fetchLeagueRosters,
-    lastUpdated
+    lastUpdated,
+    availableLeagues: leagues,
+    isLoading: loading,
+    fetchAvailableLeagues
   };
 };

@@ -7,7 +7,12 @@ export interface SimulationConfig {
   availableWeeks: number[];
 }
 
-export const useSimulationManager = () => {
+interface UseSimulationManagerOptions {
+  onSnapshotChange?: (index: number) => void;
+  onPlayStateChange?: (isPlaying: boolean) => void;
+}
+
+export const useSimulationManager = (options?: UseSimulationManagerOptions) => {
   const [simulationConfig, setSimulationConfig] = useState<SimulationConfig>({
     enabled: false,
     currentWeek: 1,
@@ -15,6 +20,10 @@ export const useSimulationManager = () => {
   });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [currentIndex, setCurrentIndex] = useState(0);
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [speed, setSpeed] = useState(1.0);
+  const maxSnapshots = 25;
 
   const fetchSimulationStatus = async () => {
     setLoading(true);
@@ -59,12 +68,82 @@ export const useSimulationManager = () => {
     fetchSimulationStatus();
   }, []);
 
+  const play = () => {
+    setIsPlaying(true);
+    options?.onPlayStateChange?.(true);
+  };
+
+  const pause = () => {
+    setIsPlaying(false);
+    options?.onPlayStateChange?.(false);
+  };
+
+  const stop = () => {
+    setIsPlaying(false);
+    setCurrentIndex(0);
+    options?.onPlayStateChange?.(false);
+    options?.onSnapshotChange?.(0);
+  };
+
+  const next = () => {
+    if (currentIndex < maxSnapshots - 1) {
+      const newIndex = currentIndex + 1;
+      setCurrentIndex(newIndex);
+      options?.onSnapshotChange?.(newIndex);
+    }
+  };
+
+  const previous = () => {
+    if (currentIndex > 0) {
+      const newIndex = currentIndex - 1;
+      setCurrentIndex(newIndex);
+      options?.onSnapshotChange?.(newIndex);
+    }
+  };
+
+  const setIndex = (index: number) => {
+    if (index >= 0 && index < maxSnapshots) {
+      setCurrentIndex(index);
+      options?.onSnapshotChange?.(index);
+    }
+  };
+
+  const reset = () => {
+    setCurrentIndex(0);
+    setIsPlaying(false);
+    options?.onSnapshotChange?.(0);
+    options?.onPlayStateChange?.(false);
+  };
+
+  const progress = (currentIndex / (maxSnapshots - 1)) * 100;
+  const isAtStart = currentIndex === 0;
+  const isAtEnd = currentIndex === maxSnapshots - 1;
+  const canPlay = !isPlaying && !isAtEnd;
+  const canPause = isPlaying;
+
   return {
     simulationConfig,
     loading,
     error,
     toggleSimulation,
     setCurrentWeek,
-    refetch: fetchSimulationStatus
+    refetch: fetchSimulationStatus,
+    currentIndex,
+    isPlaying,
+    speed,
+    maxSnapshots,
+    progress,
+    play,
+    pause,
+    stop,
+    setIndex,
+    next,
+    previous,
+    setSpeed,
+    reset,
+    isAtEnd,
+    isAtStart,
+    canPlay,
+    canPause
   };
 };
