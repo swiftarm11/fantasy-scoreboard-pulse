@@ -6,6 +6,7 @@ import { useYahooOAuth } from './useYahooOAuth';
 import { debugLogger } from '../utils/debugLogger';
 import { toast } from '../components/ui/use-toast';
 import { yahooLogger } from '../utils/yahooLogger';
+import { getSimulationBridge } from '@/mocks/simulationBridge';
 
 interface YahooDataState {
   leagues: LeagueData[];
@@ -27,6 +28,9 @@ const STORAGE_KEY = 'yahoo_league_selections';
 export const useYahooData = (enabledLeagueIds?: string[]) => {
   const { isConnected } = useYahooOAuth();
   
+  // Get simulation bridge for tracking simulation events
+  const simulationBridge = getSimulationBridge();
+  
   const [state, setState] = useState<YahooDataState>({
     leagues: [],
     availableLeagues: [],
@@ -36,6 +40,7 @@ export const useYahooData = (enabledLeagueIds?: string[]) => {
   });
 
   const [savedSelections, setSavedSelections] = useState<YahooLeagueSelection[]>([]);
+  const [refreshTrigger, setRefreshTrigger] = useState(0);
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const hasInitializedRef = useRef(false);
 
@@ -54,6 +59,23 @@ export const useYahooData = (enabledLeagueIds?: string[]) => {
       }
     }
   }, []);
+
+  // Subscribe to simulation bridge events for automatic data refresh
+  useEffect(() => {
+    const unsubscribe = simulationBridge.subscribe((event) => {
+      if (event.type === 'INDEX_CHANGE') {
+        debugLogger.info('SIMULATION', 'Bridge index change detected, refreshing data', {
+          newIndex: event.payload.currentSnapshot,
+          timestamp: event.payload.timestamp
+        });
+        
+        // Trigger data refresh when simulation index changes
+        setRefreshTrigger(prev => prev + 1);
+      }
+    });
+    
+    return unsubscribe;
+  }, [simulationBridge]);
 
   // Save league selections to localStorage
   const saveLeagueSelections = useCallback((selections: YahooLeagueSelection[]) => {
@@ -84,7 +106,9 @@ export const useYahooData = (enabledLeagueIds?: string[]) => {
       const tokens = raw ? JSON.parse(raw) : null;
       yahooLogger.info('YAHOO_DATA', 'Starting fetchAvailableLeagues', {
         hasAccessToken: !!tokens?.access_token,
-        tokenPreview: tokens?.access_token?.substring(0, 20) + '...'
+        tokenPreview: tokens?.access_token?.substring(0, 20) + '...',
+        simulationMode: simulationBridge.isInSimulationMode(),
+        currentSnapshot: simulationBridge.getCurrentSnapshot()
       });
 
       if (!tokens?.access_token) {
@@ -111,13 +135,18 @@ export const useYahooData = (enabledLeagueIds?: string[]) => {
 
       yahooLogger.logAPICall('YAHOO_DATA', `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/yahoo-api`, requestOptions);
       
-      const resp = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/yahoo-api`, requestOptions);
+        const resp = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/yahoo-api`, requestOptions);
 
-      yahooLogger.info('YAHOO_DATA', 'Received API response', { 
-        status: resp.status, 
-        statusText: resp.statusText,
-        ok: resp.ok 
-      });
+        yahooLogger.info('YAHOO_DATA', 'Received API response', { 
+          status: resp.status, 
+          statusText: resp.statusText,
+          ok: resp.ok,
+          simulationHeaders: {
+            mode: resp.headers.get('X-Simulation-Mode'),
+            snapshot: resp.headers.get('X-Simulation-Snapshot'),
+            bridge: resp.headers.get('X-Simulation-Bridge-Active')
+          }
+        });
       
       if (!resp.ok) {
         const errorText = await resp.text();
@@ -135,12 +164,13 @@ export const useYahooData = (enabledLeagueIds?: string[]) => {
         textPreview: text.substring(0, 200) + '...'
       });
       
-      const data = JSON.parse(text);
-      yahooLogger.debug('YAHOO_DATA', 'Parsed API response', {
-        hasFantasyContent: !!data?.fantasy_content,
-        hasUsers: !!data?.fantasy_content?.users,
-        dataStructure: Object.keys(data || {})
-      });
+        const data = JSON.parse(text);
+        yahooLogger.debug('YAHOO_DATA', 'Parsed API response', {
+          hasFantasyContent: !!data?.fantasy_content,
+          hasUsers: !!data?.fantasy_content?.users,
+          dataStructure: Object.keys(data || {}),
+          simulationMetadata: data._simulation
+        });
 
       // Parse Yahoo API response structure - handle multiple possible formats
       const availableLeagues: any[] = [];
@@ -280,7 +310,7 @@ export const useYahooData = (enabledLeagueIds?: string[]) => {
     }
   }, [isConnected, fetchAvailableLeagues]);
 
-  // Auto-fetch league data when enabled leagues change - simple effect with cleanup
+  // Auto-fetch league data when enabled leagues change - enhanced with simulation refresh
   useEffect(() => {
     if (timeoutRef.current) {
       clearTimeout(timeoutRef.current);
@@ -297,6 +327,12 @@ export const useYahooData = (enabledLeagueIds?: string[]) => {
         setState(prev => ({ ...prev, isLoading: true }));
         
         try {
+          debugLogger.info('YAHOO_DATA', 'Fetching league details', {
+            enabledIds,
+            refreshTrigger,
+            simulationSnapshot: simulationBridge.getCurrentSnapshot()
+          });
+          
           const detailedLeagues = await fetchLeagueDetails(enabledIds, state.availableLeagues);
           setState(prev => ({
             ...prev,
@@ -321,7 +357,7 @@ export const useYahooData = (enabledLeagueIds?: string[]) => {
         clearTimeout(timeoutRef.current);
       }
     };
-  }, [savedSelections, isConnected, fetchLeagueDetails, state.availableLeagues]);
+  }, [savedSelections, isConnected, fetchLeagueDetails, state.availableLeagues, refreshTrigger]); // Added refreshTrigger
 
   // Refresh all data - simple function
   const refreshData = useCallback(async () => {

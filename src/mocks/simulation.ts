@@ -1,3 +1,5 @@
+import { getSimulationBridge, type SimulationEventData } from './simulationBridge';
+
 export interface SimulationState {
   currentIndex: number;
   isPlaying: boolean;
@@ -22,13 +24,53 @@ export class SimulationManager {
   private timer: NodeJS.Timeout | null = null;
   private baseInterval = 2000; // 2 seconds base interval
   private callbacks: SimulationCallbacks = {};
+  private bridge = getSimulationBridge();
 
   constructor(callbacks?: SimulationCallbacks) {
     this.callbacks = callbacks || {};
     
+    // Subscribe to bridge events to stay in sync
+    this.bridge.subscribe(this.handleBridgeEvent.bind(this));
+    
+    // Initialize from bridge state
+    const bridgeState = this.bridge.getState();
+    this.state.currentIndex = bridgeState.currentSnapshot;
+    this.state.isPlaying = bridgeState.isPlaying;
+    this.state.speed = bridgeState.speed;
+    this.state.maxSnapshots = bridgeState.maxSnapshots;
+    
     // Expose to global window for debugging
     if (typeof window !== 'undefined') {
       (window as any).simulationManager = this;
+    }
+
+    console.log('[SimulationManager] Initialized with bridge integration', {
+      currentIndex: this.state.currentIndex,
+      bridgeSnapshot: bridgeState.currentSnapshot,
+      simulationMode: bridgeState.isSimulationMode
+    });
+  }
+
+  private handleBridgeEvent(event: SimulationEventData): void {
+    console.log('[SimulationManager] Bridge event received:', event.type, event.payload);
+    
+    // Update local state from bridge events (avoids loops since we initiated most of them)
+    switch (event.type) {
+      case 'INDEX_CHANGE':
+        if (event.payload.currentSnapshot !== undefined) {
+          this.state.currentIndex = event.payload.currentSnapshot;
+        }
+        break;
+      case 'PLAY_STATE_CHANGE':
+        if (event.payload.isPlaying !== undefined) {
+          this.state.isPlaying = event.payload.isPlaying;
+        }
+        break;
+      case 'SPEED_CHANGE':
+        if (event.payload.speed !== undefined) {
+          this.state.speed = event.payload.speed;
+        }
+        break;
     }
   }
 
@@ -57,11 +99,14 @@ export class SimulationManager {
     return this.baseInterval / this.state.speed;
   }
 
-  // Core playback controls
+  // Core playback controls - now updates bridge
   play(): void {
     if (this.state.isPlaying) return;
     
+    console.log('[SimulationManager] Starting playback');
+    
     this.state.isPlaying = true;
+    this.bridge.setPlayState(true);
     this.callbacks.onPlayStateChange?.(true);
     this.startTimer();
   }
@@ -69,7 +114,10 @@ export class SimulationManager {
   pause(): void {
     if (!this.state.isPlaying) return;
     
+    console.log('[SimulationManager] Pausing playback');
+    
     this.state.isPlaying = false;
+    this.bridge.setPlayState(false);
     this.callbacks.onPlayStateChange?.(false);
     this.stopTimer();
   }
@@ -83,34 +131,49 @@ export class SimulationManager {
   }
 
   stop(): void {
+    console.log('[SimulationManager] Stopping playback');
     this.pause();
     this.setIndex(0);
   }
 
-  // Index management
+  // Index management - now updates bridge
   setIndex(index: number): void {
-    const clampedIndex = Math.max(0, Math.min(index, this.state.maxSnapshots));
+    const clampedIndex = Math.max(0, Math.min(index, this.state.maxSnapshots - 1));
     
     if (clampedIndex !== this.state.currentIndex) {
+      const oldIndex = this.state.currentIndex;
+      
+      console.log(`[SimulationManager] Index change: ${oldIndex} → ${clampedIndex}`);
+      
       this.state.currentIndex = clampedIndex;
+      
+      // Update bridge (this will trigger MSW handlers to serve new snapshot)
+      this.bridge.setCurrentSnapshot(clampedIndex);
+      
+      // Notify local callbacks
       this.callbacks.onIndexChange?.(clampedIndex);
     }
   }
 
   next(): void {
+    console.log('[SimulationManager] Advancing to next snapshot');
     this.setIndex(this.state.currentIndex + 1);
   }
 
   previous(): void {
+    console.log('[SimulationManager] Going to previous snapshot');
     this.setIndex(this.state.currentIndex - 1);
   }
 
-  // Speed controls
+  // Speed controls - now updates bridge
   setSpeed(speed: number): void {
     const clampedSpeed = Math.max(0.1, Math.min(speed, 10.0));
     
     if (clampedSpeed !== this.state.speed) {
+      console.log(`[SimulationManager] Speed change: ${this.state.speed} → ${clampedSpeed}`);
+      
       this.state.speed = clampedSpeed;
+      this.bridge.setSpeed(clampedSpeed);
       this.callbacks.onSpeedChange?.(clampedSpeed);
       
       // Restart timer with new speed if playing
@@ -139,8 +202,11 @@ export class SimulationManager {
   private startTimer(): void {
     this.stopTimer();
     
+    console.log(`[SimulationManager] Starting timer with ${this.currentInterval}ms interval (${this.state.speed}x speed)`);
+    
     this.timer = setInterval(() => {
-      if (this.state.currentIndex >= this.state.maxSnapshots) {
+      if (this.state.currentIndex >= this.state.maxSnapshots - 1) {
+        console.log('[SimulationManager] Reached end of snapshots, pausing');
         this.pause(); // Auto-pause at end
         return;
       }
@@ -151,6 +217,7 @@ export class SimulationManager {
 
   private stopTimer(): void {
     if (this.timer) {
+      console.log('[SimulationManager] Stopping timer');
       clearInterval(this.timer);
       this.timer = null;
     }
@@ -158,16 +225,35 @@ export class SimulationManager {
 
   // Utility methods
   reset(): void {
+    console.log('[SimulationManager] Resetting to initial state');
     this.stop();
     this.setSpeed(1.0);
+    this.bridge.reset();
   }
 
   getState(): SimulationState {
     return { ...this.state };
   }
 
+  // Bridge synchronization
+  syncWithBridge(): void {
+    const bridgeState = this.bridge.getState();
+    console.log('[SimulationManager] Syncing with bridge state', bridgeState);
+    
+    this.state.currentIndex = bridgeState.currentSnapshot;
+    this.state.isPlaying = bridgeState.isPlaying;
+    this.state.speed = bridgeState.speed;
+    this.state.maxSnapshots = bridgeState.maxSnapshots;
+    
+    // Notify callbacks of sync
+    this.callbacks.onIndexChange?.(this.state.currentIndex);
+    this.callbacks.onPlayStateChange?.(this.state.isPlaying);
+    this.callbacks.onSpeedChange?.(this.state.speed);
+  }
+
   // Cleanup
   destroy(): void {
+    console.log('[SimulationManager] Destroying manager');
     this.stopTimer();
     
     if (typeof window !== 'undefined') {
@@ -178,18 +264,20 @@ export class SimulationManager {
   // Debug helpers (exposed via window)
   debug = {
     getState: () => this.getState(),
+    getBridgeState: () => this.bridge.getState(),
     setIndex: (index: number) => this.setIndex(index),
     setSpeed: (speed: number) => this.setSpeed(speed),
     play: () => this.play(),
     pause: () => this.pause(),
     reset: () => this.reset(),
+    sync: () => this.syncWithBridge(),
     info: () => {
-      console.log('Simulation Manager State:', {
-        currentIndex: this.state.currentIndex,
-        isPlaying: this.state.isPlaying,
-        speed: this.state.speed,
-        progress: this.progress,
-        interval: this.currentInterval
+      console.log('[SimulationManager] Debug Info:', {
+        managerState: this.state,
+        bridgeState: this.bridge.getState(),
+        timerActive: !!this.timer,
+        interval: this.currentInterval,
+        timestamp: new Date().toISOString()
       });
     }
   };

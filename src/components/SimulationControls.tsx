@@ -5,7 +5,8 @@ import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { useToast } from '@/hooks/use-toast';
-import { useSimulationManager } from '@/hooks/useSimulationManager';
+import { useSimulationBridge } from '@/mocks/simulationBridge';
+import { debugLogger } from '@/utils/debugLogger';
 
 interface SimulationStatus {
   enabled: boolean;
@@ -23,90 +24,103 @@ interface ControlAction {
 }
 
 export const SimulationControls: React.FC = () => {
-  const [status, setStatus] = useState<SimulationStatus | null>(null);
   const [loading, setLoading] = useState(false);
   const { toast } = useToast();
 
-  // Use the simulation manager hook
-  const {
-    currentIndex,
-    isPlaying,
-    speed,
-    maxSnapshots,
-    progress,
-    play,
-    pause,
-    stop,
-    setIndex,
-    next,
-    previous,
-    setSpeed,
-    reset,
-    isAtEnd,
-    isAtStart,
-    canPlay,
-    canPause
-  } = useSimulationManager({
-    onSnapshotChange: (index) => {
-      // Update MSW handler snapshot
-      sendControlAction({ action: 'set_snapshot', snapshot: index });
-    }
-  });
-
-  // Fetch current simulation status
-  const fetchStatus = useCallback(async () => {
-    try {
-      const response = await fetch('/api/simulation/status');
-      if (response.ok) {
-        const data = await response.json();
-        setStatus(data);
-      }
-    } catch (error) {
-      console.error('Failed to fetch simulation status:', error);
-    }
-  }, []);
-
-  // Send control action to simulation API (MSW handler)
-  const sendControlAction = useCallback(async (action: ControlAction) => {
-    setLoading(true);
-    try {
-      const response = await fetch('/api/simulation/control', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(action),
+  // Use the simulation bridge directly for state and control
+  const simulationBridge = useSimulationBridge();
+  const [bridgeState, setBridgeState] = useState(simulationBridge.getState());
+  
+  // Subscribe to bridge events to update UI state
+  useEffect(() => {
+    const unsubscribe = simulationBridge.subscribe((event) => {
+      debugLogger.info('SIMULATION_CONTROLS', 'Bridge event received', {
+        type: event.type,
+        payload: event.payload
       });
+      
+      // Update local state from bridge
+      setBridgeState(simulationBridge.getState());
+    });
+    
+    return unsubscribe;
+  }, [simulationBridge]);
 
-      if (response.ok) {
-        const data = await response.json();
-        setStatus(data.config);
-      } else {
-        throw new Error('Control action failed');
-      }
-    } catch (error) {
-      console.error('Failed to execute simulation control action:', error);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+  // Control functions that interact with the bridge
+  const play = useCallback(() => {
+    debugLogger.info('SIMULATION_CONTROLS', 'Play requested');
+    simulationBridge.setPlayState(true);
+    toast({
+      title: "Simulation Started",
+      description: "Fantasy scores are now updating live",
+    });
+  }, [simulationBridge, toast]);
+
+  const pause = useCallback(() => {
+    debugLogger.info('SIMULATION_CONTROLS', 'Pause requested');  
+    simulationBridge.setPlayState(false);
+    toast({
+      title: "Simulation Paused", 
+      description: "Score updates have been paused",
+    });
+  }, [simulationBridge, toast]);
+
+  const stop = useCallback(() => {
+    debugLogger.info('SIMULATION_CONTROLS', 'Stop requested');
+    simulationBridge.setPlayState(false);
+    simulationBridge.setCurrentSnapshot(0);
+    toast({
+      title: "Simulation Stopped",
+      description: "Reset to beginning of game simulation",
+    });
+  }, [simulationBridge, toast]);
+
+  const next = useCallback(() => {
+    debugLogger.info('SIMULATION_CONTROLS', 'Next snapshot requested');
+    simulationBridge.nextSnapshot();
+  }, [simulationBridge]);
+
+  const previous = useCallback(() => {
+    debugLogger.info('SIMULATION_CONTROLS', 'Previous snapshot requested');
+    simulationBridge.previousSnapshot();
+  }, [simulationBridge]);
+
+  const setSpeed = useCallback((speed: number) => {
+    debugLogger.info('SIMULATION_CONTROLS', 'Speed change requested', { speed });
+    simulationBridge.setSpeed(speed);
+    toast({
+      title: "Speed Changed",
+      description: `Playback speed set to ${speed}x`,
+    });
+  }, [simulationBridge, toast]);
+
+  const setSnapshot = useCallback((index: number) => {
+    debugLogger.info('SIMULATION_CONTROLS', 'Snapshot jump requested', { index });
+    simulationBridge.setCurrentSnapshot(index);
+    toast({
+      title: "Jumped to Snapshot",
+      description: `Now viewing snapshot ${index + 1} of ${bridgeState.maxSnapshots}`,
+    });
+  }, [simulationBridge, bridgeState.maxSnapshots, toast]);
 
   // Speed presets
   const speedOptions = [0.25, 0.5, 1.0, 2.0, 5.0];
-  const currentSpeedIndex = speedOptions.findIndex(s => s === speed);
-
-  // Auto-refresh status periodically
-  useEffect(() => {
-    fetchStatus(); // Initial fetch
-    
-    const interval = setInterval(fetchStatus, 5000); // Less frequent polling
-    return () => clearInterval(interval);
-  }, [fetchStatus]);
 
   // Check if simulation should be shown
-  const isSimulationMode = status?.enabled || 
+  const isSimulationMode = 
+    bridgeState.isSimulationMode ||
     new URLSearchParams(window.location.search).get('simulation') === 'true' ||
     import.meta.env.VITE_YAHOO_SIMULATION === 'true';
+
+  if (!isSimulationMode) {
+    return null;
+  }
+
+  // Computed values from bridge state
+  const progress = (bridgeState.currentSnapshot / bridgeState.maxSnapshots) * 100;
+  const isAtStart = bridgeState.currentSnapshot === 0;
+  const isAtEnd = bridgeState.currentSnapshot >= bridgeState.maxSnapshots - 1;
+  const canPlay = !bridgeState.isPlaying && !isAtEnd;
 
   if (!isSimulationMode) {
     return null;
@@ -119,7 +133,7 @@ export const SimulationControls: React.FC = () => {
           <Activity className="h-4 w-4 text-primary" />
           Yahoo Fantasy Simulation
           <Badge variant="secondary" className="ml-auto">
-            {currentIndex + 1}/{maxSnapshots}
+            {bridgeState.currentSnapshot + 1}/{bridgeState.maxSnapshots}
           </Badge>
         </CardTitle>
       </CardHeader>
@@ -157,7 +171,7 @@ export const SimulationControls: React.FC = () => {
             disabled={loading}
             className="flex-1"
           >
-            {isPlaying ? (
+            {bridgeState.isPlaying ? (
               <>
                 <Pause className="h-4 w-4 mr-2" />
                 Pause
@@ -197,7 +211,7 @@ export const SimulationControls: React.FC = () => {
             {speedOptions.map((speedOption) => (
               <Button
                 key={speedOption}
-                variant={speed === speedOption ? "default" : "outline"}
+                variant={bridgeState.speed === speedOption ? "default" : "outline"}
                 size="sm"
                 onClick={() => setSpeed(speedOption)}
                 disabled={loading}
@@ -214,18 +228,18 @@ export const SimulationControls: React.FC = () => {
           <div className="flex items-center justify-between">
             <span className="text-xs font-medium">Jump to Snapshot</span>
             <Badge variant="outline" className="text-xs">
-              Current: {currentIndex + 1}
+              Current: {bridgeState.currentSnapshot + 1}
             </Badge>
           </div>
           
           <ScrollArea className="h-20">
             <div className="grid grid-cols-6 gap-1">
-              {Array.from({ length: maxSnapshots }, (_, i) => (
+              {Array.from({ length: bridgeState.maxSnapshots }, (_, i) => (
                 <Button
                   key={i}
-                  variant={currentIndex === i ? "default" : "outline"}
+                  variant={bridgeState.currentSnapshot === i ? "default" : "outline"}
                   size="sm"
-                  onClick={() => setIndex(i)}
+                  onClick={() => setSnapshot(i)}
                   disabled={loading}
                   className="h-8 w-full text-xs"
                 >
@@ -240,19 +254,13 @@ export const SimulationControls: React.FC = () => {
         <div className="space-y-2 pt-2 border-t">
           <div className="flex items-center gap-2 text-xs text-muted-foreground">
             <Clock className="h-3 w-3" />
-            <span>Speed: {speed}x | Progress: {Math.round(progress)}%</span>
+            <span>Speed: {bridgeState.speed}x | Progress: {Math.round(progress)}%</span>
           </div>
           
           <div className="flex items-center gap-2 text-xs text-muted-foreground">
-            <div className={`h-2 w-2 rounded-full ${isPlaying ? 'bg-green-500 animate-pulse' : 'bg-yellow-500'}`} />
-            <span>{isPlaying ? 'Live simulation active' : 'Simulation paused'}</span>
+            <div className={`h-2 w-2 rounded-full ${bridgeState.isPlaying ? 'bg-green-500 animate-pulse' : 'bg-yellow-500'}`} />
+            <span>{bridgeState.isPlaying ? 'Live simulation active' : 'Simulation paused'}</span>
           </div>
-          
-          {status && (
-            <div className="flex items-center gap-2 text-xs text-muted-foreground">
-              <span>API Latency: {status.latencyMin}-{status.latencyMax}ms</span>
-            </div>
-          )}
         </div>
       </CardContent>
     </Card>

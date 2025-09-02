@@ -1,25 +1,14 @@
 import { http, HttpResponse } from 'msw';
 import { yahooSnapshots, type YahooApiResponse } from '../fixtures/yahoo-snapshots';
+import { getSimulationBridge } from '../simulationBridge';
 
-interface SimulationConfig {
-  enabled: boolean;
-  latencyMin: number;
-  latencyMax: number;
-  currentSnapshot: number;
-  totalSnapshots: number;
-}
+// Get simulation bridge instance
+const simulationBridge = getSimulationBridge();
 
-// Default simulation configuration
-const defaultConfig: SimulationConfig = {
-  enabled: false,
-  latencyMin: 200,
-  latencyMax: 500,
-  currentSnapshot: 0,
-  totalSnapshots: 25,
-};
-
-// Global simulation state
-let simulationConfig = { ...defaultConfig };
+// Subscribe to simulation state changes
+simulationBridge.subscribe((event) => {
+  console.log(`[YahooHandlers] Received simulation event: ${event.type}`, event.payload);
+});
 
 // Helper functions
 const isSimulationEnabled = (request: Request): boolean => {
@@ -29,30 +18,34 @@ const isSimulationEnabled = (request: Request): boolean => {
   if (urlParam === 'true') return true;
   if (urlParam === 'false') return false;
 
-  // Check environment variable
-  const envVar = import.meta.env.VITE_YAHOO_SIMULATION;
-  if (envVar === 'true') return true;
-
-  // Check global config
-  return simulationConfig.enabled;
+  // Check simulation bridge state
+  return simulationBridge.isInSimulationMode();
 };
 
 const addArtificialLatency = async (): Promise<void> => {
-  const delay = Math.random() * (simulationConfig.latencyMax - simulationConfig.latencyMin) + simulationConfig.latencyMin;
+  // Reduced latency for better responsiveness during testing
+  const delay = Math.random() * 300 + 100; // 100-400ms
   await new Promise(resolve => setTimeout(resolve, delay));
 };
 
-const createSimulationHeaders = (snapshot?: number) => ({
-  'X-Simulation-Mode': 'true',
-  'X-Simulation-Snapshot': String(snapshot ?? simulationConfig.currentSnapshot),
-  'X-Simulation-Total': String(simulationConfig.totalSnapshots),
-  'X-Simulation-Latency': `${simulationConfig.latencyMin}-${simulationConfig.latencyMax}ms`,
-  'Content-Type': 'application/json',
-});
+const createSimulationHeaders = (snapshot?: number) => {
+  const currentSnapshot = snapshot ?? simulationBridge.getCurrentSnapshot();
+  return {
+    'X-Simulation-Mode': 'true',
+    'X-Simulation-Snapshot': String(currentSnapshot + 1), // Convert to 1-based for display
+    'X-Simulation-Total': String(simulationBridge.getState().maxSnapshots),
+    'X-Simulation-Bridge-Active': 'true',
+    'Content-Type': 'application/json',
+  };
+};
 
 const createErrorResponse = (message: string, status = 500) => {
   return HttpResponse.json(
-    { error: message, simulation: true },
+    { 
+      error: message, 
+      simulation: true,
+      currentSnapshot: simulationBridge.getCurrentSnapshot()
+    },
     { 
       status,
       headers: createSimulationHeaders()
@@ -63,7 +56,7 @@ const createErrorResponse = (message: string, status = 500) => {
 // Yahoo OAuth handler
 const yahooOAuthHandler = http.post('*/functions/v1/yahoo-oauth', async ({ request }) => {
   if (!isSimulationEnabled(request)) {
-    // Pass through to real API
+    console.log('[YahooHandlers] OAuth request - simulation disabled, passing through');
     return;
   }
 
@@ -71,6 +64,8 @@ const yahooOAuthHandler = http.post('*/functions/v1/yahoo-oauth', async ({ reque
 
   try {
     const body = await request.json() as any;
+    
+    console.log(`[YahooHandlers] OAuth simulation - action: ${body.action}`);
     
     // Simulate different OAuth flows based on the request
     if (body.action === 'authorize') {
@@ -117,10 +112,10 @@ const yahooOAuthHandler = http.post('*/functions/v1/yahoo-oauth', async ({ reque
   }
 });
 
-// Yahoo API handler for league data
+// Yahoo API handler for league data - MAIN HANDLER THAT SERVES SNAPSHOT DATA
 const yahooApiHandler = http.post('*/functions/v1/yahoo-api', async ({ request }) => {
   if (!isSimulationEnabled(request)) {
-    // Pass through to real API
+    console.log('[YahooHandlers] API request - simulation disabled, passing through');
     return;
   }
 
@@ -130,18 +125,30 @@ const yahooApiHandler = http.post('*/functions/v1/yahoo-api', async ({ request }
     const body = await request.json() as any;
     const { endpoint, leagueKey, week } = body;
     
-    console.log(`[MSW] Yahoo API Simulation - Endpoint: ${endpoint}, League: ${leagueKey}, Week: ${week}, Snapshot: ${simulationConfig.currentSnapshot + 1}`);
+    // Get current snapshot from bridge (0-based)
+    const currentSnapshotIndex = simulationBridge.getCurrentSnapshot();
+    const snapshotNumber = currentSnapshotIndex + 1; // Convert to 1-based for file names
+    
+    console.log(`[YahooHandlers] API Simulation Request:`, {
+      endpoint,
+      leagueKey,
+      week,
+      bridgeSnapshot: currentSnapshotIndex,
+      fileSnapshot: snapshotNumber,
+      simulationMode: simulationBridge.isInSimulationMode()
+    });
 
     // Handle different endpoints
     switch (endpoint) {
       case 'getLeagueScoreboard': {
         // This is the main endpoint your app uses for live data
-        const snapshotIndex = simulationConfig.currentSnapshot + 1; // Convert to 1-based
-        const snapshotData = await yahooSnapshots.getSnapshot(snapshotIndex);
+        console.log(`[YahooHandlers] Loading snapshot ${snapshotNumber} from bridge state`);
+        
+        const snapshotData = await yahooSnapshots.getSnapshot(snapshotNumber);
         
         if (!snapshotData) {
-          console.error(`[MSW] Failed to load snapshot ${snapshotIndex}`);
-          return createErrorResponse(`Failed to load snapshot ${snapshotIndex}`, 404);
+          console.error(`[YahooHandlers] Failed to load snapshot ${snapshotNumber}`);
+          return createErrorResponse(`Failed to load snapshot ${snapshotNumber}`, 404);
         }
 
         // Add simulation metadata to the response
@@ -149,21 +156,25 @@ const yahooApiHandler = http.post('*/functions/v1/yahoo-api', async ({ request }
           ...snapshotData,
           _simulation: {
             enabled: true,
-            snapshot_index: simulationConfig.currentSnapshot,
-            total_snapshots: simulationConfig.totalSnapshots,
+            bridge_snapshot_index: currentSnapshotIndex,
+            file_snapshot_number: snapshotNumber,
+            total_snapshots: simulationBridge.getState().maxSnapshots,
             timestamp: new Date().toISOString(),
-            endpoint: endpoint
+            endpoint: endpoint,
+            bridge_state: simulationBridge.getState()
           }
         };
 
-        console.log(`[MSW] Returning snapshot ${snapshotIndex} data:`, {
+        console.log(`[YahooHandlers] Successfully serving snapshot ${snapshotNumber}:`, {
           matchups: snapshotData.fantasy_content.league[0].scoreboard.matchups.length,
           status: snapshotData.fantasy_content.league[0].scoreboard.matchups[0]?.status,
-          teams: snapshotData.fantasy_content.league[0].scoreboard.matchups.reduce((total, m) => total + m.teams.length, 0)
+          teams: snapshotData.fantasy_content.league[0].scoreboard.matchups.reduce((total, m) => total + m.teams.length, 0),
+          bridgeSnapshot: currentSnapshotIndex,
+          fileSnapshot: snapshotNumber
         });
 
         return HttpResponse.json(responseData, { 
-          headers: createSimulationHeaders(simulationConfig.currentSnapshot) 
+          headers: createSimulationHeaders(currentSnapshotIndex) 
         });
       }
 
@@ -239,37 +250,37 @@ const yahooApiHandler = http.post('*/functions/v1/yahoo-api', async ({ request }
   }
 });
 
-// Simulation control endpoints
+// Simulation control endpoints for testing
 const simulationControlHandler = http.post('/api/simulation/control', async ({ request }) => {
   await addArtificialLatency();
 
   try {
     const body = await request.json() as any;
     
+    console.log(`[YahooHandlers] Simulation control request:`, body);
+    
     switch (body.action) {
       case 'enable':
-        simulationConfig.enabled = true;
+        simulationBridge.setSimulationMode(true);
         break;
       case 'disable':
-        simulationConfig.enabled = false;
+        simulationBridge.setSimulationMode(false);
         break;
       case 'set_snapshot':
-        if (typeof body.snapshot === 'number' && body.snapshot >= 0 && body.snapshot < simulationConfig.totalSnapshots) {
-          simulationConfig.currentSnapshot = body.snapshot;
+        if (typeof body.snapshot === 'number') {
+          simulationBridge.setCurrentSnapshot(body.snapshot);
         } else {
           return createErrorResponse('Invalid snapshot index', 400);
         }
         break;
-      case 'set_latency':
-        if (body.min && body.max && body.min < body.max) {
-          simulationConfig.latencyMin = body.min;
-          simulationConfig.latencyMax = body.max;
-        } else {
-          return createErrorResponse('Invalid latency range', 400);
-        }
+      case 'next':
+        simulationBridge.nextSnapshot();
+        break;
+      case 'previous':
+        simulationBridge.previousSnapshot();
         break;
       case 'reset':
-        simulationConfig = { ...defaultConfig };
+        simulationBridge.reset();
         break;
       default:
         return createErrorResponse('Unknown control action', 400);
@@ -278,7 +289,7 @@ const simulationControlHandler = http.post('/api/simulation/control', async ({ r
     return HttpResponse.json(
       { 
         success: true, 
-        config: simulationConfig,
+        state: simulationBridge.getState(),
         simulation: true 
       },
       { headers: createSimulationHeaders() }
@@ -292,9 +303,13 @@ const simulationControlHandler = http.post('/api/simulation/control', async ({ r
 const simulationStatusHandler = http.get('/api/simulation/status', async () => {
   await addArtificialLatency();
 
+  const state = simulationBridge.getState();
+  
+  console.log(`[YahooHandlers] Simulation status requested:`, state);
+
   return HttpResponse.json(
     {
-      ...simulationConfig,
+      ...state,
       simulation: true,
       timestamp: new Date().toISOString(),
     },
@@ -312,20 +327,10 @@ export const yahooHandlers = [
 
 // Export helper functions for testing
 export const simulationHelpers = {
-  getConfig: () => ({ ...simulationConfig }),
-  setConfig: (config: Partial<SimulationConfig>) => {
-    simulationConfig = { ...simulationConfig, ...config };
-  },
-  resetConfig: () => {
-    simulationConfig = { ...defaultConfig };
-  },
-  isEnabled: () => simulationConfig.enabled,
-  getCurrentSnapshot: () => simulationConfig.currentSnapshot,
-  setSnapshot: (index: number) => {
-    if (index >= 0 && index < simulationConfig.totalSnapshots) {
-      simulationConfig.currentSnapshot = index;
-      return true;
-    }
-    return false;
-  },
+  getState: () => simulationBridge.getState(),
+  setSnapshot: (index: number) => simulationBridge.setCurrentSnapshot(index),
+  nextSnapshot: () => simulationBridge.nextSnapshot(),
+  previousSnapshot: () => simulationBridge.previousSnapshot(),
+  reset: () => simulationBridge.reset(),
+  getBridge: () => simulationBridge,
 };
