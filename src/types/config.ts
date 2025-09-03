@@ -44,6 +44,9 @@ export interface AdvancedPollingConfig extends PollingConfig {
     monday: number; // seconds
     normal: number; // seconds
   };
+  interval: number;
+  enableLiveMode: boolean;
+  backgroundRefresh: boolean;
 }
 
 export interface DashboardConfig {
@@ -67,6 +70,9 @@ export const DEFAULT_CONFIG: DashboardConfig = {
       monday: 15,    // 15 seconds during Monday games  
       normal: 60,    // 60 seconds otherwise
     },
+    interval: 30,
+    enableLiveMode: true,
+    backgroundRefresh: false,
   },
   notifications: {
     scoringEvents: true,

@@ -13,6 +13,7 @@ import { Switch } from './ui/switch';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from './ui/tabs';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
 import { Separator } from './ui/separator';
+import { Badge } from './ui/badge';
 import { toast } from './ui/use-toast';
 import { Trash2, Plus, Download, Upload, Loader2, GripVertical, Check, Zap, RefreshCw } from 'lucide-react';
 import { DashboardConfig, LeagueConfig, DEFAULT_CONFIG } from '../types/config';
@@ -24,6 +25,8 @@ import { generateMockScoringEvent } from '../utils/mockEventGenerator';
 import { TestingTab } from './TestingTab';
 import { debugLogger } from '../utils/debugLogger';
 import { DebugConsole } from './DebugConsole';
+import { DataHealthMonitor } from './DataHealthMonitor';
+import { LiveDebugPanel } from './LiveDebugPanel';
 import { useSimulationContext } from '../contexts/SimulationContext';
 import {
   DndContext,
@@ -68,6 +71,8 @@ export const SettingsModal = ({ open, onOpenChange, onMockEvent }: SettingsModal
   const [newLeaguePlatform, setNewLeaguePlatform] = useState<Platform>('Sleeper');
   const [newSleeperUsername, setNewSleeperUsername] = useState('');
   const [isValidLeague, setIsValidLeague] = useState(false);
+  const [showDataHealth, setShowDataHealth] = useState(false);
+  const [showLiveDebug, setShowLiveDebug] = useState(false);
 
   const sensors = useSensors(
     useSensor(PointerSensor),
@@ -386,6 +391,8 @@ export const SettingsModal = ({ open, onOpenChange, onMockEvent }: SettingsModal
           <DialogTitle>Dashboard Settings</DialogTitle>
         </DialogHeader>
 
+        <DataHealthMonitor isVisible={showDataHealth} />
+
         <Tabs defaultValue="leagues" className="w-full">
           <TabsList className="grid w-full grid-cols-7">
             <TabsTrigger value="leagues">Leagues</TabsTrigger>
@@ -578,6 +585,78 @@ export const SettingsModal = ({ open, onOpenChange, onMockEvent }: SettingsModal
             </Card>
           </TabsContent>
 
+          <TabsContent value="polling" className="space-y-4">
+            <Card>
+              <CardHeader>
+                <CardTitle>Data Refresh Settings</CardTitle>
+                <CardDescription>
+                  Configure how often data is fetched from fantasy platforms
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="space-y-4">
+                  <div>
+                    <Label htmlFor="polling-interval">Polling Interval (seconds)</Label>
+                    <Input
+                      id="polling-interval"
+                      type="number"
+                      min="5"
+                      max="300"
+                      value={localConfig.polling?.interval || 30}
+                      onChange={(e) => setLocalConfig(prev => ({
+                        ...prev,
+                        polling: { ...prev.polling, interval: parseInt(e.target.value) || 30 }
+                      }))}
+                      className="mt-2"
+                    />
+                    <p className="text-sm text-muted-foreground mt-1">
+                      During live games, data refreshes every {localConfig.polling?.interval || 30} seconds. 
+                      Lower values get fresher data but use more bandwidth.
+                    </p>
+                  </div>
+
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <Label>Auto-refresh During Live Games</Label>
+                      <p className="text-sm text-muted-foreground">
+                        Automatically increase refresh rate during active game times
+                      </p>
+                    </div>
+                    <Switch
+                      checked={localConfig.polling?.enableLiveMode ?? true}
+                      onCheckedChange={(enableLiveMode) => setLocalConfig(prev => ({
+                        ...prev,
+                        polling: { ...prev.polling, enableLiveMode }
+                      }))}
+                    />
+                  </div>
+
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <Label>Background Refresh</Label>
+                      <p className="text-sm text-muted-foreground">
+                        Continue refreshing data when app is in background (uses battery)
+                      </p>
+                    </div>
+                    <Switch
+                      checked={localConfig.polling?.backgroundRefresh ?? false}
+                      onCheckedChange={(backgroundRefresh) => setLocalConfig(prev => ({
+                        ...prev,
+                        polling: { ...prev.polling, backgroundRefresh }
+                      }))}
+                    />
+                  </div>
+                </div>
+
+                <div className="pt-4 border-t">
+                  <p className="text-sm text-muted-foreground">
+                    💡 During live games (Thu/Sun/Mon), polling automatically increases to ensure you get real-time scoring updates.
+                  </p>
+                </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
           <TabsContent value="display" className="space-y-4">
             <Card>
               <CardHeader>
@@ -747,6 +826,8 @@ export const SettingsModal = ({ open, onOpenChange, onMockEvent }: SettingsModal
           </TabsContent>
 
           <TabsContent value="debug" className="space-y-4">
+            <DataHealthMonitor isVisible={showDataHealth} />
+            
             <Card>
               <CardHeader>
                 <CardTitle>Debug Settings</CardTitle>
@@ -773,6 +854,19 @@ export const SettingsModal = ({ open, onOpenChange, onMockEvent }: SettingsModal
 
                 <div className="flex items-center justify-between">
                   <div>
+                    <Label>Show Data Health Monitor</Label>
+                    <p className="text-sm text-muted-foreground">
+                      Display real-time data validation and freshness monitoring
+                    </p>
+                  </div>
+                  <Switch
+                    checked={showDataHealth}
+                    onCheckedChange={setShowDataHealth}
+                  />
+                </div>
+
+                <div className="flex items-center justify-between">
+                  <div>
                     <Label>Show in Production</Label>
                     <p className="text-sm text-muted-foreground">
                       Display debug console in production builds (not recommended)
@@ -785,6 +879,19 @@ export const SettingsModal = ({ open, onOpenChange, onMockEvent }: SettingsModal
                       debug: { ...prev.debug, showInProduction }
                     }))}
                   />
+                </div>
+
+                <div className="pt-4">
+                  <Button 
+                    onClick={() => setShowLiveDebug(true)}
+                    variant="outline"
+                    className="w-full"
+                  >
+                    🚀 Open Live Debug Panel
+                  </Button>
+                  <p className="text-xs text-muted-foreground mt-2">
+                    Advanced debugging tools for live games - connection tests, raw data viewer, emergency controls
+                  </p>
                 </div>
               </CardContent>
             </Card>
@@ -920,6 +1027,8 @@ export const SettingsModal = ({ open, onOpenChange, onMockEvent }: SettingsModal
             </Card>
           </TabsContent>
         </Tabs>
+
+        <LiveDebugPanel open={showLiveDebug} onOpenChange={setShowLiveDebug} />
 
         <div className="flex justify-end gap-2 pt-4">
           <Button variant="outline" onClick={() => onOpenChange(false)}>
