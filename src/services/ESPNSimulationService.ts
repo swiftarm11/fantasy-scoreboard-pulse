@@ -482,11 +482,14 @@ export class ESPNSimulationService {
   private generateEventStats(play: ESPNPlay): { [key: string]: number | undefined } {
     const stats: { [key: string]: number | undefined } = {};
     
+    // Add null checks for play.type.text
+    const playTypeText = play.type?.text?.toLowerCase() || '';
+    
     if (play.statYardage) {
-      if (play.type.text.toLowerCase().includes('rush')) {
+      if (playTypeText.includes('rush')) {
         stats.rushingYards = play.statYardage;
         if (play.scoringPlay) stats.rushingTouchdowns = 1;
-      } else if (play.type.text.toLowerCase().includes('pass')) {
+      } else if (playTypeText.includes('pass')) {
         stats.passingYards = play.statYardage;
         if (play.scoringPlay) {
           stats.passingTouchdowns = 1;
@@ -496,7 +499,7 @@ export class ESPNSimulationService {
       }
     }
 
-    if (play.type.text.toLowerCase().includes('field goal')) {
+    if (playTypeText.includes('field goal')) {
       stats.fieldGoalYards = play.statYardage;
       stats.fieldGoals = 1;
     }
