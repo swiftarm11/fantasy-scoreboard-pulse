@@ -25,6 +25,7 @@ import { useSleeperData } from '../hooks/useSleeperData';
 import { usePolling } from '../hooks/usePolling';
 import { useNetworkStatus } from '../hooks/useNetworkStatus';
 import { useDemoLeague } from '../hooks/useDemoLeague';
+import { useLiveEventsSystem } from '../hooks/useLiveEventsSystem';
 import { useIsMobile, useResponsiveBreakpoint, useDeviceCapabilities } from '../hooks/use-mobile';
 import { usePullToRefresh } from '../hooks/usePullToRefresh';
 import { mockLeagueData } from '../data/mockData';
@@ -36,6 +37,7 @@ import { enhancedAPIHandler, getUserFriendlyErrorMessage } from '../utils/enhanc
 import { useSwipeable } from 'react-swipeable';
 import { RefreshCw as RefreshIcon } from 'lucide-react';
 import { DebugConsole } from './DebugConsole';
+import { LiveEventIndicator } from './LiveEventIndicator';
 const DashboardContent = () => {
   const {
     config
@@ -66,6 +68,19 @@ const DashboardContent = () => {
   } = useDemoLeague({
     enabled: config.demoMode.enabled,
     updateInterval: config.demoMode.updateInterval
+  });
+
+  // Live events system integration
+  const {
+    liveState,
+    recentEvents,
+    isSystemReady,
+    getLiveEventsForLeague,
+    triggerTestEvent
+  } = useLiveEventsSystem({
+    leagues: config.leagues,
+    enabled: !config.demoMode.enabled && config.leagues.length > 0, // Don't run with demo mode
+    pollingInterval: config.polling?.interval || 30
   });
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [exportShareOpen, setExportShareOpen] = useState(false);
@@ -108,6 +123,33 @@ const DashboardContent = () => {
     }
     return allLeagues;
   }, [demoLeague, sleeperLeagues, yahooLeagues, config.leagues.length]);
+
+  // Enhance leagues with live events
+  const enhancedLeagues = useMemo(() => {
+    return displayLeagues.map(league => {
+      // Don't override demo league events
+      if (league.id === 'demo-league') {
+        return league;
+      }
+
+      // Get live events for this league
+      const liveEvents = getLiveEventsForLeague(league);
+      
+      // If we have live events, merge them with existing events
+      if (liveEvents.length > 0) {
+        return {
+          ...league,
+          scoringEvents: [
+            ...liveEvents.slice(0, 4), // Keep most recent 4 live events
+            ...league.scoringEvents.filter(e => !liveEvents.find(le => le.id === e.id))
+          ].slice(0, 4), // Limit total to 4 events
+          lastUpdated: liveState.isActive ? 'Live' : league.lastUpdated
+        };
+      }
+
+      return league;
+    });
+  }, [displayLeagues, getLiveEventsForLeague, liveState.isActive]);
 
   // Memoized combined loading and error states
   const {
@@ -169,14 +211,14 @@ const DashboardContent = () => {
   // Swipe navigation for mobile
   const swipeHandlers = useSwipeable({
     onSwipedLeft: () => {
-      if (isMobile && displayLeagues.length > 1) {
-        setCurrentLeagueIndex(prev => prev < displayLeagues.length - 1 ? prev + 1 : 0);
+      if (isMobile && enhancedLeagues.length > 1) {
+        setCurrentLeagueIndex(prev => prev < enhancedLeagues.length - 1 ? prev + 1 : 0);
         if (hasHaptics) navigator.vibrate?.(25);
       }
     },
     onSwipedRight: () => {
-      if (isMobile && displayLeagues.length > 1) {
-        setCurrentLeagueIndex(prev => prev > 0 ? prev - 1 : displayLeagues.length - 1);
+      if (isMobile && enhancedLeagues.length > 1) {
+        setCurrentLeagueIndex(prev => prev > 0 ? prev - 1 : enhancedLeagues.length - 1);
         if (hasHaptics) navigator.vibrate?.(25);
       }
     },
@@ -200,7 +242,7 @@ const DashboardContent = () => {
 
   // Calculate optimal grid layout based on number of leagues
   const getGridLayout = useMemo(() => {
-    const leagueCount = displayLeagues.length;
+    const leagueCount = enhancedLeagues.length;
     if (isMobile) {
       return "grid grid-cols-1 gap-4";
     }
@@ -220,11 +262,11 @@ const DashboardContent = () => {
       // 13-14 leagues: compact 5-7 column layout for optimal space usage
       return "grid grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-7 gap-3 max-w-[1600px] mx-auto";
     }
-  }, [displayLeagues.length, isMobile]);
+  }, [enhancedLeagues.length, isMobile]);
 
   // Calculate card size class based on layout density
   const getCardSizeClass = useMemo(() => {
-    const leagueCount = displayLeagues.length;
+    const leagueCount = enhancedLeagues.length;
     if (leagueCount <= 2) {
       return "min-h-[400px]"; // Large cards for few leagues
     } else if (leagueCount <= 6) {
@@ -234,7 +276,7 @@ const DashboardContent = () => {
     } else {
       return "min-h-[280px]"; // Very compact for 10+ leagues
     }
-  }, [displayLeagues.length]);
+  }, [enhancedLeagues.length]);
   const formatLastUpdate = (date: Date | null) => {
     return date ? date.toLocaleTimeString([], {
       hour: '2-digit',
@@ -247,7 +289,7 @@ const DashboardContent = () => {
     return <LoadingScreen isLoading={true} loadingStage="Loading leagues..." progress={50} />;
   }
   const dashboardData = {
-    leagues: displayLeagues,
+    leagues: enhancedLeagues,
     nflState: {
       week: 3
     },
@@ -256,12 +298,12 @@ const DashboardContent = () => {
   };
   const renderLeagueCards = () => {
     if (isMobile) {
-      return displayLeagues.map((league, index) => <MobileLeagueCard key={league.id} league={league} onClick={() => handleLeagueClick(league)} onLongPress={() => {
+      return enhancedLeagues.map((league, index) => <MobileLeagueCard key={league.id} league={league} onClick={() => handleLeagueClick(league)} onLongPress={() => {
         console.log('Long press on league:', league.leagueName);
         // TODO: Show quick actions menu
       }} />);
     }
-    return displayLeagues.map((league, index) => {
+    return enhancedLeagues.map((league, index) => {
       if (config.display?.compactView) {
         return <div key={league.id} className="space-y-2">
             <CompactLeagueView league={league} onClick={() => handleLeagueClick(league)} />
@@ -294,7 +336,7 @@ const DashboardContent = () => {
       <OfflineBanner />
 
       {/* Compact summary for mobile */}
-      {isMobile && displayLeagues.length > 0 && <CompactLeagueSummary leagues={displayLeagues} onLeagueSelect={handleLeagueClick} />}
+      {isMobile && enhancedLeagues.length > 0 && <CompactLeagueSummary leagues={enhancedLeagues} onLeagueSelect={handleLeagueClick} />}
 
       {/* Header */}
       <header className="sticky top-0 z-30 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
@@ -305,7 +347,10 @@ const DashboardContent = () => {
           
           <div className="flex flex-1 items-center justify-between space-x-2 md:justify-end">
             <div className="w-full flex-1 md:w-auto md:flex-none">
-              <ConnectionIndicator />
+              <div className="flex items-center gap-4">
+                <ConnectionIndicator />
+                <LiveEventIndicator liveState={liveState} className="hidden md:flex" />
+              </div>
             </div>
             
             <nav className="flex items-center space-x-1">
@@ -334,7 +379,7 @@ const DashboardContent = () => {
             <AlertDescription>
               {getUserFriendlyErrorMessage(combinedError)}
             </AlertDescription>
-          </Alert> : displayLeagues.length > 0 ? <div className={getGridLayout}>
+          </Alert> : enhancedLeagues.length > 0 ? <div className={getGridLayout}>
             {renderLeagueCards()}
           </div> :
       // Loading skeletons with adaptive layout
