@@ -7,6 +7,7 @@ import { useDeviceCapabilities } from '../hooks/use-mobile'
 import { MoreHorizontal, Trash2 } from 'lucide-react'
 import { Button } from './ui/button'
 import { useState } from 'react'
+import { safeLower } from '../utils/strings'
 
 interface MobileLeagueCardProps {
   league: LeagueData
@@ -34,7 +35,7 @@ export const MobileLeagueCard = ({ league, onClick, onRemove, onLongPress }: Mob
   }
 
   const getPlatformClass = () => {
-    return `platform-${league.platform.toLowerCase().replace('.com', '')}`
+    return `platform-${safeLower(league.platform).replace('.com', '')}`
   }
 
   // Sort events: most recent first

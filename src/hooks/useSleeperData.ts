@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { sleeperAPI, SleeperLeague, SleeperUser, SleeperRoster, SleeperMatchup } from '../services/SleeperAPI';
 import { LeagueData, ScoringEvent } from '../types/fantasy';
 import { LeagueConfig } from '../types/config';
+import { safeLower } from '../utils/strings';
 
 interface SleeperLeagueData {
   league: SleeperLeague;
@@ -40,8 +41,8 @@ export const useSleeperData = (leagueConfigs: LeagueConfig[]): UseSleeperDataRet
     if (config.sleeperUsername) {
       // Find user by username
       const user = users.find(u => 
-        u.username?.toLowerCase() === config.sleeperUsername?.toLowerCase() ||
-        u.display_name?.toLowerCase() === config.sleeperUsername?.toLowerCase()
+        safeLower(u.username) === safeLower(config.sleeperUsername) ||
+        safeLower(u.display_name) === safeLower(config.sleeperUsername)
       );
       
       if (user) {

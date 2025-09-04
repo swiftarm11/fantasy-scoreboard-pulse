@@ -1,4 +1,5 @@
 import { debugLogger } from '../utils/debugLogger';
+import { safeLower, safeIncludes } from '../utils/strings';
 import { ESPNPlay, ESPNParticipant, NFLScoringEvent } from './NFLDataService';
 import { eventAttributionService } from './EventAttributionService';
 import { eventStorageService } from './EventStorageService';
@@ -27,16 +28,7 @@ export class ESPNSimulationService {
   private simulationTimeout: NodeJS.Timeout | null = null;
   
   // Safety utility methods
-  private safeToLowerCase(str: any): string {
-    try {
-      if (str === null || str === undefined) return '';
-      if (typeof str !== 'string') return String(str).toLowerCase();
-      return str.toLowerCase();
-    } catch (error) {
-      debugLogger.error('ESPN_SIMULATION', 'safeToLowerCase failed', { str, error });
-      return '';
-    }
-  }
+  // Remove this method - using shared safeLower from utils/strings
 
   private safeGetProperty(obj: any, path: string, defaultValue: any = undefined): any {
     try {
@@ -292,8 +284,8 @@ export class ESPNSimulationService {
         }
       };
 
-      const isScoring = this.safeToLowerCase(template.eventType).includes('td') || 
-                       template.eventType === 'field_goal';
+      const isScoring = safeIncludes(template.eventType, 'td') || 
+        template.eventType === 'field_goal';
       const period = Math.floor(Math.random() * 4) + 1;
       const clock = this.generateClock();
 
@@ -315,7 +307,7 @@ export class ESPNSimulationService {
         type: {
           id: String(Math.floor(Math.random() * 100)),
           text: selectedPlayType,
-          abbreviation: this.safeToLowerCase(selectedPlayType).substring(0, 3).toUpperCase()
+          abbreviation: safeLower(selectedPlayType).substring(0, 3).toUpperCase()
         },
         text: playDescription,
         awayScore: Math.floor(Math.random() * 35),
@@ -766,13 +758,13 @@ export class ESPNSimulationService {
     const stats: { [key: string]: number | undefined } = {};
     
     // Add null checks for play.type.text
-    const playTypeText = play.type?.text?.toLowerCase() || '';
+    const playTypeText = safeLower(play.type?.text);
     
     if (play.statYardage) {
-      if (playTypeText.includes('rush')) {
+      if (safeIncludes(playTypeText, 'rush')) {
         stats.rushingYards = play.statYardage;
         if (play.scoringPlay) stats.rushingTouchdowns = 1;
-      } else if (playTypeText.includes('pass')) {
+      } else if (safeIncludes(playTypeText, 'pass')) {
         stats.passingYards = play.statYardage;
         if (play.scoringPlay) {
           stats.passingTouchdowns = 1;
@@ -782,7 +774,7 @@ export class ESPNSimulationService {
       }
     }
 
-    if (playTypeText.includes('field goal')) {
+    if (safeIncludes(playTypeText, 'field goal')) {
       stats.fieldGoalYards = play.statYardage;
       stats.fieldGoals = 1;
     }

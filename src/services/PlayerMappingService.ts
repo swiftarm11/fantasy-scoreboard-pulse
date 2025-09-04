@@ -1,4 +1,5 @@
 import { debugLogger } from '../utils/debugLogger';
+import { safeLower, safeUpper } from '../utils/strings';
 import { Platform } from '../types/fantasy';
 
 export interface PlayerMapping {
@@ -156,7 +157,7 @@ export class PlayerMappingService {
       return null;
     }
 
-    const platformId = mapping.platforms[platform.toLowerCase() as keyof typeof mapping.platforms];
+    const platformId = mapping.platforms[safeLower(platform) as keyof typeof mapping.platforms];
     
     if (!platformId) {
       debugLogger.warning('PLAYER_MAPPING', `No ${platform} ID found for player`, { 
@@ -248,7 +249,7 @@ export class PlayerMappingService {
 
     if (mapping) {
       // Update existing mapping
-      mapping.platforms[player.platform.toLowerCase() as keyof typeof mapping.platforms] = player.id;
+      mapping.platforms[safeLower(player.platform) as keyof typeof mapping.platforms] = player.id;
       mapping.lastUpdated = new Date();
     } else {
       // Create new mapping
@@ -258,7 +259,7 @@ export class PlayerMappingService {
         team: player.team,
         position: player.position,
         platforms: {
-          [player.platform.toLowerCase()]: player.id
+          [safeLower(player.platform)]: player.id
         } as any,
         alternateNames: [player.name],
         lastUpdated: new Date()
@@ -350,7 +351,7 @@ export class PlayerMappingService {
   }
 
   private normalizeName(name: string): string {
-    return name.toLowerCase()
+    return safeLower(name)
       .replace(/[^a-z\s]/g, '') // Remove non-alphabetic chars except spaces
       .replace(/\s+/g, ' ') // Normalize whitespace
       .trim();
@@ -364,7 +365,7 @@ export class PlayerMappingService {
       'JAX': 'JAC', // Jacksonville
     };
     
-    const normalized = team.toUpperCase().trim();
+    const normalized = safeUpper(team).trim();
     return teamMappings[normalized] || normalized;
   }
 
@@ -381,7 +382,7 @@ export class PlayerMappingService {
       'D/ST': 'D/ST'
     };
 
-    const normalized = position.toUpperCase().trim();
+    const normalized = safeUpper(position).trim();
     return positionMappings[normalized] || normalized;
   }
 

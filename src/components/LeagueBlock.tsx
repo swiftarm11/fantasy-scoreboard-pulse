@@ -2,6 +2,7 @@ import React, { useCallback, useRef, useMemo, useEffect } from 'react';
 import { LeagueData } from '../types/fantasy';
 import { EnhancedScoringEvent } from './EnhancedScoringEvent';
 import { useEventAnimations } from '../hooks/useEventAnimations';
+import { safeLower } from '../utils/strings';
 
 interface LeagueBlockProps {
   league: LeagueData;
@@ -25,7 +26,7 @@ export const LeagueBlock = React.memo(({ league, onClick }: LeagueBlockProps) =>
   }, [league.myScore, league.opponentScore]);
 
   const platformClass = useMemo(() => {
-    return `platform-${league.platform.toLowerCase().replace('.com', '')}`;
+    return `platform-${safeLower(league.platform).replace('.com', '')}`;
   }, [league.platform]);
 
   // Memoized sorted events to prevent sorting on every render

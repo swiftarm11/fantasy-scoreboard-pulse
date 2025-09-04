@@ -1,5 +1,6 @@
 import { ScoringEvent } from '../types/fantasy';
 import { debugLogger } from '../utils/debugLogger';
+import { safeLower, safeIncludes } from '../utils/strings';
 
 export interface StoredEvent extends ScoringEvent {
   storedAt: string; // ISO timestamp when stored
@@ -208,9 +209,9 @@ export class EventStorageService {
 
     // Apply player name filter
     if (filter.playerName) {
-      const searchTerm = filter.playerName.toLowerCase();
+      const searchTerm = safeLower(filter.playerName);
       events = events.filter(event => 
-        event.playerName.toLowerCase().includes(searchTerm)
+        safeIncludes(event.playerName, searchTerm)
       );
     }
 

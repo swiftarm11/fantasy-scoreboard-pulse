@@ -1,4 +1,5 @@
 import { debugLogger } from '../utils/debugLogger';
+import { safeLower, safeIncludes } from '../utils/strings';
 
 // ESPN API Data Structures
 export interface ESPNGame {
@@ -416,7 +417,7 @@ export class NFLDataService {
   }
 
   private isGameActive(game: ESPNGame): boolean {
-    const status = game.status?.type?.state?.toLowerCase();
+    const status = safeLower(game.status?.type?.state);
     return status === 'in' || status === 'halftime' || status === 'delayed';
   }
 
@@ -560,7 +561,7 @@ export class NFLDataService {
     }
 
     // Mark touchdowns
-    if (eventType.includes('_td')) {
+    if (safeIncludes(eventType, '_td')) {
       stats.touchdowns = 1;
     }
 

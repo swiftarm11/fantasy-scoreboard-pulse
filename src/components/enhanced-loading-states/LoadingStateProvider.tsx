@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useCallback, ReactNode } from 'react';
 import { ProgressIndicator, createDataFetchSteps, createOAuthSteps } from '../ui/progress-indicator';
 import { EnhancedToast } from '../ui/enhanced-toast';
+import { safeLower } from '../../utils/strings';
 
 interface LoadingState {
   id: string;
@@ -160,7 +161,7 @@ export const useOAuthLoading = (platform: string) => {
 
   const startOAuth = useCallback(() => {
     const id = startLoading({
-      id: `oauth-${platform.toLowerCase()}`,
+      id: `oauth-${safeLower(platform)}`,
       type: 'oauth',
       platform,
       currentStep: 'init',
@@ -192,7 +193,7 @@ export const useDataFetchLoading = (platform: string) => {
 
   const startDataFetch = useCallback(() => {
     const id = startLoading({
-      id: `data-fetch-${platform.toLowerCase()}`,
+      id: `data-fetch-${safeLower(platform)}`,
       type: 'data-fetch',
       platform,
       currentStep: 'connect',

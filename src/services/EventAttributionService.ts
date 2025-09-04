@@ -1,4 +1,5 @@
 import { debugLogger } from '../utils/debugLogger';
+import { safeLower } from '../utils/strings';
 import { playerMappingService, RosterPlayer } from './PlayerMappingService';
 import { NFLScoringEvent } from './NFLDataService';
 import { yahooFantasyAPI } from './YahooFantasyAPI';
@@ -420,8 +421,8 @@ export class EventAttributionService {
       let userRoster = rosters[0]; // Default to first roster if no username
       if (leagueConfig.sleeperUsername) {
         const user = users.find(u => 
-          u.username?.toLowerCase() === leagueConfig.sleeperUsername?.toLowerCase() ||
-          u.display_name?.toLowerCase() === leagueConfig.sleeperUsername?.toLowerCase()
+          safeLower(u.username) === safeLower(leagueConfig.sleeperUsername) ||
+          safeLower(u.display_name) === safeLower(leagueConfig.sleeperUsername)
         );
         if (user) {
           const foundRoster = rosters.find(r => r.owner_id === user.user_id);
