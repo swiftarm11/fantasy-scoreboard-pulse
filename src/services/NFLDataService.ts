@@ -185,7 +185,8 @@ export class NFLDataService {
   private pollingIntervalMs = 20000; // 20 seconds minimum for deduplication
   private isPolling = false;
   private currentWeek: number | null = null;
-  private readonly ESPN_EDGE_FUNCTION_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/espn-api`;
+  private readonly ESPN_EDGE_FUNCTION_URL = 'https://doyquitecogdnvbyiszt.supabase.co/functions/v1/espn-api';
+  private readonly SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRveXF1aXRlY29nZG52Ynlpc3p0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTU2ODg0OTMsImV4cCI6MjA3MTI2NDQ5M30.63TmTlCTK_jVJnG_4vuZWUwS--UcyNgOSem5tI7q_1w';
 
   private constructor() {}
 
@@ -254,8 +255,8 @@ export class NFLDataService {
         method: 'GET',
         headers: {
           'Accept': 'application/json',
-          'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
-          'apikey': import.meta.env.VITE_SUPABASE_ANON_KEY
+          'Authorization': `Bearer ${this.SUPABASE_ANON_KEY}`,
+          'apikey': this.SUPABASE_ANON_KEY
         }
       });
 
@@ -306,8 +307,8 @@ export class NFLDataService {
         method: 'GET',
         headers: {
           'Accept': 'application/json',
-          'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
-          'apikey': import.meta.env.VITE_SUPABASE_ANON_KEY
+          'Authorization': `Bearer ${this.SUPABASE_ANON_KEY}`,
+          'apikey': this.SUPABASE_ANON_KEY
         }
       });
       
