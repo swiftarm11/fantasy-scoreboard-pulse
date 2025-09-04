@@ -99,41 +99,49 @@ export const useLiveEventsSystem = ({
 
     setLiveState(prev => ({ ...prev, isPolling: true }));
 
-    // Start NFL data service polling (enforce 20 second minimum)
-    const effectiveInterval = Math.max(pollingInterval, 20);
-    await nflDataService.startPolling(effectiveInterval * 1000);
+    try {
+      // Start NFL data service polling (enforce 20 second minimum)
+      // NFL service handles all API calls internally - no duplicate polling needed
+      const effectiveInterval = Math.max(pollingInterval, 20);
+      await nflDataService.startPolling(effectiveInterval * 1000);
 
-    const pollForEvents = async () => {
-      try {
-        const activeGames = await nflDataService.pollActiveGames();
-        
-        setLiveState(prev => ({
-          ...prev,
-          activeGames: activeGames.length
-        }));
-
-        // Update recent events display
-        const recent = eventStorageService.getRecentEvents(60);
-        setRecentEvents(recent);
-
-        if (recent.length > 0) {
+      // Set up status monitoring only (no additional API calls)
+      const monitorStatus = () => {
+        try {
+          const stats = nflDataService.getPollingStats();
+          
           setLiveState(prev => ({
             ...prev,
-            lastEventTime: recent[0].timestamp,
-            eventCount: recent.length
+            activeGames: stats.gamesTracked
           }));
+
+          // Update recent events display
+          const recent = eventStorageService.getRecentEvents(60);
+          setRecentEvents(recent);
+
+          if (recent.length > 0) {
+            setLiveState(prev => ({
+              ...prev,
+              lastEventTime: recent[0].timestamp,
+              eventCount: recent.length
+            }));
+          }
+
+        } catch (error) {
+          debugLogger.error('LIVE_EVENTS', 'Status monitoring error', error);
         }
+      };
 
-      } catch (error) {
-        debugLogger.error('LIVE_EVENTS', 'Polling error', error);
-      }
-    };
+      // Initial status check
+      monitorStatus();
 
-    // Initial poll
-    await pollForEvents();
+      // Set up status monitoring interval (no API calls, just UI updates)
+      pollingIntervalRef.current = setInterval(monitorStatus, 10000); // 10 seconds for UI updates
 
-    // Set up interval polling (less frequent than NFL service internal polling)
-    pollingIntervalRef.current = setInterval(pollForEvents, pollingInterval * 2000);
+    } catch (error) {
+      debugLogger.error('LIVE_EVENTS', 'Failed to start NFL polling', error);
+      setLiveState(prev => ({ ...prev, isPolling: false }));
+    }
 
   }, [enabled, liveState.isActive, liveState.isPolling, pollingInterval]);
 

@@ -251,6 +251,27 @@ export const LiveDebugPanel = ({ open, onOpenChange }: LiveDebugPanelProps) => {
     }
   };
 
+  // Emergency stop all polling
+  const emergencyStopPolling = () => {
+    nflDataService.emergencyStopPolling();
+    setEspnStats(nflDataService.getPollingStats());
+    toast({
+      title: 'EMERGENCY STOP ACTIVATED',
+      description: 'All API polling has been immediately halted',
+      variant: 'destructive'
+    });
+  };
+
+  // Reset emergency stop
+  const resetEmergencyStop = () => {
+    nflDataService.resetEmergencyStop();
+    setEspnStats(nflDataService.getPollingStats());
+    toast({
+      title: 'Emergency Stop Reset',
+      description: 'Polling can now be restarted',
+    });
+  };
+
   // Start ESPN Simulation
   const startESPNSimulation = async () => {
     if (isSimulating) {
@@ -446,7 +467,13 @@ export const LiveDebugPanel = ({ open, onOpenChange }: LiveDebugPanelProps) => {
                       <div className="flex items-center justify-between">
                         <span>Status:</span>
                         <Badge variant={espnStats.isActive ? 'default' : 'secondary'}>
-                          {espnStats.isActive ? 'Active' : 'Inactive'}
+                          {espnStats.emergencyStop ? 'EMERGENCY STOP' : espnStats.isActive ? 'Active' : 'Inactive'}
+                        </Badge>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span>Circuit Breaker:</span>
+                        <Badge variant={espnStats.circuitBreaker.isOpen ? 'destructive' : 'default'}>
+                          {espnStats.circuitBreaker.isOpen ? 'OPEN' : 'CLOSED'}
                         </Badge>
                       </div>
                       <div className="flex items-center justify-between">
@@ -457,63 +484,77 @@ export const LiveDebugPanel = ({ open, onOpenChange }: LiveDebugPanelProps) => {
                         <span>Games Tracked:</span>
                         <span>{espnStats.gamesTracked}</span>
                       </div>
+                      <div className="flex items-center justify-between">
+                        <span>Failure Count:</span>
+                        <span>{espnStats.circuitBreaker.failureCount}/5</span>
+                      </div>
                     </div>
                   </div>
                   
                   <div className="p-3 rounded-lg bg-muted/50 border">
-                    <h4 className="font-medium text-sm mb-2">NFL Season Info</h4>
+                    <h4 className="font-medium text-sm mb-2">Request Metrics</h4>
                     <div className="space-y-1 text-sm">
                       <div className="flex items-center justify-between">
-                        <span>Current Week:</span>
-                        <span>{espnStats.currentWeek || 'Unknown'}</span>
+                        <span>Total Requests:</span>
+                        <span>{espnStats.requestMetrics.totalRequests}</span>
                       </div>
                       <div className="flex items-center justify-between">
-                        <span>Data Source:</span>
-                        <span>ESPN API</span>
+                        <span>Success Rate:</span>
+                        <span>
+                          {espnStats.requestMetrics.totalRequests > 0 
+                            ? Math.round((espnStats.requestMetrics.successfulRequests / espnStats.requestMetrics.totalRequests) * 100)
+                            : 0}%
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span>This Minute:</span>
+                        <span>{espnStats.requestMetrics.requestsThisMinute}/10</span>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span>Last Request:</span>
+                        <span>{espnStats.requestMetrics.lastRequestTime ? new Date(espnStats.requestMetrics.lastRequestTime).toLocaleTimeString() : 'Never'}</span>
                       </div>
                     </div>
                   </div>
                 </div>
 
-                <div className="flex gap-2">
+                <div className="flex gap-2 mb-4">
                   <Button 
                     onClick={toggleESPNPolling}
                     variant={espnStats.isActive ? 'destructive' : 'default'}
+                    disabled={espnStats.emergencyStop}
                   >
                     {espnStats.isActive ? (
                       <>
-                        <Upload className="w-4 h-4 mr-2" />
+                        <AlertTriangle className="w-4 h-4 mr-2" />
                         Stop Polling
                       </>
                     ) : (
                       <>
-                        <Download className="w-4 h-4 mr-2" />
+                        <CheckCircle className="w-4 h-4 mr-2" />
                         Start Polling
                       </>
                     )}
                   </Button>
                   
                   <Button 
-                    onClick={async () => {
-                      try {
-                        const games = await nflDataService.pollActiveGames();
-                        toast({
-                          title: 'Manual Poll Complete',
-                          description: `Found ${games.length} active NFL games`
-                        });
-                      } catch (error) {
-                        toast({
-                          title: 'Manual Poll Failed',
-                          description: error instanceof Error ? error.message : 'Unknown error',
-                          variant: 'destructive'
-                        });
-                      }
-                    }}
-                    variant="outline"
+                    onClick={emergencyStopPolling}
+                    variant="destructive"
+                    disabled={espnStats.emergencyStop}
                   >
-                    <RefreshCw className="w-4 h-4 mr-2" />
-                    Manual Poll
+                    <Zap className="w-4 h-4 mr-2" />
+                    EMERGENCY STOP
                   </Button>
+                  
+                  {espnStats.emergencyStop && (
+                    <Button 
+                      onClick={resetEmergencyStop}
+                      variant="outline"
+                    >
+                      <RefreshCw className="w-4 h-4 mr-2" />
+                      Reset Emergency Stop
+                    </Button>
+                  )}
                 </div>
 
                 <div className="p-3 rounded-lg bg-muted/30 border">
@@ -606,19 +647,11 @@ export const LiveDebugPanel = ({ open, onOpenChange }: LiveDebugPanelProps) => {
                     <p className="text-sm text-muted-foreground">{simulationProgress}</p>
                   </div>
                 )}
-
-                <div className="p-3 rounded-lg bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800">
-                  <h4 className="font-medium text-sm mb-2 text-yellow-800 dark:text-yellow-200">How It Works</h4>
-                  <div className="text-xs text-yellow-700 dark:text-yellow-300 space-y-1">
-                    <div>1. Generates realistic ESPN API formatted play-by-play events</div>
-                    <div>2. Uses players from your configured league rosters</div>
-                    <div>3. Events flow through the normal live events system</div>
-                    <div>4. You'll see events appear in league cards and debug logs</div>
-                  </div>
-                </div>
               </CardContent>
             </Card>
           </TabsContent>
+
+          {/* Emergency Controls Tab */}
           <TabsContent value="emergency" className="space-y-4">
             <Card className="border-warning">
               <CardHeader>

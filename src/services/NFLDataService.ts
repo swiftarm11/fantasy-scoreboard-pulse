@@ -1,5 +1,6 @@
 import { debugLogger } from '../utils/debugLogger';
 import { safeLower, safeIncludes } from '../utils/strings';
+import { supabase } from '../integrations/supabase/client';
 
 // ESPN API Data Structures
 export interface ESPNGame {
@@ -177,6 +178,22 @@ interface GamePollingState {
   isActive: boolean;
 }
 
+interface CircuitBreakerState {
+  isOpen: boolean;
+  failureCount: number;
+  lastFailureTime: Date | null;
+  nextRetryTime: Date | null;
+}
+
+interface RequestMetrics {
+  totalRequests: number;
+  successfulRequests: number;
+  failedRequests: number;
+  lastRequestTime: Date | null;
+  requestsThisMinute: number;
+  lastMinuteReset: Date;
+}
+
 export class NFLDataService {
   private static instance: NFLDataService;
   private pollingInterval: NodeJS.Timeout | null = null;
@@ -185,8 +202,29 @@ export class NFLDataService {
   private pollingIntervalMs = 20000; // 20 seconds minimum for deduplication
   private isPolling = false;
   private currentWeek: number | null = null;
-  private readonly ESPN_EDGE_FUNCTION_URL = 'https://doyquitecogdnvbyiszt.supabase.co/functions/v1/espn-api';
-  private readonly SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRveXF1aXRlY29nZG52Ynlpc3p0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTU2ODg0OTMsImV4cCI6MjA3MTI2NDQ5M30.63TmTlCTK_jVJnG_4vuZWUwS--UcyNgOSem5tI7q_1w';
+  private emergencyStop = false;
+  
+  // Circuit breaker for API resilience
+  private circuitBreaker: CircuitBreakerState = {
+    isOpen: false,
+    failureCount: 0,
+    lastFailureTime: null,
+    nextRetryTime: null
+  };
+  
+  // Request monitoring
+  private requestMetrics: RequestMetrics = {
+    totalRequests: 0,
+    successfulRequests: 0,
+    failedRequests: 0,
+    lastRequestTime: null,
+    requestsThisMinute: 0,
+    lastMinuteReset: new Date()
+  };
+  
+  private readonly CIRCUIT_BREAKER_THRESHOLD = 5;
+  private readonly CIRCUIT_BREAKER_TIMEOUT = 60000; // 1 minute
+  private readonly MAX_REQUESTS_PER_MINUTE = 10;
 
   private constructor() {}
 
@@ -206,6 +244,24 @@ export class NFLDataService {
       return;
     }
 
+    if (this.emergencyStop) {
+      debugLogger.error('NFL_DATA', 'Cannot start polling - emergency stop is active');
+      throw new Error('Emergency stop is active. Use resetEmergencyStop() first.');
+    }
+
+    if (this.circuitBreaker.isOpen) {
+      const now = new Date();
+      if (this.circuitBreaker.nextRetryTime && now < this.circuitBreaker.nextRetryTime) {
+        debugLogger.warning('NFL_DATA', 'Cannot start polling - circuit breaker is open', {
+          nextRetryTime: this.circuitBreaker.nextRetryTime.toISOString()
+        });
+        throw new Error('Circuit breaker is open. Please wait before retrying.');
+      } else {
+        // Reset circuit breaker after timeout
+        this.resetCircuitBreaker();
+      }
+    }
+
     // Enforce minimum 20 second interval for deduplication
     this.pollingIntervalMs = Math.max(intervalMs, 20000);
     this.isPolling = true;
@@ -216,14 +272,25 @@ export class NFLDataService {
     });
 
     // Initial poll
-    await this.pollActiveGames();
+    try {
+      await this.pollActiveGames();
+    } catch (error) {
+      this.isPolling = false;
+      throw error;
+    }
 
     // Set up recurring polling
     this.pollingInterval = setInterval(async () => {
+      if (this.emergencyStop || this.circuitBreaker.isOpen) {
+        this.stopPolling();
+        return;
+      }
+
       try {
         await this.pollActiveGames();
       } catch (error) {
         debugLogger.error('NFL_DATA', 'Error during polling cycle', error);
+        this.recordFailure();
       }
     }, this.pollingIntervalMs);
   }
@@ -244,33 +311,65 @@ export class NFLDataService {
   }
 
   /**
+   * Emergency stop - immediately halts all polling and prevents restart
+   */
+  public emergencyStopPolling(): void {
+    this.emergencyStop = true;
+    this.stopPolling();
+    debugLogger.warning('NFL_DATA', 'EMERGENCY STOP ACTIVATED - All polling halted');
+  }
+
+  /**
+   * Reset emergency stop to allow polling again
+   */
+  public resetEmergencyStop(): void {
+    this.emergencyStop = false;
+    this.resetCircuitBreaker();
+    debugLogger.info('NFL_DATA', 'Emergency stop reset - Polling can be restarted');
+  }
+
+  /**
    * Fetch current week NFL games from ESPN via edge function
    */
   public async pollActiveGames(): Promise<ESPNGame[]> {
+    if (this.emergencyStop) {
+      throw new Error('Emergency stop is active');
+    }
+
+    if (this.circuitBreaker.isOpen) {
+      throw new Error('Circuit breaker is open - too many failures');
+    }
+
+    if (!this.canMakeRequest()) {
+      throw new Error('Rate limit exceeded - too many requests this minute');
+    }
+
     try {
+      this.recordRequestStart();
+      
       const url = this.buildScoreboardUrl();
       debugLogger.api('NFL_DATA', `Fetching scoreboard data via edge function`, { url });
       
-      const response = await fetch(url, {
-        method: 'GET',
-        headers: {
-          'Accept': 'application/json',
-          'Authorization': `Bearer ${this.SUPABASE_ANON_KEY}`,
-          'apikey': this.SUPABASE_ANON_KEY
+      const response = await supabase.functions.invoke('espn-api', {
+        body: { 
+          endpoint: 'scoreboard',
+          week: this.currentWeek 
         }
       });
 
-      if (!response.ok) {
-        throw new Error(`Edge function returned ${response.status}: ${response.statusText}`);
+      if (response.error) {
+        throw new Error(`Edge function error: ${response.error.message}`);
       }
 
-      const data = await response.json();
+      const data = response.data;
       const games = data.events || [];
       
       debugLogger.success('NFL_DATA', `Fetched ${games.length} games from ESPN`, {
         week: data.week?.number,
         season: data.season?.year
       });
+
+      this.recordRequestSuccess();
 
       // Update current week if available
       if (data.week?.number) {
@@ -290,6 +389,8 @@ export class NFLDataService {
       return activeGames;
 
     } catch (error) {
+      this.recordRequestFailure();
+      this.recordFailure();
       debugLogger.error('NFL_DATA', 'Failed to fetch ESPN scoreboard', error);
       throw error;
     }
@@ -299,24 +400,27 @@ export class NFLDataService {
    * Parse play-by-play data from ESPN game data via edge function
    */
   public async parsePlayByPlay(gameId: string): Promise<ESPNPlay[]> {
+    if (!this.canMakeRequest()) {
+      debugLogger.warning('NFL_DATA', 'Skipping play-by-play fetch due to rate limit');
+      return [];
+    }
+
     try {
-      const url = `${this.ESPN_EDGE_FUNCTION_URL}?endpoint=game-summary&gameId=${gameId}`;
+      this.recordRequestStart();
       debugLogger.api('NFL_DATA', `Fetching play-by-play via edge function for game ${gameId}`);
 
-      const response = await fetch(url, {
-        method: 'GET',
-        headers: {
-          'Accept': 'application/json',
-          'Authorization': `Bearer ${this.SUPABASE_ANON_KEY}`,
-          'apikey': this.SUPABASE_ANON_KEY
+      const response = await supabase.functions.invoke('espn-api', {
+        body: { 
+          endpoint: 'game-summary',
+          gameId: gameId 
         }
       });
       
-      if (!response.ok) {
-        throw new Error(`Failed to fetch game ${gameId}: ${response.status}`);
+      if (response.error) {
+        throw new Error(`Edge function error: ${response.error.message}`);
       }
 
-      const gameData = await response.json();
+      const gameData = response.data;
       const drives = gameData.drives?.previous || [];
       const plays: ESPNPlay[] = [];
 
@@ -332,10 +436,12 @@ export class NFLDataService {
         plays.push(...gameData.drives.current.plays);
       }
 
+      this.recordRequestSuccess();
       debugLogger.success('NFL_DATA', `Parsed ${plays.length} plays for game ${gameId}`);
       return plays;
 
     } catch (error) {
+      this.recordRequestFailure();
       debugLogger.error('NFL_DATA', `Failed to parse play-by-play for game ${gameId}`, error);
       return [];
     }
@@ -403,19 +509,25 @@ export class NFLDataService {
   }
 
   /**
-   * Get polling statistics
+   * Get comprehensive polling and circuit breaker statistics
    */
   public getPollingStats(): {
     isActive: boolean;
     gamesTracked: number;
     intervalMs: number;
     currentWeek: number | null;
+    emergencyStop: boolean;
+    circuitBreaker: CircuitBreakerState;
+    requestMetrics: RequestMetrics;
   } {
     return {
       isActive: this.isPolling,
       gamesTracked: this.gameStates.size,
       intervalMs: this.pollingIntervalMs,
-      currentWeek: this.currentWeek
+      currentWeek: this.currentWeek,
+      emergencyStop: this.emergencyStop,
+      circuitBreaker: { ...this.circuitBreaker },
+      requestMetrics: { ...this.requestMetrics }
     };
   }
 
@@ -424,9 +536,66 @@ export class NFLDataService {
   private buildScoreboardUrl(): string {
     // Use current week if available, otherwise let edge function determine current week
     if (this.currentWeek) {
-      return `${this.ESPN_EDGE_FUNCTION_URL}?endpoint=scoreboard&week=${this.currentWeek}`;
+      return `espn-api?endpoint=scoreboard&week=${this.currentWeek}`;
     }
-    return `${this.ESPN_EDGE_FUNCTION_URL}?endpoint=scoreboard`;
+    return `espn-api?endpoint=scoreboard`;
+  }
+
+  private canMakeRequest(): boolean {
+    const now = new Date();
+    
+    // Reset counter if a minute has passed
+    if (now.getTime() - this.requestMetrics.lastMinuteReset.getTime() > 60000) {
+      this.requestMetrics.requestsThisMinute = 0;
+      this.requestMetrics.lastMinuteReset = now;
+    }
+    
+    return this.requestMetrics.requestsThisMinute < this.MAX_REQUESTS_PER_MINUTE;
+  }
+
+  private recordRequestStart(): void {
+    this.requestMetrics.totalRequests++;
+    this.requestMetrics.requestsThisMinute++;
+    this.requestMetrics.lastRequestTime = new Date();
+  }
+
+  private recordRequestSuccess(): void {
+    this.requestMetrics.successfulRequests++;
+    // Reset circuit breaker on success
+    if (this.circuitBreaker.failureCount > 0) {
+      this.circuitBreaker.failureCount = Math.max(0, this.circuitBreaker.failureCount - 1);
+    }
+  }
+
+  private recordRequestFailure(): void {
+    this.requestMetrics.failedRequests++;
+  }
+
+  private recordFailure(): void {
+    this.circuitBreaker.failureCount++;
+    this.circuitBreaker.lastFailureTime = new Date();
+
+    if (this.circuitBreaker.failureCount >= this.CIRCUIT_BREAKER_THRESHOLD) {
+      this.circuitBreaker.isOpen = true;
+      this.circuitBreaker.nextRetryTime = new Date(Date.now() + this.CIRCUIT_BREAKER_TIMEOUT);
+      
+      debugLogger.error('NFL_DATA', 'CIRCUIT BREAKER OPENED - Too many failures', {
+        failureCount: this.circuitBreaker.failureCount,
+        nextRetryTime: this.circuitBreaker.nextRetryTime.toISOString()
+      });
+      
+      // Stop polling when circuit breaker opens
+      this.stopPolling();
+    }
+  }
+
+  private resetCircuitBreaker(): void {
+    this.circuitBreaker.isOpen = false;
+    this.circuitBreaker.failureCount = 0;
+    this.circuitBreaker.lastFailureTime = null;
+    this.circuitBreaker.nextRetryTime = null;
+    
+    debugLogger.info('NFL_DATA', 'Circuit breaker reset');
   }
 
   private isGameActive(game: ESPNGame): boolean {
