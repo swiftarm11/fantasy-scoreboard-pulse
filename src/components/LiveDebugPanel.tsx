@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from './ui/dialog';
 import { Button } from './ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
@@ -21,6 +21,7 @@ import { toast } from './ui/use-toast';
 import { debugLogger } from '../utils/debugLogger';
 import { useYahooData } from '../hooks/useYahooData';
 import { useYahooOAuth } from '../hooks/useYahooOAuth';
+import { nflDataService } from '../services/NFLDataService';
 
 interface LiveDebugPanelProps {
   open: boolean;
@@ -31,19 +32,28 @@ export const LiveDebugPanel = ({ open, onOpenChange }: LiveDebugPanelProps) => {
   const [rawDataView, setRawDataView] = useState<any>(null);
   const [testResults, setTestResults] = useState<string>('');
   const [isRunningTest, setIsRunningTest] = useState(false);
+  const [espnStats, setEspnStats] = useState(nflDataService.getPollingStats());
 
   const { isConnected: yahooConnected } = useYahooOAuth();
   const yahooData = useYahooData();
 
+  // Update ESPN stats periodically
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setEspnStats(nflDataService.getPollingStats());
+    }, 2000);
+    return () => clearInterval(interval);
+  }, []);
+
   // Test API connections
-  const runConnectionTest = async (platform: 'yahoo' | 'sleeper' | 'both') => {
+  const runConnectionTest = async (platform: 'yahoo' | 'sleeper' | 'espn' | 'all') => {
     setIsRunningTest(true);
     setTestResults('Running connection tests...\n\n');
     
     debugLogger.info('DEBUG_PANEL', `Starting connection test for ${platform}`);
 
     try {
-      if (platform === 'yahoo' || platform === 'both') {
+      if (platform === 'yahoo' || platform === 'all') {
         setTestResults(prev => prev + '🔍 Testing Yahoo connection...\n');
         
         if (!yahooConnected) {
@@ -63,7 +73,7 @@ export const LiveDebugPanel = ({ open, onOpenChange }: LiveDebugPanelProps) => {
         }
       }
 
-      if (platform === 'sleeper' || platform === 'both') {
+      if (platform === 'sleeper' || platform === 'all') {
         setTestResults(prev => prev + '\n🔍 Testing Sleeper connection...\n');
         
         try {
@@ -79,6 +89,29 @@ export const LiveDebugPanel = ({ open, onOpenChange }: LiveDebugPanelProps) => {
         }
       }
 
+      if (platform === 'espn' || platform === 'all') {
+        setTestResults(prev => prev + '\n🔍 Testing ESPN connection...\n');
+        
+        try {
+          // Test ESPN API by fetching current scoreboard
+          const games = await nflDataService.pollActiveGames();
+          setTestResults(prev => prev + `✅ ESPN: Connection successful (${games.length} games found)\n`);
+          
+          // Show current week info
+          const currentWeek = nflDataService.getCurrentWeek();
+          if (currentWeek) {
+            setTestResults(prev => prev + `📅 Current NFL Week: ${currentWeek}\n`);
+          }
+          
+          // Show polling status
+          const stats = nflDataService.getPollingStats();
+          setTestResults(prev => prev + `📊 Polling Status: ${stats.isActive ? 'Active' : 'Inactive'} (${stats.gamesTracked} games tracked)\n`);
+          
+        } catch (error) {
+          setTestResults(prev => prev + `❌ ESPN: Connection failed - ${error instanceof Error ? error.message : 'Unknown error'}\n`);
+        }
+      }
+
       setTestResults(prev => prev + '\n✨ Test complete!\n');
       
     } catch (error) {
@@ -89,7 +122,7 @@ export const LiveDebugPanel = ({ open, onOpenChange }: LiveDebugPanelProps) => {
   };
 
   // View raw API response
-  const viewRawData = (platform: 'yahoo' | 'sleeper') => {
+  const viewRawData = (platform: 'yahoo' | 'sleeper' | 'espn') => {
     debugLogger.info('DEBUG_PANEL', `Viewing raw data for ${platform}`);
     
     if (platform === 'yahoo' && yahooData) {
@@ -100,6 +133,17 @@ export const LiveDebugPanel = ({ open, onOpenChange }: LiveDebugPanelProps) => {
           availableLeagues: yahooData.availableLeagues || [],
           lastUpdated: yahooData.lastUpdated,
           error: yahooData.error
+        }
+      });
+    } else if (platform === 'espn') {
+      const stats = nflDataService.getPollingStats();
+      setRawDataView({
+        platform: 'ESPN',
+        data: {
+          pollingStats: stats,
+          currentWeek: nflDataService.getCurrentWeek(),
+          isPolling: nflDataService.isCurrentlyPolling(),
+          timestamp: new Date().toISOString()
         }
       });
     } else {
@@ -123,6 +167,11 @@ export const LiveDebugPanel = ({ open, onOpenChange }: LiveDebugPanelProps) => {
         lastUpdated: yahooData.lastUpdated,
         error: yahooData.error
       } : null,
+      espnData: {
+        pollingStats: nflDataService.getPollingStats(),
+        currentWeek: nflDataService.getCurrentWeek(),
+        isPolling: nflDataService.isCurrentlyPolling()
+      },
       logs: debugLogger.getLogs().slice(0, 10) // Last 10 logs
     };
 
@@ -150,6 +199,13 @@ export const LiveDebugPanel = ({ open, onOpenChange }: LiveDebugPanelProps) => {
         await yahooData.fetchAvailableLeagues();
       }
       
+      // Refresh ESPN data by polling active games
+      try {
+        await nflDataService.pollActiveGames();
+      } catch (espnError) {
+        debugLogger.error('DEBUG_PANEL', 'ESPN refresh failed during emergency refresh', espnError);
+      }
+      
       toast({
         title: 'Emergency Refresh Complete',
         description: 'All available data has been refreshed',
@@ -159,6 +215,32 @@ export const LiveDebugPanel = ({ open, onOpenChange }: LiveDebugPanelProps) => {
         title: 'Emergency Refresh Failed',
         description: error instanceof Error ? error.message : 'Unknown error',
         variant: 'destructive',
+      });
+    }
+  };
+
+  // Start/Stop ESPN polling
+  const toggleESPNPolling = async () => {
+    try {
+      if (nflDataService.isCurrentlyPolling()) {
+        nflDataService.stopPolling();
+        toast({
+          title: 'ESPN Polling Stopped',
+          description: 'NFL game monitoring has been stopped'
+        });
+      } else {
+        await nflDataService.startPolling();
+        toast({
+          title: 'ESPN Polling Started',
+          description: 'Now monitoring NFL games for live scoring events'
+        });
+      }
+      setEspnStats(nflDataService.getPollingStats());
+    } catch (error) {
+      toast({
+        title: 'ESPN Polling Error',
+        description: error instanceof Error ? error.message : 'Unknown error',
+        variant: 'destructive'
       });
     }
   };
@@ -174,9 +256,10 @@ export const LiveDebugPanel = ({ open, onOpenChange }: LiveDebugPanelProps) => {
         </DialogHeader>
 
         <Tabs defaultValue="tests" className="w-full">
-          <TabsList className="grid w-full grid-cols-4">
+          <TabsList className="grid w-full grid-cols-5">
             <TabsTrigger value="tests">Connection Tests</TabsTrigger>
             <TabsTrigger value="data">Raw Data</TabsTrigger>
+            <TabsTrigger value="espn">ESPN Live Data</TabsTrigger>
             <TabsTrigger value="emergency">Emergency Controls</TabsTrigger>
             <TabsTrigger value="logs">Debug Logs</TabsTrigger>
           </TabsList>
@@ -209,7 +292,15 @@ export const LiveDebugPanel = ({ open, onOpenChange }: LiveDebugPanelProps) => {
                     Test Sleeper
                   </Button>
                   <Button 
-                    onClick={() => runConnectionTest('both')}
+                    onClick={() => runConnectionTest('espn')}
+                    disabled={isRunningTest}
+                    variant="outline"
+                  >
+                    <TestTube className="w-4 h-4 mr-2" />
+                    Test ESPN
+                  </Button>
+                  <Button 
+                    onClick={() => runConnectionTest('all')}
                     disabled={isRunningTest}
                   >
                     <TestTube className="w-4 h-4 mr-2" />
@@ -249,6 +340,10 @@ export const LiveDebugPanel = ({ open, onOpenChange }: LiveDebugPanelProps) => {
                     <Download className="w-4 h-4 mr-2" />
                     View Sleeper Data
                   </Button>
+                  <Button onClick={() => viewRawData('espn')} variant="outline">
+                    <Download className="w-4 h-4 mr-2" />
+                    View ESPN Data
+                  </Button>
                 </div>
 
                 {rawDataView && (
@@ -270,6 +365,110 @@ export const LiveDebugPanel = ({ open, onOpenChange }: LiveDebugPanelProps) => {
                     </CardContent>
                   </Card>
                 )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          {/* ESPN Live Data Tab */}
+          <TabsContent value="espn" className="space-y-4">
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base">ESPN NFL Data Flow</CardTitle>
+                <CardDescription>
+                  Monitor live NFL game data and scoring events from ESPN
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="p-3 rounded-lg bg-muted/50 border">
+                    <h4 className="font-medium text-sm mb-2">Polling Status</h4>
+                    <div className="space-y-1 text-sm">
+                      <div className="flex items-center justify-between">
+                        <span>Status:</span>
+                        <Badge variant={espnStats.isActive ? 'default' : 'secondary'}>
+                          {espnStats.isActive ? 'Active' : 'Inactive'}
+                        </Badge>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span>Interval:</span>
+                        <span>{espnStats.intervalMs / 1000}s</span>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span>Games Tracked:</span>
+                        <span>{espnStats.gamesTracked}</span>
+                      </div>
+                    </div>
+                  </div>
+                  
+                  <div className="p-3 rounded-lg bg-muted/50 border">
+                    <h4 className="font-medium text-sm mb-2">NFL Season Info</h4>
+                    <div className="space-y-1 text-sm">
+                      <div className="flex items-center justify-between">
+                        <span>Current Week:</span>
+                        <span>{espnStats.currentWeek || 'Unknown'}</span>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span>Data Source:</span>
+                        <span>ESPN API</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex gap-2">
+                  <Button 
+                    onClick={toggleESPNPolling}
+                    variant={espnStats.isActive ? 'destructive' : 'default'}
+                  >
+                    {espnStats.isActive ? (
+                      <>
+                        <Upload className="w-4 h-4 mr-2" />
+                        Stop Polling
+                      </>
+                    ) : (
+                      <>
+                        <Download className="w-4 h-4 mr-2" />
+                        Start Polling
+                      </>
+                    )}
+                  </Button>
+                  
+                  <Button 
+                    onClick={async () => {
+                      try {
+                        const games = await nflDataService.pollActiveGames();
+                        toast({
+                          title: 'Manual Poll Complete',
+                          description: `Found ${games.length} active NFL games`
+                        });
+                      } catch (error) {
+                        toast({
+                          title: 'Manual Poll Failed',
+                          description: error instanceof Error ? error.message : 'Unknown error',
+                          variant: 'destructive'
+                        });
+                      }
+                    }}
+                    variant="outline"
+                  >
+                    <RefreshCw className="w-4 h-4 mr-2" />
+                    Manual Poll
+                  </Button>
+                </div>
+
+                <div className="p-3 rounded-lg bg-muted/30 border">
+                  <h4 className="font-medium text-sm mb-2">Live Game Detection</h4>
+                  <p className="text-xs text-muted-foreground mb-2">
+                    ESPN API is polled during game hours to detect scoring events in real-time. 
+                    Events are matched to fantasy rosters using the PlayerMappingService.
+                  </p>
+                  <div className="text-xs space-y-1">
+                    <div>• Scoring plays (TDs, FGs, safeties)</div>
+                    <div>• Big plays (20+ yard gains)</div>
+                    <div>• Turnovers (fumbles, interceptions)</div>
+                    <div>• Statistical milestones</div>
+                  </div>
+                </div>
               </CardContent>
             </Card>
           </TabsContent>
@@ -319,6 +518,14 @@ export const LiveDebugPanel = ({ open, onOpenChange }: LiveDebugPanelProps) => {
                     <div className="flex items-center gap-2">
                       <CheckCircle className="w-4 h-4 text-success" />
                       <span>Sleeper: Available (public API)</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      {espnStats.isActive ? (
+                        <CheckCircle className="w-4 h-4 text-success" />
+                      ) : (
+                        <AlertTriangle className="w-4 h-4 text-warning" />
+                      )}
+                      <span>ESPN: {espnStats.isActive ? `Polling (${espnStats.gamesTracked} games)` : 'Not polling'}</span>
                     </div>
                   </div>
                 </div>
