@@ -22,6 +22,8 @@ import { debugLogger } from '../utils/debugLogger';
 import { useYahooData } from '../hooks/useYahooData';
 import { useYahooOAuth } from '../hooks/useYahooOAuth';
 import { nflDataService } from '../services/NFLDataService';
+import { espnSimulationService } from '../services/ESPNSimulationService';
+import { useConfig } from '../hooks/useConfig';
 
 interface LiveDebugPanelProps {
   open: boolean;
@@ -33,14 +35,18 @@ export const LiveDebugPanel = ({ open, onOpenChange }: LiveDebugPanelProps) => {
   const [testResults, setTestResults] = useState<string>('');
   const [isRunningTest, setIsRunningTest] = useState(false);
   const [espnStats, setEspnStats] = useState(nflDataService.getPollingStats());
+  const [isSimulating, setIsSimulating] = useState(false);
+  const [simulationProgress, setSimulationProgress] = useState('');
 
   const { isConnected: yahooConnected } = useYahooOAuth();
   const yahooData = useYahooData();
+  const { config } = useConfig();
 
-  // Update ESPN stats periodically
+  // Update ESPN stats and simulation status periodically
   useEffect(() => {
     const interval = setInterval(() => {
       setEspnStats(nflDataService.getPollingStats());
+      setIsSimulating(espnSimulationService.isRunning());
     }, 2000);
     return () => clearInterval(interval);
   }, []);
@@ -245,6 +251,59 @@ export const LiveDebugPanel = ({ open, onOpenChange }: LiveDebugPanelProps) => {
     }
   };
 
+  // Start ESPN Simulation
+  const startESPNSimulation = async () => {
+    if (isSimulating) {
+      espnSimulationService.stopSimulation();
+      setSimulationProgress('Simulation stopped');
+      toast({
+        title: 'Simulation Stopped',
+        description: 'ESPN play-by-play simulation has been stopped'
+      });
+      return;
+    }
+
+    try {
+      setIsSimulating(true);
+      setSimulationProgress('Starting simulation...');
+      
+      const enabledLeagues = config.leagues.filter(l => l.enabled);
+      if (enabledLeagues.length === 0) {
+        throw new Error('No leagues enabled for simulation');
+      }
+
+      await espnSimulationService.startSimulation(enabledLeagues, 100, 20);
+      
+      setSimulationProgress('Simulation running: 100 events over 20 minutes');
+      toast({
+        title: 'Simulation Started',
+        description: 'ESPN play-by-play simulation is now running (100 events over 20 minutes)'
+      });
+
+      // Monitor simulation progress
+      const progressInterval = setInterval(() => {
+        if (!espnSimulationService.isRunning()) {
+          clearInterval(progressInterval);
+          setIsSimulating(false);
+          setSimulationProgress('Simulation completed');
+          toast({
+            title: 'Simulation Complete',
+            description: 'ESPN play-by-play simulation has finished'
+          });
+        }
+      }, 5000);
+
+    } catch (error) {
+      setIsSimulating(false);
+      setSimulationProgress(`Simulation error: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      toast({
+        title: 'Simulation Error',
+        description: error instanceof Error ? error.message : 'Unknown error',
+        variant: 'destructive'
+      });
+    }
+  };
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
@@ -256,10 +315,11 @@ export const LiveDebugPanel = ({ open, onOpenChange }: LiveDebugPanelProps) => {
         </DialogHeader>
 
         <Tabs defaultValue="tests" className="w-full">
-          <TabsList className="grid w-full grid-cols-5">
+          <TabsList className="grid w-full grid-cols-6">
             <TabsTrigger value="tests">Connection Tests</TabsTrigger>
             <TabsTrigger value="data">Raw Data</TabsTrigger>
             <TabsTrigger value="espn">ESPN Live Data</TabsTrigger>
+            <TabsTrigger value="simulation">ESPN Simulation</TabsTrigger>
             <TabsTrigger value="emergency">Emergency Controls</TabsTrigger>
             <TabsTrigger value="logs">Debug Logs</TabsTrigger>
           </TabsList>
@@ -473,7 +533,92 @@ export const LiveDebugPanel = ({ open, onOpenChange }: LiveDebugPanelProps) => {
             </Card>
           </TabsContent>
 
-          {/* Emergency Controls Tab */}
+          {/* ESPN Simulation Tab */}
+          <TabsContent value="simulation" className="space-y-4">
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base">ESPN Play-by-Play Simulation</CardTitle>
+                <CardDescription>
+                  Simulate realistic ESPN scoring events for testing the live events system
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="p-3 rounded-lg bg-muted/50 border">
+                  <h4 className="font-medium text-sm mb-2">Simulation Configuration</h4>
+                  <div className="space-y-1 text-sm">
+                    <div>• 100 events over 20 minutes</div>
+                    <div>• Events for all roster players across leagues</div>
+                    <div>• Realistic ESPN API format</div>
+                    <div>• Covers TDs, big plays, field goals, turnovers</div>
+                    <div>• Processed through normal live events flow</div>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="p-3 rounded-lg bg-muted/50 border">
+                    <h4 className="font-medium text-sm mb-2">Current Status</h4>
+                    <div className="space-y-1 text-sm">
+                      <div className="flex items-center justify-between">
+                        <span>Simulation:</span>
+                        <Badge variant={isSimulating ? 'default' : 'secondary'}>
+                          {isSimulating ? 'Running' : 'Stopped'}
+                        </Badge>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span>Enabled Leagues:</span>
+                        <span>{config.leagues.filter(l => l.enabled).length}</span>
+                      </div>
+                    </div>
+                  </div>
+                  
+                  <div className="p-3 rounded-lg bg-muted/50 border">
+                    <h4 className="font-medium text-sm mb-2">Event Types</h4>
+                    <div className="text-xs space-y-1">
+                      <div>• Rushing/Passing/Receiving TDs</div>
+                      <div>• Long yardage plays (20+ yards)</div>
+                      <div>• Field goals and extra points</div>
+                      <div>• Turnovers (INTs, fumbles)</div>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <Button 
+                    onClick={startESPNSimulation}
+                    variant={isSimulating ? 'destructive' : 'default'}
+                    className="w-full"
+                    disabled={config.leagues.filter(l => l.enabled).length === 0}
+                  >
+                    <Zap className="w-4 h-4 mr-2" />
+                    {isSimulating ? 'Stop ESPN Simulation' : 'Start ESPN Simulation'}
+                  </Button>
+                  
+                  {config.leagues.filter(l => l.enabled).length === 0 && (
+                    <p className="text-xs text-muted-foreground text-center">
+                      Enable at least one league to run simulation
+                    </p>
+                  )}
+                </div>
+
+                {simulationProgress && (
+                  <div className="p-3 rounded-lg bg-muted/30 border">
+                    <h4 className="font-medium text-sm mb-1">Progress</h4>
+                    <p className="text-sm text-muted-foreground">{simulationProgress}</p>
+                  </div>
+                )}
+
+                <div className="p-3 rounded-lg bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800">
+                  <h4 className="font-medium text-sm mb-2 text-yellow-800 dark:text-yellow-200">How It Works</h4>
+                  <div className="text-xs text-yellow-700 dark:text-yellow-300 space-y-1">
+                    <div>1. Generates realistic ESPN API formatted play-by-play events</div>
+                    <div>2. Uses players from your configured league rosters</div>
+                    <div>3. Events flow through the normal live events system</div>
+                    <div>4. You'll see events appear in league cards and debug logs</div>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
           <TabsContent value="emergency" className="space-y-4">
             <Card className="border-warning">
               <CardHeader>
