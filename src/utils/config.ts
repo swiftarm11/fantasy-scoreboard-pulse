@@ -7,33 +7,6 @@ export const STORAGE_KEYS = {
   CODE_VERIFIER: 'yahoo_oauth_code_verifier',
 };
 
-export interface ScoringEvent {
-  id: string;
-  playerId: string;
-  playerName: string;
-  teamAbbr: string;
-  eventType: 'rushing_td' | 'passing_td' | 'receiving_td' | 'rushing_yards' | 'passing_yards' | 'receiving_yards';
-  description: string; // e.g., "5-yard rushing touchdown"
-  fantasyPoints: number;
-  timestamp: Date;
-  week: number;
-  leagueId: string;
-}
-
-export interface PlayerStatSnapshot {
-  playerId: string;
-  week: number;
-  stats: Record<string, number>; // stat_id -> value
-  lastUpdated: Date;
-}
-
-export interface StatMapping {
-  stat_id: string;
-  name: string;
-  display_name: string;
-  points?: number; // fantasy points per unit
-}
-
 export interface YahooTokens {
   access_token: string;
   refresh_token?: string;
