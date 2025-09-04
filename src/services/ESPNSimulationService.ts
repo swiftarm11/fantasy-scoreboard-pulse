@@ -26,6 +26,67 @@ export class ESPNSimulationService {
   private isSimulating = false;
   private simulationTimeout: NodeJS.Timeout | null = null;
   
+  // Safety utility methods
+  private safeToLowerCase(str: any): string {
+    try {
+      if (str === null || str === undefined) return '';
+      if (typeof str !== 'string') return String(str).toLowerCase();
+      return str.toLowerCase();
+    } catch (error) {
+      debugLogger.error('ESPN_SIMULATION', 'safeToLowerCase failed', { str, error });
+      return '';
+    }
+  }
+
+  private safeGetProperty(obj: any, path: string, defaultValue: any = undefined): any {
+    try {
+      if (!obj || typeof obj !== 'object') return defaultValue;
+      
+      const keys = path.split('.');
+      let current = obj;
+      
+      for (const key of keys) {
+        if (current === null || current === undefined || !(key in current)) {
+          return defaultValue;
+        }
+        current = current[key];
+      }
+      
+      return current !== undefined ? current : defaultValue;
+    } catch (error) {
+      debugLogger.error('ESPN_SIMULATION', 'safeGetProperty failed', { path, error });
+      return defaultValue;
+    }
+  }
+
+  private validatePlayer(player: any): player is SimulationPlayer {
+    try {
+      return player && 
+             typeof player.id === 'string' && 
+             typeof player.name === 'string' && 
+             typeof player.position === 'string' && 
+             typeof player.team === 'string' && 
+             Array.isArray(player.leagueIds);
+    } catch (error) {
+      debugLogger.error('ESPN_SIMULATION', 'validatePlayer failed', { player, error });
+      return false;
+    }
+  }
+
+  private validateTemplate(template: any): template is PlayTemplate {
+    try {
+      return template && 
+             typeof template.eventType === 'string' && 
+             Array.isArray(template.playTypes) && 
+             Array.isArray(template.pointsRange) && 
+             typeof template.description === 'function' && 
+             typeof template.weight === 'number';
+    } catch (error) {
+      debugLogger.error('ESPN_SIMULATION', 'validateTemplate failed', { template, error });
+      return false;
+    }
+  }
+  
   // Play templates based on real NFL scoring events
   private readonly playTemplates: PlayTemplate[] = [
     // Rushing TDs
@@ -184,65 +245,126 @@ export class ESPNSimulationService {
    * Generate single realistic ESPN play
    */
   public generateESPNPlay(player: SimulationPlayer, gameId: string, playId: string): ESPNPlay {
-    const template = this.selectPlayTemplate();
-    const yards = template.yardsRange ? 
-      Math.floor(Math.random() * (template.yardsRange[1] - template.yardsRange[0] + 1)) + template.yardsRange[0] : 
-      undefined;
-
-    const participant: ESPNParticipant = {
-      athlete: {
-        id: player.id,
-        fullName: player.name,
-        displayName: player.name,
-        shortName: player.name.split(' ').map(n => n[0]).join('. ') + player.name.split(' ').pop(),
-        position: {
-          abbreviation: player.position
-        },
-        team: {
-          id: player.team
-        },
-        headshot: {
-          href: `https://a.espncdn.com/i/headshots/nfl/players/full/${player.id}.png`
-        }
+    try {
+      // Validate inputs
+      if (!this.validatePlayer(player)) {
+        debugLogger.error('ESPN_SIMULATION', 'Invalid player provided to generateESPNPlay', { player });
+        throw new Error('Invalid player object provided');
       }
-    };
 
-    const isScoring = template.eventType.includes('td') || template.eventType === 'field_goal';
-    const period = Math.floor(Math.random() * 4) + 1;
-    const clock = this.generateClock();
+      if (!gameId || !playId) {
+        debugLogger.error('ESPN_SIMULATION', 'Missing required IDs for play generation', { gameId, playId });
+        throw new Error('gameId and playId are required');
+      }
 
-    const play: ESPNPlay = {
-      id: playId,
-      sequenceNumber: String(parseInt(playId.split('-').pop() || '0') + Math.floor(Math.random() * 1000)),
-      type: {
-        id: String(Math.floor(Math.random() * 100)),
-        text: template.playTypes[Math.floor(Math.random() * template.playTypes.length)],
-        abbreviation: template.playTypes[0].substring(0, 3).toUpperCase()
-      },
-      text: template.description(player, yards),
-      awayScore: Math.floor(Math.random() * 35),
-      homeScore: Math.floor(Math.random() * 35),
-      period: {
-        number: period
-      },
-      clock: {
-        displayValue: clock
-      },
-      scoringPlay: isScoring,
-      priority: isScoring,
-      participants: [participant],
-      statYardage: yards,
-      start: yards ? {
-        yardLine: Math.floor(Math.random() * 50) + 1,
-        team: { id: player.team }
-      } : undefined,
-      end: yards ? {
-        yardLine: Math.floor(Math.random() * 50) + 1,
-        team: { id: player.team }
-      } : undefined
-    };
+      const template = this.selectPlayTemplate();
+      if (!template) {
+        debugLogger.error('ESPN_SIMULATION', 'Failed to select play template');
+        throw new Error('Unable to select play template');
+      }
 
-    return play;
+      const yards = template.yardsRange ? 
+        Math.floor(Math.random() * (template.yardsRange[1] - template.yardsRange[0] + 1)) + template.yardsRange[0] : 
+        undefined;
+
+      // Safe string operations for player name
+      const playerName = String(player.name || 'Unknown Player');
+      const nameParts = playerName.split(' ').filter(part => part.length > 0);
+      const shortName = nameParts.length > 1 ? 
+        `${nameParts[0].charAt(0)}. ${nameParts[nameParts.length - 1]}` : 
+        playerName;
+
+      const participant: ESPNParticipant = {
+        athlete: {
+          id: String(player.id || 'unknown'),
+          fullName: playerName,
+          displayName: playerName,
+          shortName: shortName,
+          position: {
+            abbreviation: String(player.position || 'UNKNOWN')
+          },
+          team: {
+            id: String(player.team || 'UNKNOWN')
+          },
+          headshot: {
+            href: `https://a.espncdn.com/i/headshots/nfl/players/full/${player.id || 'default'}.png`
+          }
+        }
+      };
+
+      const isScoring = this.safeToLowerCase(template.eventType).includes('td') || 
+                       template.eventType === 'field_goal';
+      const period = Math.floor(Math.random() * 4) + 1;
+      const clock = this.generateClock();
+
+      // Safe play type selection
+      const playTypes = Array.isArray(template.playTypes) ? template.playTypes : ['Unknown'];
+      const selectedPlayType = playTypes[Math.floor(Math.random() * playTypes.length)] || 'Unknown';
+
+      let playDescription: string;
+      try {
+        playDescription = template.description(player, yards);
+      } catch (error) {
+        debugLogger.error('ESPN_SIMULATION', 'Error generating play description', { error, player, yards });
+        playDescription = `${playerName} makes a play.`;
+      }
+
+      const play: ESPNPlay = {
+        id: String(playId),
+        sequenceNumber: String(parseInt(String(playId).split('-').pop() || '0') + Math.floor(Math.random() * 1000)),
+        type: {
+          id: String(Math.floor(Math.random() * 100)),
+          text: selectedPlayType,
+          abbreviation: this.safeToLowerCase(selectedPlayType).substring(0, 3).toUpperCase()
+        },
+        text: playDescription,
+        awayScore: Math.floor(Math.random() * 35),
+        homeScore: Math.floor(Math.random() * 35),
+        period: {
+          number: period
+        },
+        clock: {
+          displayValue: clock
+        },
+        scoringPlay: isScoring,
+        priority: isScoring,
+        participants: [participant],
+        statYardage: yards,
+        start: yards ? {
+          yardLine: Math.floor(Math.random() * 50) + 1,
+          team: { id: String(player.team || 'UNKNOWN') }
+        } : undefined,
+        end: yards ? {
+          yardLine: Math.floor(Math.random() * 50) + 1,
+          team: { id: String(player.team || 'UNKNOWN') }
+        } : undefined
+      };
+
+      return play;
+
+    } catch (error) {
+      debugLogger.error('ESPN_SIMULATION', 'Critical error in generateESPNPlay', { error, player, gameId, playId });
+      
+      // Return a minimal safe play object
+      return {
+        id: String(playId || 'error-play'),
+        sequenceNumber: '0',
+        type: {
+          id: '0',
+          text: 'Error Play',
+          abbreviation: 'ERR'
+        },
+        text: 'Error generating play',
+        awayScore: 0,
+        homeScore: 0,
+        period: { number: 1 },
+        clock: { displayValue: '00:00' },
+        scoringPlay: false,
+        priority: false,
+        participants: [],
+        statYardage: undefined
+      };
+    }
   }
 
   // Private helper methods
@@ -353,124 +475,285 @@ export class ESPNSimulationService {
     totalEvents: number,
     durationMinutes: number
   ): Promise<void> {
-    const intervalMs = (durationMinutes * 60 * 1000) / totalEvents; // Spread events evenly
-    let eventCount = 0;
-
-    const generateEvent = () => {
-      if (!this.isSimulating || eventCount >= totalEvents) {
-        this.isSimulating = false;
-        debugLogger.success('ESPN_SIMULATION', `Completed simulation with ${eventCount} events`);
-        return;
+    try {
+      // Validate inputs
+      if (!Array.isArray(players) || players.length === 0) {
+        throw new Error('No valid players provided for simulation');
       }
 
-      try {
-        // Select random player, prefer players in multiple leagues
-        const player = this.selectWeightedPlayer(players);
-        const gameId = `sim-game-${Math.floor(Date.now() / 1000000)}`;
-        const playId = `sim-play-${eventCount}-${Date.now()}`;
+      if (totalEvents <= 0 || durationMinutes <= 0) {
+        throw new Error('Invalid simulation parameters: events and duration must be positive');
+      }
 
-        // Generate ESPN formatted play
-        const espnPlay = this.generateESPNPlay(player, gameId, playId);
+      const intervalMs = (durationMinutes * 60 * 1000) / totalEvents; // Spread events evenly
+      let eventCount = 0;
 
-        // Convert to NFL scoring event
-        const nflEvent: NFLScoringEvent = {
-          id: `sim-${gameId}-${playId}`,
-          player: {
-            id: player.id,
-            name: player.name,
-            position: player.position,
-            team: player.team
-          },
-          team: player.team,
-          eventType: this.selectPlayTemplate().eventType,
-          description: espnPlay.text,
-          timestamp: new Date(),
-          stats: this.generateEventStats(espnPlay),
-          gameId,
-          period: espnPlay.period.number,
-          clock: espnPlay.clock.displayValue,
-          scoringPlay: espnPlay.scoringPlay
-        };
+      const generateEvent = () => {
+        if (!this.isSimulating || eventCount >= totalEvents) {
+          this.isSimulating = false;
+          debugLogger.success('ESPN_SIMULATION', `Completed simulation with ${eventCount} events`);
+          return;
+        }
 
-        // Process through attribution service (this will trigger the normal flow)
-        const attribution = eventAttributionService.attributeEvent(nflEvent);
-        
-        if (attribution) {
-          // Generate fantasy events and store them
-          const fantasyEvents = eventAttributionService.generateFantasyEvents([attribution]);
+        try {
+          // Select random player, prefer players in multiple leagues
+          const player = this.selectWeightedPlayer(players);
           
-          for (const event of fantasyEvents) {
-            for (const leagueId of player.leagueIds) {
-              eventStorageService.saveEvent(event, leagueId);
+          if (!this.validatePlayer(player)) {
+            debugLogger.error('ESPN_SIMULATION', 'Invalid player selected during event generation', { player });
+            eventCount++;
+            this.scheduleNextEvent(eventCount, totalEvents, intervalMs, generateEvent);
+            return;
+          }
+
+          const gameId = `sim-game-${Math.floor(Date.now() / 1000000)}`;
+          const playId = `sim-play-${eventCount}-${Date.now()}`;
+
+          // Generate ESPN formatted play
+          const espnPlay = this.generateESPNPlay(player, gameId, playId);
+
+          if (!espnPlay || !espnPlay.text) {
+            debugLogger.error('ESPN_SIMULATION', 'Failed to generate valid ESPN play', { player, gameId, playId });
+            eventCount++;
+            this.scheduleNextEvent(eventCount, totalEvents, intervalMs, generateEvent);
+            return;
+          }
+
+          // Get template for consistent event type
+          let selectedTemplate: PlayTemplate;
+          try {
+            selectedTemplate = this.selectPlayTemplate();
+          } catch (error) {
+            debugLogger.error('ESPN_SIMULATION', 'Failed to select template for NFL event', error);
+            eventCount++;
+            this.scheduleNextEvent(eventCount, totalEvents, intervalMs, generateEvent);
+            return;
+          }
+
+          // Convert to NFL scoring event
+          const nflEvent: NFLScoringEvent = {
+            id: `sim-${gameId}-${playId}`,
+            player: {
+              id: String(player.id || 'unknown'),
+              name: String(player.name || 'Unknown Player'),
+              position: player.position || 'UNKNOWN',
+              team: String(player.team || 'UNKNOWN')
+            },
+            team: String(player.team || 'UNKNOWN'),
+            eventType: selectedTemplate.eventType,
+            description: String(espnPlay.text || 'Simulated play'),
+            timestamp: new Date(),
+            stats: this.generateEventStats(espnPlay),
+            gameId: String(gameId),
+            period: espnPlay.period?.number || 1,
+            clock: espnPlay.clock?.displayValue || '00:00',
+            scoringPlay: Boolean(espnPlay.scoringPlay)
+          };
+
+          // Process through attribution service (this will trigger the normal flow)
+          let attribution;
+          try {
+            attribution = eventAttributionService.attributeEvent(nflEvent);
+          } catch (error) {
+            debugLogger.error('ESPN_SIMULATION', 'Failed to attribute event', { error, nflEvent });
+            eventCount++;
+            this.scheduleNextEvent(eventCount, totalEvents, intervalMs, generateEvent);
+            return;
+          }
+          
+          if (attribution) {
+            try {
+              // Generate fantasy events and store them
+              const fantasyEvents = eventAttributionService.generateFantasyEvents([attribution]);
+              
+              if (Array.isArray(fantasyEvents) && fantasyEvents.length > 0) {
+                for (const event of fantasyEvents) {
+                  if (Array.isArray(player.leagueIds)) {
+                    for (const leagueId of player.leagueIds) {
+                      if (leagueId && typeof leagueId === 'string') {
+                        try {
+                          eventStorageService.saveEvent(event, leagueId);
+                        } catch (storageError) {
+                          debugLogger.error('ESPN_SIMULATION', 'Failed to save event to storage', { storageError, event, leagueId });
+                        }
+                      }
+                    }
+                  }
+                }
+
+                debugLogger.info('ESPN_SIMULATION', `Generated event ${eventCount + 1}/${totalEvents}`, {
+                  player: player.name || 'Unknown',
+                  eventType: nflEvent.eventType,
+                  description: nflEvent.description,
+                  affectedLeagues: Array.isArray(player.leagueIds) ? player.leagueIds.length : 0
+                });
+              }
+            } catch (error) {
+              debugLogger.error('ESPN_SIMULATION', 'Error processing fantasy events', { error, attribution });
             }
           }
 
-          debugLogger.info('ESPN_SIMULATION', `Generated event ${eventCount + 1}/${totalEvents}`, {
-            player: player.name,
-            eventType: nflEvent.eventType,
-            description: nflEvent.description,
-            affectedLeagues: player.leagueIds.length
-          });
-        }
+          eventCount++;
+          this.scheduleNextEvent(eventCount, totalEvents, intervalMs, generateEvent);
 
-        eventCount++;
-
-        // Schedule next event
-        if (eventCount < totalEvents && this.isSimulating) {
-          this.simulationTimeout = setTimeout(generateEvent, intervalMs + Math.random() * 2000 - 1000); // Add some jitter
-        } else {
-          this.isSimulating = false;
+        } catch (error) {
+          debugLogger.error('ESPN_SIMULATION', `Error generating event ${eventCount}`, error);
+          eventCount++;
+          this.scheduleNextEvent(eventCount, totalEvents, intervalMs, generateEvent);
         }
+      };
 
-      } catch (error) {
-        debugLogger.error('ESPN_SIMULATION', `Error generating event ${eventCount}`, error);
-        eventCount++;
-        
-        // Continue with next event
-        if (eventCount < totalEvents && this.isSimulating) {
-          this.simulationTimeout = setTimeout(generateEvent, intervalMs);
-        }
+      // Start generating events
+      generateEvent();
+
+    } catch (error) {
+      this.isSimulating = false;
+      debugLogger.error('ESPN_SIMULATION', 'Critical error in scheduleSimulationEvents', error);
+      throw error;
+    }
+  }
+
+  private scheduleNextEvent(
+    eventCount: number, 
+    totalEvents: number, 
+    intervalMs: number, 
+    generateEvent: () => void
+  ): void {
+    try {
+      if (eventCount < totalEvents && this.isSimulating) {
+        const jitter = Math.random() * 2000 - 1000; // Add some jitter (-1s to +1s)
+        const nextInterval = Math.max(100, intervalMs + jitter); // Minimum 100ms interval
+        this.simulationTimeout = setTimeout(generateEvent, nextInterval);
+      } else {
+        this.isSimulating = false;
+        debugLogger.info('ESPN_SIMULATION', 'Simulation completed or stopped', { 
+          finalEventCount: eventCount, 
+          targetEvents: totalEvents 
+        });
       }
-    };
-
-    // Start generating events
-    generateEvent();
+    } catch (error) {
+      debugLogger.error('ESPN_SIMULATION', 'Error scheduling next event', error);
+      this.isSimulating = false;
+    }
   }
 
   private selectPlayTemplate(): PlayTemplate {
-    const totalWeight = this.playTemplates.reduce((sum, t) => sum + t.weight, 0);
-    const random = Math.random() * totalWeight;
-    
-    let weightSum = 0;
-    for (const template of this.playTemplates) {
-      weightSum += template.weight;
-      if (random <= weightSum) {
-        return template;
+    try {
+      if (!Array.isArray(this.playTemplates) || this.playTemplates.length === 0) {
+        debugLogger.error('ESPN_SIMULATION', 'Play templates array is invalid or empty');
+        throw new Error('No play templates available');
       }
+
+      // Validate all templates before selection
+      const validTemplates = this.playTemplates.filter(template => this.validateTemplate(template));
+      
+      if (validTemplates.length === 0) {
+        debugLogger.error('ESPN_SIMULATION', 'No valid play templates found');
+        throw new Error('All play templates are invalid');
+      }
+
+      const totalWeight = validTemplates.reduce((sum, t) => sum + (t.weight || 0), 0);
+      
+      if (totalWeight <= 0) {
+        debugLogger.error('ESPN_SIMULATION', 'Total weight is zero or negative', { totalWeight });
+        return validTemplates[0]; // Return first valid template as fallback
+      }
+
+      const random = Math.random() * totalWeight;
+      let weightSum = 0;
+      
+      for (const template of validTemplates) {
+        weightSum += (template.weight || 0);
+        if (random <= weightSum) {
+          return template;
+        }
+      }
+      
+      // Fallback to first valid template
+      return validTemplates[0];
+
+    } catch (error) {
+      debugLogger.error('ESPN_SIMULATION', 'Error in selectPlayTemplate', error);
+      
+      // Ultimate fallback - create a minimal safe template
+      return {
+        eventType: 'rushing_yards',
+        playTypes: ['Rush'],
+        pointsRange: [1, 2],
+        yardsRange: [1, 10],
+        description: (player) => `${player?.name || 'Player'} makes a play.`,
+        weight: 1
+      };
     }
-    
-    return this.playTemplates[0]; // Fallback
   }
 
   private selectWeightedPlayer(players: SimulationPlayer[]): SimulationPlayer {
-    // Prefer players that are in multiple leagues (more impact)
-    const weightedPlayers = players.map(p => ({
-      player: p,
-      weight: p.leagueIds.length * 2 + (p.position === 'QB' || p.position === 'RB' ? 2 : 1)
-    }));
-
-    const totalWeight = weightedPlayers.reduce((sum, wp) => sum + wp.weight, 0);
-    const random = Math.random() * totalWeight;
-    
-    let weightSum = 0;
-    for (const wp of weightedPlayers) {
-      weightSum += wp.weight;
-      if (random <= weightSum) {
-        return wp.player;
+    try {
+      if (!Array.isArray(players) || players.length === 0) {
+        debugLogger.error('ESPN_SIMULATION', 'Players array is invalid or empty');
+        throw new Error('No players available for selection');
       }
+
+      // Validate and filter players
+      const validPlayers = players.filter(player => this.validatePlayer(player));
+      
+      if (validPlayers.length === 0) {
+        debugLogger.error('ESPN_SIMULATION', 'No valid players found');
+        throw new Error('All players are invalid');
+      }
+
+      // Create weighted players with safe property access
+      const weightedPlayers = validPlayers.map(p => {
+        try {
+          const leagueCount = Array.isArray(p.leagueIds) ? p.leagueIds.length : 0;
+          const positionBonus = (p.position === 'QB' || p.position === 'RB') ? 2 : 1;
+          const weight = Math.max(1, leagueCount * 2 + positionBonus); // Ensure minimum weight of 1
+          
+          return {
+            player: p,
+            weight: weight
+          };
+        } catch (error) {
+          debugLogger.error('ESPN_SIMULATION', 'Error calculating player weight', { player: p, error });
+          return {
+            player: p,
+            weight: 1 // Fallback weight
+          };
+        }
+      });
+
+      const totalWeight = weightedPlayers.reduce((sum, wp) => sum + (wp.weight || 0), 0);
+      
+      if (totalWeight <= 0) {
+        debugLogger.error('ESPN_SIMULATION', 'Total player weight is zero or negative');
+        return validPlayers[0]; // Return first valid player
+      }
+
+      const random = Math.random() * totalWeight;
+      let weightSum = 0;
+      
+      for (const wp of weightedPlayers) {
+        weightSum += (wp.weight || 0);
+        if (random <= weightSum && wp.player) {
+          return wp.player;
+        }
+      }
+      
+      // Fallback to first valid player
+      return validPlayers[0];
+
+    } catch (error) {
+      debugLogger.error('ESPN_SIMULATION', 'Critical error in selectWeightedPlayer', error);
+      
+      // Create emergency fallback player if all else fails
+      return {
+        id: 'emergency-player',
+        name: 'Emergency Player',
+        position: 'QB',
+        team: 'NFL',
+        leagueIds: ['emergency-league']
+      };
     }
-    
-    return players[0]; // Fallback
   }
 
   private generateClock(): string {
