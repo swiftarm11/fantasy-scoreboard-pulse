@@ -3,6 +3,7 @@ import { playerMappingService, RosterPlayer } from './PlayerMappingService';
 import { NFLScoringEvent } from './NFLDataService';
 import { yahooFantasyAPI } from './YahooFantasyAPI';
 import { sleeperAPIEnhanced } from './SleeperAPIEnhanced';
+import { sleeperService } from './SleeperService';
 import { Platform, LeagueData, ScoringEvent } from '../types/fantasy';
 import { LeagueConfig } from '../types/config';
 
@@ -481,26 +482,71 @@ export class EventAttributionService {
 
       this.cache.rosters.set(`Sleeper-${leagueConfig.leagueId}`, roster);
 
-      // Create default Sleeper scoring settings
-      const scoringSettings: LeagueScoringSettings = {
-        leagueId: leagueConfig.leagueId,
-        platform: 'Sleeper',
-        pointsPerPassingYard: 0.04,
-        pointsPerPassingTd: 4,
-        pointsPerRushingYard: 0.1,
-        pointsPerRushingTd: 6,
-        pointsPerReceivingYard: 0.1,
-        pointsPerReceivingTd: 6,
-        pointsPerReception: league.scoring_settings?.rec || 0,
-        pointsPerFieldGoal: 3,
-        pointsPerSafety: 2,
-        pointsPerFumble: -2,
-        pointsPerInterception: -2,
-        customRules: league.scoring_settings || {},
-        lastUpdated: new Date()
-      };
+      // Fetch proper scoring settings using SleeperService
+      try {
+        const standardizedScoring = await sleeperService.getLeagueScoring(leagueConfig.leagueId);
+        
+        // Convert standardized scoring to internal format
+        const scoringSettings: LeagueScoringSettings = {
+          leagueId: leagueConfig.leagueId,
+          platform: 'Sleeper',
+          pointsPerPassingYard: standardizedScoring.pass_yd,
+          pointsPerPassingTd: standardizedScoring.pass_td,
+          pointsPerRushingYard: standardizedScoring.rush_yd,
+          pointsPerRushingTd: standardizedScoring.rush_td,
+          pointsPerReceivingYard: standardizedScoring.rec_yd,
+          pointsPerReceivingTd: standardizedScoring.rec_td,
+          pointsPerReception: standardizedScoring.rec,
+          pointsPerFieldGoal: standardizedScoring.fgm_30_39, // Default field goal value
+          pointsPerSafety: standardizedScoring.def_safe,
+          pointsPerFumble: standardizedScoring.fum_lost,
+          pointsPerInterception: standardizedScoring.pass_int,
+          customRules: {
+            // Store all standardized rules for advanced calculations
+            ...Object.fromEntries(
+              Object.entries(standardizedScoring).map(([key, value]) => [key, value as number])
+            )
+          },
+          lastUpdated: new Date()
+        };
 
-      this.cache.scoringSettings.set(leagueConfig.leagueId, scoringSettings);
+        this.cache.scoringSettings.set(leagueConfig.leagueId, scoringSettings);
+        
+        debugLogger.success('EVENT_ATTRIBUTION', 'Loaded Sleeper scoring settings', {
+          leagueId: leagueConfig.leagueId,
+          isPPR: standardizedScoring.rec > 0,
+          passingTdPoints: standardizedScoring.pass_td,
+          rushingTdPoints: standardizedScoring.rush_td,
+          receivingTdPoints: standardizedScoring.rec_td
+        });
+      
+      } catch (scoringError) {
+        debugLogger.warning('EVENT_ATTRIBUTION', 'Failed to load Sleeper scoring settings, using defaults', {
+          leagueId: leagueConfig.leagueId,
+          error: scoringError.message
+        });
+        
+        // Fallback to default scoring settings
+        const defaultScoring: LeagueScoringSettings = {
+          leagueId: leagueConfig.leagueId,
+          platform: 'Sleeper',
+          pointsPerPassingYard: 0.04,
+          pointsPerPassingTd: 4,
+          pointsPerRushingYard: 0.1,
+          pointsPerRushingTd: 6,
+          pointsPerReceivingYard: 0.1,
+          pointsPerReceivingTd: 6,
+          pointsPerReception: league.scoring_settings?.rec || 0,
+          pointsPerFieldGoal: 3,
+          pointsPerSafety: 2,
+          pointsPerFumble: -2,
+          pointsPerInterception: -2,
+          customRules: league.scoring_settings || {},
+          lastUpdated: new Date()
+        };
+
+        this.cache.scoringSettings.set(leagueConfig.leagueId, defaultScoring);
+      }
 
     } catch (error) {
       debugLogger.error('EVENT_ATTRIBUTION', 'Failed to load Sleeper roster', error);
