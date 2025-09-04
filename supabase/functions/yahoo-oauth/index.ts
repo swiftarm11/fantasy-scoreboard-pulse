@@ -58,6 +58,33 @@ serve(async (req) => {
           status: 200,
         }
       )
+
+    } else if (action === 'getLeagueSettings') {
+      const { leagueKey } = await req.json();
+      const settingsUrl = `https://fantasysports.yahooapis.com/fantasy/v2/league/${leagueKey}/settings?format=json`;
+      const settingsResponse = await fetch(settingsUrl, {
+        headers: { 'Authorization': `Bearer ${accessToken}` }
+      });
+      const settingsData = await settingsResponse.json();
+      return new Response(JSON.stringify(settingsData), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+
+    } else if (action === 'getPlayerStats') {
+      const { playerKey, week } = await req.json();
+      const statsUrl = `https://fantasysports.yahooapis.com/fantasy/v2/player/${playerKey}/stats?week=${week}&format=json`;
+      const statsResponse = await fetch(statsUrl, {
+        headers: { 'Authorization': `Bearer ${accessToken}` }
+      });
+      const statsData = await statsResponse.json();
+      return new Response(JSON.stringify(statsData), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+
+    } else if (action === 'getLeagueRosters') {
+      const { leagueKey, week } = await req.json();
+      const rostersUrl = `https://fantasysports.yahooapis.com/fantasy/v2/league/${leagueKey}/teams/roster?week=${week}&format=json`;
+      const rostersResponse = await fetch(rostersUrl, {
+        headers: { 'Authorization': `Bearer ${accessToken}` }
+      });
+      const rostersData = await rostersResponse.json();
+      return new Response(JSON.stringify(rostersData), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
     }
 
     let tokenResponse
