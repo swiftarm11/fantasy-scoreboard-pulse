@@ -19,7 +19,7 @@ export interface LiveEventsState {
 export interface UseLiveEventsOptions {
   leagues: LeagueConfig[];
   enabled: boolean;
-  pollingInterval?: number; // seconds
+  pollingInterval?: number; // seconds (minimum 20)
 }
 
 export const useLiveEventsSystem = ({ 
@@ -93,13 +93,15 @@ export const useLiveEventsSystem = ({
     }
 
     debugLogger.info('LIVE_EVENTS', 'Starting NFL event polling', {
-      interval: pollingInterval
+      requestedInterval: pollingInterval,
+      effectiveInterval: Math.max(pollingInterval, 20)
     });
 
     setLiveState(prev => ({ ...prev, isPolling: true }));
 
-    // Start NFL data service polling
-    await nflDataService.startPolling(pollingInterval * 1000);
+    // Start NFL data service polling (enforce 20 second minimum)
+    const effectiveInterval = Math.max(pollingInterval, 20);
+    await nflDataService.startPolling(effectiveInterval * 1000);
 
     const pollForEvents = async () => {
       try {

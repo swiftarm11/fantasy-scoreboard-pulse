@@ -182,11 +182,10 @@ export class NFLDataService {
   private pollingInterval: NodeJS.Timeout | null = null;
   private gameStates: Map<string, GamePollingState> = new Map();
   private eventCallbacks: ((event: NFLScoringEvent) => void)[] = [];
-  private pollingIntervalMs = 30000; // 30 seconds default
+  private pollingIntervalMs = 20000; // 20 seconds minimum for deduplication
   private isPolling = false;
   private currentWeek: number | null = null;
-  private readonly ESPN_SCOREBOARD_URL = 'https://site.api.espn.com/apis/site/v2/sports/football/nfl/scoreboard';
-  private readonly ESPN_GAME_URL = 'https://site.api.espn.com/apis/site/v2/sports/football/nfl/summary';
+  private readonly ESPN_EDGE_FUNCTION_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/espn-api`;
 
   private constructor() {}
 
@@ -200,16 +199,20 @@ export class NFLDataService {
   /**
    * Start polling for active NFL games
    */
-  public async startPolling(intervalMs: number = 30000): Promise<void> {
+  public async startPolling(intervalMs: number = 20000): Promise<void> {
     if (this.isPolling) {
       debugLogger.warning('NFL_DATA', 'Polling already active, skipping start request');
       return;
     }
 
-    this.pollingIntervalMs = intervalMs;
+    // Enforce minimum 20 second interval for deduplication
+    this.pollingIntervalMs = Math.max(intervalMs, 20000);
     this.isPolling = true;
     
-    debugLogger.info('NFL_DATA', 'Starting NFL game polling', { intervalMs });
+    debugLogger.info('NFL_DATA', 'Starting NFL game polling', { 
+      requestedInterval: intervalMs,
+      actualInterval: this.pollingIntervalMs 
+    });
 
     // Initial poll
     await this.pollActiveGames();
@@ -240,23 +243,24 @@ export class NFLDataService {
   }
 
   /**
-   * Fetch current week NFL games from ESPN
+   * Fetch current week NFL games from ESPN via edge function
    */
   public async pollActiveGames(): Promise<ESPNGame[]> {
     try {
       const url = this.buildScoreboardUrl();
-      debugLogger.api('NFL_DATA', `Fetching scoreboard data from ESPN`, { url });
+      debugLogger.api('NFL_DATA', `Fetching scoreboard data via edge function`, { url });
       
       const response = await fetch(url, {
         method: 'GET',
         headers: {
           'Accept': 'application/json',
-          'User-Agent': 'Mozilla/5.0 (compatible; FantasyScoreboard/1.0)'
+          'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+          'apikey': import.meta.env.VITE_SUPABASE_ANON_KEY
         }
       });
 
       if (!response.ok) {
-        throw new Error(`ESPN API returned ${response.status}: ${response.statusText}`);
+        throw new Error(`Edge function returned ${response.status}: ${response.statusText}`);
       }
 
       const data = await response.json();
@@ -291,14 +295,22 @@ export class NFLDataService {
   }
 
   /**
-   * Parse play-by-play data from ESPN game data
+   * Parse play-by-play data from ESPN game data via edge function
    */
   public async parsePlayByPlay(gameId: string): Promise<ESPNPlay[]> {
     try {
-      const url = `${this.ESPN_GAME_URL}?event=${gameId}`;
-      debugLogger.api('NFL_DATA', `Fetching play-by-play for game ${gameId}`);
+      const url = `${this.ESPN_EDGE_FUNCTION_URL}?endpoint=game-summary&gameId=${gameId}`;
+      debugLogger.api('NFL_DATA', `Fetching play-by-play via edge function for game ${gameId}`);
 
-      const response = await fetch(url);
+      const response = await fetch(url, {
+        method: 'GET',
+        headers: {
+          'Accept': 'application/json',
+          'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+          'apikey': import.meta.env.VITE_SUPABASE_ANON_KEY
+        }
+      });
+      
       if (!response.ok) {
         throw new Error(`Failed to fetch game ${gameId}: ${response.status}`);
       }
@@ -409,11 +421,11 @@ export class NFLDataService {
   // Private helper methods
   
   private buildScoreboardUrl(): string {
-    // Use current week if available, otherwise let ESPN determine current week
+    // Use current week if available, otherwise let edge function determine current week
     if (this.currentWeek) {
-      return `${this.ESPN_SCOREBOARD_URL}?week=${this.currentWeek}`;
+      return `${this.ESPN_EDGE_FUNCTION_URL}?endpoint=scoreboard&week=${this.currentWeek}`;
     }
-    return this.ESPN_SCOREBOARD_URL;
+    return `${this.ESPN_EDGE_FUNCTION_URL}?endpoint=scoreboard`;
   }
 
   private isGameActive(game: ESPNGame): boolean {
