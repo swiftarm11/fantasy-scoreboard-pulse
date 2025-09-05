@@ -23,6 +23,7 @@ import { useYahooData } from '../hooks/useYahooData';
 import { useYahooOAuth } from '../hooks/useYahooOAuth';
 import { nflDataService } from '../services/NFLDataService';
 import { espnSimulationService } from '../services/ESPNSimulationService';
+import { useESPNData } from '../hooks/useESPNData';
 import { useConfig } from '../hooks/useConfig';
 
 interface LiveDebugPanelProps {
@@ -41,6 +42,18 @@ export const LiveDebugPanel = ({ open, onOpenChange }: LiveDebugPanelProps) => {
   const { isConnected: yahooConnected } = useYahooOAuth();
   const yahooData = useYahooData();
   const { config } = useConfig();
+  
+  // Use new ESPN data hook
+  const { 
+    scoreboardData, 
+    loading: espnLoading, 
+    error: espnError,
+    fetchScoreboard,
+    startPolling: startESPNPolling,
+    stopPolling: stopESPNPolling,
+    isPolling: espnIsPolling,
+    lastFetch
+  } = useESPNData();
 
   // Update ESPN stats and simulation status periodically
   useEffect(() => {
@@ -99,19 +112,25 @@ export const LiveDebugPanel = ({ open, onOpenChange }: LiveDebugPanelProps) => {
         setTestResults(prev => prev + '\n🔍 Testing ESPN connection...\n');
         
         try {
-          // Test ESPN API by fetching current scoreboard
-          const games = await nflDataService.pollActiveGames();
+          // Test ESPN API using new hook
+          await fetchScoreboard();
+          const games = scoreboardData?.games || [];
           setTestResults(prev => prev + `✅ ESPN: Connection successful (${games.length} games found)\n`);
           
           // Show current week info
-          const currentWeek = nflDataService.getCurrentWeek();
-          if (currentWeek) {
-            setTestResults(prev => prev + `📅 Current NFL Week: ${currentWeek}\n`);
+          if (scoreboardData?.week) {
+            setTestResults(prev => prev + `📅 Current NFL Week: ${scoreboardData.week}\n`);
           }
           
-          // Show polling status
-          const stats = nflDataService.getPollingStats();
-          setTestResults(prev => prev + `📊 Polling Status: ${stats.isActive ? 'Active' : 'Inactive'} (${stats.gamesTracked} games tracked)\n`);
+          // Show loading and polling status
+          setTestResults(prev => prev + `🔄 Loading: ${espnLoading ? 'YES' : 'NO'}\n`);
+          setTestResults(prev => prev + `📊 Polling Status: ${espnIsPolling ? 'Active' : 'Inactive'}\n`);
+          if (espnError) {
+            setTestResults(prev => prev + `⚠️ Error: ${espnError}\n`);
+          }
+          if (lastFetch) {
+            setTestResults(prev => prev + `🕒 Last Fetch: ${new Date(lastFetch).toLocaleTimeString()}\n`);
+          }
           
         } catch (error) {
           setTestResults(prev => prev + `❌ ESPN: Connection failed - ${error instanceof Error ? error.message : 'Unknown error'}\n`);

@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { supabase } from '../utils/supabase';
+import { supabase } from '../integrations/supabase/client';
 
 export interface ScoreboardGame {
   id: string;

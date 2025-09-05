@@ -5,6 +5,7 @@ import { nflDataService, NFLScoringEvent } from '../services/NFLDataService';
 import { eventAttributionService, FantasyEventAttribution } from '../services/EventAttributionService';
 import { eventStorageService, StoredEvent } from '../services/EventStorageService';
 import { debugLogger } from '../utils/debugLogger';
+import { useESPNData } from './useESPNData';
 
 export interface LiveEventsState {
   isActive: boolean;
@@ -27,6 +28,17 @@ export const useLiveEventsSystem = ({
   enabled, 
   pollingInterval = 30 
 }: UseLiveEventsOptions) => {
+  // Use the new ESPN data hook
+  const { 
+    scoreboardData, 
+    loading: espnLoading, 
+    error: espnError, 
+    fetchScoreboard, 
+    startPolling: startESPNPolling, 
+    stopPolling: stopESPNPolling,
+    isPolling: espnIsPolling 
+  } = useESPNData();
+
   const [liveState, setLiveState] = useState<LiveEventsState>({
     isActive: false,
     isPolling: false,
@@ -57,8 +69,8 @@ export const useLiveEventsSystem = ({
       // Load rosters for event attribution
       await eventAttributionService.loadRosters(leagues);
       
-      // Get NFL week info
-      const nflWeek = await nflDataService.getCurrentWeek();
+      // Get NFL week info from scoreboard data
+      const nflWeek = scoreboardData?.week || new Date().getFullYear();
       
       // Load recent events from storage
       const recent = eventStorageService.getRecentEvents(60); // Last hour
@@ -145,19 +157,19 @@ export const useLiveEventsSystem = ({
 
   }, [enabled, liveState.isActive, liveState.isPolling, pollingInterval]);
 
-  // Stop polling
+  // Stop polling using new ESPN hook
   const stopPolling = useCallback(() => {
     if (pollingIntervalRef.current) {
       clearInterval(pollingIntervalRef.current);
       pollingIntervalRef.current = null;
     }
 
-    // Stop NFL data service polling
-    nflDataService.stopPolling();
+    // Stop ESPN polling using the new hook
+    stopESPNPolling();
 
     setLiveState(prev => ({ ...prev, isPolling: false }));
     
-    debugLogger.info('LIVE_EVENTS', 'Stopped NFL event polling');
+    debugLogger.info('LIVE_EVENTS', 'Stopped ESPN polling');
   }, []);
 
   // Get events for a specific league
@@ -298,13 +310,21 @@ export const useLiveEventsSystem = ({
     };
   }, [liveState.isActive, liveState.isPolling, enabled, startPolling, stopPolling]);
 
+  // Initialize ESPN data fetching on mount
+  useEffect(() => {
+    if (enabled && leagues.length > 0) {
+      fetchScoreboard();
+    }
+  }, [enabled, leagues.length, fetchScoreboard]);
+
   // Cleanup on unmount
   useEffect(() => {
     return () => {
       stopPolling();
+      stopESPNPolling();
       isInitializedRef.current = false;
     };
-  }, [stopPolling]);
+  }, [stopPolling, stopESPNPolling]);
 
   // Get cache statistics for debugging
   const getCacheStats = useCallback(() => {
