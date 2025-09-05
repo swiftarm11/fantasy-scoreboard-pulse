@@ -193,11 +193,11 @@ export const DebugConsole = () => {
                 </div>
               </div>
               
-              {debugInfo.yahooConfig.missing && debugInfo.yahooConfig.missing.length > 0 && (
+              {debugInfo.yahooConfig.missing.length > 0 && (
                 <div className="mt-2 p-2 bg-destructive/10 rounded">
                   <p className="text-destructive font-semibold">Missing Variables:</p>
                   <ul className="list-disc list-inside text-destructive">
-                    {debugInfo.yahooConfig.missing?.map(missing => (
+                    {debugInfo.yahooConfig.missing.map(missing => (
                       <li key={missing} className="font-mono">{missing}</li>
                     ))}
                   </ul>
