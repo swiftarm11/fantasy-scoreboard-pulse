@@ -36,6 +36,10 @@ export function validateYahooConfig(): void {
   if (!YAHOO_CONFIG.isConfigured) {
     throw new Error(
       'Yahoo OAuth not configured. Set VITE_YAHOO_CLIENT_ID and VITE_YAHOO_REDIRECT_URI.'
+    );
+  }
+}
+
 /* ─────────────────────────  LIVE-SCORING ADDITIONS  ───────────────────────── */
 
 export interface MatchupTeam {
@@ -70,13 +74,13 @@ export interface Scoreboard {
   matchups: Matchup[];
 }
 
-/* keep existing LeagueData but extend with scoreboard + current scores */
-declare module './config' {
-  interface LeagueData {
-    scoreboard?: Scoreboard;
-    user_team?: LeagueData['user_team'] & {
-      current_score?: string;
-      projected_score?: string;
-    };
-  }
+// Extended interfaces for league data with scoring
+export interface ExtendedUserTeam {
+  current_score?: string;
+  projected_score?: string;
+}
+
+export interface ExtendedLeagueData {
+  scoreboard?: Scoreboard;
+  user_team?: ExtendedUserTeam;
 }
