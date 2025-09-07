@@ -1,353 +1,264 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { LeagueData, ScoringEvent } from '../types/fantasy';
-import { LeagueConfig } from '../types/config';
-import { nflDataService, NFLScoringEvent } from '../services/NFLDataService';
-import { eventAttributionService, FantasyEventAttribution } from '../services/EventAttributionService';
-import { eventStorageService, StoredEvent } from '../services/EventStorageService';
 import { debugLogger } from '../utils/debugLogger';
 import { useESPNData } from './useESPNData';
+import { nflDataService, NFLScoringEvent } from '../services/NFLDataService';
+import { eventAttributionService, FantasyEventAttribution } from '../services/EventAttributionService';
+import { eventStorageService, ConfigScoringEvent } from '../services/EventStorageService';
+import { LeagueConfig } from '../types/config';
+import { ScoringEvent, LeagueData } from '../types/fantasy';
 
 export interface LiveEventsState {
   isActive: boolean;
   isPolling: boolean;
   connectedLeagues: number;
-  lastEventTime: string | null;
   eventCount: number;
-  nflWeek: number | null;
+  lastEventTime: string | null;
+  nflWeek: number;
   activeGames: number;
 }
 
-export interface UseLiveEventsOptions {
+interface UseLiveEventsOptions {
   leagues: LeagueConfig[];
   enabled: boolean;
-  pollingInterval?: number; // seconds (minimum 20)
+  pollingInterval?: number;
 }
 
-export const useLiveEventsSystem = ({ 
-  leagues, 
-  enabled, 
-  pollingInterval = 30 
+export const useLiveEventsSystem = ({
+  leagues,
+  enabled,
+  pollingInterval = 30000
 }: UseLiveEventsOptions) => {
-  // Use the new ESPN data hook
-  const { 
-    scoreboardData, 
-    loading: espnLoading, 
-    error: espnError, 
-    fetchScoreboard, 
-    startPolling: startESPNPolling, 
-    stopPolling: stopESPNPolling,
-    isPolling: espnIsPolling 
-  } = useESPNData();
-
   const [liveState, setLiveState] = useState<LiveEventsState>({
     isActive: false,
     isPolling: false,
     connectedLeagues: 0,
-    lastEventTime: null,
     eventCount: 0,
-    nflWeek: null,
+    lastEventTime: null,
+    nflWeek: 1,
     activeGames: 0
   });
 
-  const [recentEvents, setRecentEvents] = useState<StoredEvent[]>([]);
-  const [attributionCallbackCount, setAttributionCallbackCount] = useState(0);
-  const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null);
-  const isInitializedRef = useRef(false);
+  const [recentEvents, setRecentEvents] = useState<ScoringEvent[]>([]);
+  const eventCallbacks = useRef<(() => void)[]>([]);
+  const isInitialized = useRef(false);
 
-  // Initialize the system
+  // Initialize ESPN data polling
+  const { fetchScoreboard, startPolling: startESPNPolling, stopPolling: stopESPNPolling } = useESPNData();
+
+  // Initialize system
   const initializeSystem = useCallback(async () => {
-    if (isInitializedRef.current || !enabled || leagues.length === 0) {
+    if (!enabled || leagues.length === 0 || isInitialized.current) {
       return;
     }
 
-    debugLogger.info('LIVE_EVENTS', 'Initializing live events system', {
-      leagueCount: leagues.length,
-      enabledLeagues: leagues.filter(l => l.enabled).length
-    });
+    try {
+      debugLogger.info('LIVE_EVENTS', 'Initializing live events system', {
+        leagueCount: leagues.length,
+        enabled
+      });
+
+      // Load rosters for enabled leagues
+      const enabledLeagues = leagues.filter(l => l.enabled);
+      if (enabledLeagues.length > 0) {
+        await eventAttributionService.loadRosters(enabledLeagues);
+      }
+
+      // Set up NFL event callbacks
+      const unsubscribeNFL = nflDataService.onScoringEvent((nflEvent: NFLScoringEvent) => {
+        debugLogger.info('LIVE_EVENTS', 'Processing NFL scoring event', {
+          player: nflEvent.player.name,
+          eventType: nflEvent.eventType
+        });
+
+        // Attribute event to fantasy teams
+        const attribution = eventAttributionService.attributeEvent(nflEvent);
+        if (attribution) {
+          // Store events for each affected league
+          attribution.fantasyEvents.forEach(impact => {
+            const eventToStore: ConfigScoringEvent = {
+              id: `${nflEvent.id}-${impact.leagueId}`,
+              playerId: impact.player.platformPlayerId,
+              playerName: impact.player.name,
+              teamAbbr: impact.player.team,
+              eventType: impact.eventType,
+              description: impact.description,
+              fantasyPoints: impact.pointsScored,
+              timestamp: attribution.timestamp,
+              week: nflDataService.getCurrentWeek() || 1,
+              leagueId: impact.leagueId
+            };
+            
+            eventStorageService.addEvent(impact.leagueId, eventToStore);
+          });
+
+          // Update state
+          setLiveState(prev => ({
+            ...prev,
+            lastEventTime: new Date().toISOString(),
+            eventCount: prev.eventCount + attribution.fantasyEvents.length
+          }));
+
+          // Update recent events
+          updateRecentEvents();
+        }
+      });
+
+      eventCallbacks.current.push(unsubscribeNFL);
+      isInitialized.current = true;
+
+      // Update state
+      const cacheStats = eventAttributionService.getCacheStats();
+      setLiveState(prev => ({
+        ...prev,
+        connectedLeagues: cacheStats.rostersCount,
+        nflWeek: nflDataService.getCurrentWeek() || 1
+      }));
+
+      debugLogger.success('LIVE_EVENTS', 'Live events system initialized', {
+        connectedLeagues: cacheStats.rostersCount
+      });
+
+    } catch (error) {
+      debugLogger.error('LIVE_EVENTS', 'Failed to initialize live events system', error);
+    }
+  }, [enabled, leagues]);
+
+  // Update recent events from storage
+  const updateRecentEvents = useCallback(() => {
+    const allEvents: ScoringEvent[] = [];
+    
+    for (const league of leagues.filter(l => l.enabled)) {
+      const leagueEvents = eventStorageService.getEvents(league.leagueId);
+      const recentLeagueEvents = leagueEvents
+        .slice(-5) // Last 5 events per league
+        .map(event => ({
+          id: event.id,
+          playerName: event.playerName,
+          position: event.teamAbbr,
+          weeklyPoints: event.fantasyPoints,
+          action: event.description,
+          scoreImpact: event.fantasyPoints,
+          timestamp: event.timestamp.toISOString(),
+          isRecent: Date.now() - event.timestamp.getTime() < 300000
+        }));
+      
+      allEvents.push(...recentLeagueEvents);
+    }
+
+    // Sort by timestamp and take most recent 10
+    allEvents.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+    setRecentEvents(allEvents.slice(0, 10));
+  }, [leagues]);
+
+  // Get live events for a specific league
+  const getLiveEventsForLeague = useCallback((league: LeagueData): ScoringEvent[] => {
+    const events = eventStorageService.getEvents(league.id);
+    return events.map(event => ({
+      id: event.id,
+      playerName: event.playerName,
+      position: event.teamAbbr,
+      weeklyPoints: event.fantasyPoints,
+      action: event.description,
+      scoreImpact: event.fantasyPoints,
+      timestamp: event.timestamp.toISOString(),
+      isRecent: Date.now() - event.timestamp.getTime() < 300000
+    }));
+  }, []);
+
+  // Start live polling
+  const startSystem = useCallback(async () => {
+    if (!isInitialized.current) {
+      await initializeSystem();
+    }
 
     try {
-      // Load rosters for event attribution
-      await eventAttributionService.loadRosters(leagues);
+      // Start NFL data polling
+      await nflDataService.startPolling(pollingInterval);
       
-      // Get NFL week info from scoreboard data
-      const nflWeek = scoreboardData?.week || new Date().getFullYear();
-      
-      // Load recent events from storage
-      const recent = eventStorageService.getRecentEvents(60); // Last hour
-      
+      // Start ESPN polling for scoreboard updates
+      startESPNPolling();
+
       setLiveState(prev => ({
         ...prev,
         isActive: true,
-        connectedLeagues: leagues.filter(l => l.enabled).length,
-        nflWeek,
-        eventCount: recent.length
+        isPolling: true
       }));
 
-      setRecentEvents(recent);
-      isInitializedRef.current = true;
-
-      debugLogger.success('LIVE_EVENTS', 'System initialized successfully', {
-        nflWeek,
-        recentEvents: recent.length,
-        connectedLeagues: leagues.filter(l => l.enabled).length
-      });
-
+      debugLogger.success('LIVE_EVENTS', 'Live events system started');
     } catch (error) {
-      debugLogger.error('LIVE_EVENTS', 'Failed to initialize system', error);
-      setLiveState(prev => ({ ...prev, isActive: false }));
+      debugLogger.error('LIVE_EVENTS', 'Failed to start live events system', error);
     }
-  }, [leagues, enabled]);
+  }, [initializeSystem, pollingInterval, startESPNPolling]);
 
-  // Start polling for NFL events
-  const startPolling = useCallback(async () => {
-    if (!enabled || !liveState.isActive || liveState.isPolling) {
-      return;
-    }
-
-    debugLogger.info('LIVE_EVENTS', 'Starting NFL event polling', {
-      requestedInterval: pollingInterval,
-      effectiveInterval: Math.max(pollingInterval, 20)
-    });
-
-    setLiveState(prev => ({ ...prev, isPolling: true }));
-
-    try {
-      // Start NFL data service polling (enforce 20 second minimum)
-      // NFL service handles all API calls internally - no duplicate polling needed
-      const effectiveInterval = Math.max(pollingInterval, 20);
-      await nflDataService.startPolling(effectiveInterval * 1000);
-
-      // Set up status monitoring only (no additional API calls)
-      const monitorStatus = () => {
-        try {
-          const stats = nflDataService.getPollingStats();
-          
-          setLiveState(prev => ({
-            ...prev,
-            activeGames: stats.gamesTracked
-          }));
-
-          // Update recent events display
-          const recent = eventStorageService.getRecentEvents(60);
-          setRecentEvents(recent);
-
-          if (recent.length > 0) {
-            setLiveState(prev => ({
-              ...prev,
-              lastEventTime: recent[0].timestamp,
-              eventCount: recent.length
-            }));
-          }
-
-        } catch (error) {
-          debugLogger.error('LIVE_EVENTS', 'Status monitoring error', error);
-        }
-      };
-
-      // Initial status check
-      monitorStatus();
-
-      // Set up status monitoring interval (no API calls, just UI updates)
-      pollingIntervalRef.current = setInterval(monitorStatus, 10000); // 10 seconds for UI updates
-
-    } catch (error) {
-      debugLogger.error('LIVE_EVENTS', 'Failed to start NFL polling', error);
-      setLiveState(prev => ({ ...prev, isPolling: false }));
-    }
-
-  }, [enabled, liveState.isActive, liveState.isPolling, pollingInterval]);
-
-  // Stop polling using new ESPN hook
-  const stopPolling = useCallback(() => {
-    if (pollingIntervalRef.current) {
-      clearInterval(pollingIntervalRef.current);
-      pollingIntervalRef.current = null;
-    }
-
-    // Stop ESPN polling using the new hook
+  // Stop live polling
+  const stopSystem = useCallback(() => {
+    nflDataService.stopPolling();
     stopESPNPolling();
 
-    setLiveState(prev => ({ ...prev, isPolling: false }));
-    
-    debugLogger.info('LIVE_EVENTS', 'Stopped ESPN polling');
-  }, []);
-
-  // Get events for a specific league
-  const getLeagueEvents = useCallback((leagueId: string, timeframeMinutes = 60): StoredEvent[] => {
-    return eventStorageService.getEventsByLeague(leagueId, timeframeMinutes);
-  }, []);
-
-  // Get live events for display in league cards
-  const getLiveEventsForLeague = useCallback((league: LeagueData): ScoringEvent[] => {
-    const storedEvents = getLeagueEvents(league.id, 30); // Last 30 minutes
-    
-    // Convert StoredEvent to ScoringEvent format
-    return storedEvents.map(event => ({
-      id: event.id,
-      playerName: event.playerName,
-      position: event.position,
-      weeklyPoints: event.weeklyPoints,
-      action: event.action,
-      scoreImpact: event.scoreImpact,
-      timestamp: event.timestamp,
-      isRecent: event.isRecent
-    }));
-  }, [getLeagueEvents]);
-
-  // Force refresh rosters
-  const refreshRosters = useCallback(async () => {
-    debugLogger.info('LIVE_EVENTS', 'Refreshing rosters');
-    try {
-      await eventAttributionService.refreshRosters(leagues);
-      debugLogger.success('LIVE_EVENTS', 'Rosters refreshed');
-    } catch (error) {
-      debugLogger.error('LIVE_EVENTS', 'Failed to refresh rosters', error);
-    }
-  }, [leagues]);
-
-  // Manual trigger for testing
-  const triggerTestEvent = useCallback(() => {
-    const testEvent: ScoringEvent = {
-      id: `test-${Date.now()}`,
-      playerName: 'Test Player',
-      position: 'RB',
-      weeklyPoints: 6.0,
-      action: 'Manual test event triggered',
-      scoreImpact: 6.0,
-      timestamp: new Date().toISOString(),
-      isRecent: true
-    };
-
-    eventStorageService.saveEvent(testEvent, leagues[0]?.leagueId);
-    const recent = eventStorageService.getRecentEvents(60);
-    setRecentEvents(recent);
+    // Cleanup callbacks
+    eventCallbacks.current.forEach(cleanup => cleanup());
+    eventCallbacks.current = [];
 
     setLiveState(prev => ({
       ...prev,
-      lastEventTime: testEvent.timestamp,
-      eventCount: recent.length
+      isActive: false,
+      isPolling: false
     }));
 
-    debugLogger.info('LIVE_EVENTS', 'Test event triggered', testEvent);
-  }, [leagues]);
+    debugLogger.info('LIVE_EVENTS', 'Live events system stopped');
+  }, [stopESPNPolling]);
 
-  // Set up NFL scoring event callback
+  // Trigger a test event for debugging
+  const triggerTestEvent = useCallback(() => {
+    const testEvent: ConfigScoringEvent = {
+      id: `test-${Date.now()}`,
+      playerId: 'test-player',
+      playerName: 'Test Player',
+      teamAbbr: 'TEST',
+      eventType: 'rushing_td',
+      description: 'Test Player 5 yard touchdown run',
+      fantasyPoints: 6,
+      timestamp: new Date(),
+      week: nflDataService.getCurrentWeek() || 1,
+      leagueId: 'test-league'
+    };
+
+    eventStorageService.addEvent('test-league', testEvent);
+    updateRecentEvents();
+    debugLogger.info('LIVE_EVENTS', 'Test event triggered manually');
+  }, [updateRecentEvents]);
+
+  // Initialize on mount if enabled
   useEffect(() => {
-    const unsubscribeNFL = nflDataService.onScoringEvent((nflEvent: NFLScoringEvent) => {
-      debugLogger.info('LIVE_EVENTS', 'NFL scoring event detected', {
-        player: nflEvent.player.name,
-        eventType: nflEvent.eventType,
-        description: nflEvent.description
-      });
-
-      // Process through attribution service
-      const attribution = eventAttributionService.attributeEvent(nflEvent);
-      if (attribution) {
-        // Convert to fantasy events and store
-        const fantasyEvents = eventAttributionService.generateFantasyEvents([attribution]);
-        for (const event of fantasyEvents) {
-          // Extract league ID from attribution if available
-          const leagueId = attribution.fantasyEvents[0]?.leagueId;
-          eventStorageService.saveEvent(event, leagueId);
-        }
-
-        // Update recent events display
-        const recent = eventStorageService.getRecentEvents(60);
-        setRecentEvents(recent);
-        
-        setLiveState(prev => ({
-          ...prev,
-          lastEventTime: attribution.timestamp.toISOString(),
-          eventCount: recent.length
-        }));
-      }
-    });
-
-    return unsubscribeNFL;
-  }, []);
-
-  // Set up event attribution callback
-  useEffect(() => {
-    const unsubscribe = eventAttributionService.onEventAttribution((attribution: FantasyEventAttribution) => {
-      debugLogger.info('LIVE_EVENTS', 'New event attribution received', {
-        nflPlayer: attribution.nflEvent.player.name,
-        fantasyTeamsAffected: attribution.fantasyEvents.length
-      });
-
-      setAttributionCallbackCount(prev => prev + 1);
-
-      // Update recent events
-      const recent = eventStorageService.getRecentEvents(60);
-      setRecentEvents(recent);
-      
-      setLiveState(prev => ({
-        ...prev,
-        lastEventTime: attribution.timestamp.toISOString(),
-        eventCount: recent.length
-      }));
-    });
-
-    return unsubscribe;
-  }, []);
-
-  // Initialize when conditions are met
-  useEffect(() => {
-    if (enabled && leagues.length > 0 && !isInitializedRef.current) {
+    if (enabled && leagues.length > 0 && !isInitialized.current) {
       initializeSystem();
     }
-  }, [enabled, leagues.length, initializeSystem]);
-
-  // Start/stop polling based on active state
-  useEffect(() => {
-    if (liveState.isActive && enabled && !liveState.isPolling) {
-      startPolling();
-    } else if (!enabled || !liveState.isActive) {
-      stopPolling();
-    }
-
-    return () => {
-      stopPolling();
-    };
-  }, [liveState.isActive, liveState.isPolling, enabled, startPolling, stopPolling]);
-
-  // Initialize ESPN data fetching on mount
-  useEffect(() => {
-    if (enabled && leagues.length > 0) {
-      fetchScoreboard();
-    }
-  }, [enabled, leagues.length, fetchScoreboard]);
+  }, [enabled, leagues, initializeSystem]);
 
   // Cleanup on unmount
   useEffect(() => {
     return () => {
-      stopPolling();
-      stopESPNPolling();
-      isInitializedRef.current = false;
+      stopSystem();
     };
-  }, [stopPolling, stopESPNPolling]);
+  }, [stopSystem]);
 
-  // Get cache statistics for debugging
+  // Get debugging statistics
   const getCacheStats = useCallback(() => {
-    const attributionStats = eventAttributionService.getCacheStats();
-    const storageStats = eventStorageService.getStorageStats();
-    
     return {
-      attribution: attributionStats,
-      storage: storageStats,
-      callbacks: attributionCallbackCount
+      storage: eventStorageService.getCacheStats(),
+      attribution: eventAttributionService.getCacheStats(),
+      nfl: nflDataService.getPollingStats()
     };
-  }, [attributionCallbackCount]);
+  }, []);
 
   return {
     liveState,
     recentEvents,
-    isSystemReady: isInitializedRef.current,
-    startPolling,
-    stopPolling,
-    refreshRosters,
-    triggerTestEvent,
+    isSystemReady: isInitialized.current,
     getLiveEventsForLeague,
-    getLeagueEvents,
+    startSystem,
+    stopSystem,
+    triggerTestEvent,
     getCacheStats
   };
 };
