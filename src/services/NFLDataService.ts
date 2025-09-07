@@ -421,24 +421,41 @@ export class NFLDataService {
       }
 
       const gameData = response.data;
-      const drives = gameData.drives?.previous || [];
-      const plays: ESPNPlay[] = [];
-
-      // Extract plays from all drives
-      for (const drive of drives) {
-        if (drive.plays) {
-          plays.push(...drive.plays);
+      
+      // Handle both old and new ESPN API structures
+      let allPlays: ESPNPlay[] = [];
+      
+      // Try drives structure first (more detailed)
+      if (gameData.drives) {
+        const drives = [...(gameData.drives.previous || []), ...(gameData.drives.current ? [gameData.drives.current] : [])];
+        
+        for (const drive of drives) {
+          if (drive.plays && Array.isArray(drive.plays)) {
+            allPlays.push(...drive.plays);
+          }
         }
       }
-
-      // Add current drive plays if available
-      if (gameData.drives?.current?.plays) {
-        plays.push(...gameData.drives.current.plays);
+      
+      // Try plays array directly if no drives
+      if (allPlays.length === 0 && gameData.plays && Array.isArray(gameData.plays)) {
+        allPlays = gameData.plays;
+      }
+      
+      // Try playByPlay structure if available
+      if (allPlays.length === 0 && gameData.playByPlay && Array.isArray(gameData.playByPlay)) {
+        allPlays = gameData.playByPlay;
       }
 
+      // Sort plays by sequence number to ensure proper order
+      allPlays.sort((a, b) => {
+        const seqA = parseInt(a.sequenceNumber || '0');
+        const seqB = parseInt(b.sequenceNumber || '0');
+        return seqA - seqB;
+      });
+
       this.recordRequestSuccess();
-      debugLogger.success('NFL_DATA', `Parsed ${plays.length} plays for game ${gameId}`);
-      return plays;
+      debugLogger.success('NFL_DATA', `Parsed ${allPlays.length} plays for game ${gameId}`);
+      return allPlays;
 
     } catch (error) {
       this.recordRequestFailure();
@@ -736,14 +753,15 @@ export class NFLDataService {
 
     // Extract field goal distance
     if (eventType === 'field_goal') {
-      const fgMatch = play.text.match(/(\d+)\s*yard/i);
-      if (fgMatch) {
-        stats.fieldGoalYards = parseInt(fgMatch[1], 10);
+      const playText = play.text;
+      const distanceMatch = playText.match(/(\d+)[\s-]yard/i);
+      if (distanceMatch) {
+        stats.fieldGoalYards = parseInt(distanceMatch[1]);
       }
     }
 
-    // Mark touchdowns
-    if (safeIncludes(eventType, '_td')) {
+    // Count touchdowns
+    if (eventType.includes('_td')) {
       stats.touchdowns = 1;
     }
 

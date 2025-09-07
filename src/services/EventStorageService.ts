@@ -1,12 +1,17 @@
-import { ScoringEvent } from '../types/fantasy';
 import { debugLogger } from '../utils/debugLogger';
-import { safeLower, safeIncludes } from '../utils/strings';
 
-export interface StoredEvent extends ScoringEvent {
-  storedAt: string; // ISO timestamp when stored
-  ttl: number; // Time to live in milliseconds
-  leagueId?: string; // Optional league association
-  hash: string; // Unique hash for deduplication
+// Configuration interfaces for scoring events
+export interface ConfigScoringEvent {
+  id: string;
+  playerId: string;
+  playerName: string;
+  teamAbbr: string;
+  eventType: 'rushing_td' | 'passing_td' | 'receiving_td' | 'rushing_yards' | 'passing_yards' | 'receiving_yards';
+  description: string;
+  fantasyPoints: number;
+  timestamp: Date;
+  week: number;
+  leagueId: string;
 }
 
 export interface EventFilter {
@@ -27,18 +32,11 @@ export interface StorageStats {
 
 export class EventStorageService {
   private static instance: EventStorageService;
-  private readonly STORAGE_KEY = 'fantasy_events_store';
-  private readonly DEFAULT_TTL = 24 * 60 * 60 * 1000; // 24 hours
-  private readonly MAX_EVENTS = 1000; // Prevent unlimited growth
-  private readonly CLEANUP_INTERVAL = 60 * 60 * 1000; // 1 hour cleanup interval
-  
-  private events: Map<string, StoredEvent> = new Map();
-  private lastCleanup = 0;
-  
-  private constructor() {
-    this.loadFromStorage();
-    this.scheduleCleanup();
-  }
+  private readonly storageKey = 'fantasy_scoring_events';
+  private readonly maxEvents = 1000;
+  private readonly ttlHours = 24;
+
+  private constructor() {}
 
   public static getInstance(): EventStorageService {
     if (!EventStorageService.instance) {
@@ -48,423 +46,192 @@ export class EventStorageService {
   }
 
   /**
-   * Save a fantasy event with automatic deduplication
+   * Add a new fantasy scoring event
    */
-  public saveEvent(fantasyEvent: ScoringEvent, leagueId?: string, customTTL?: number): boolean {
+  addEvent(leagueId: string, event: ConfigScoringEvent): void {
     try {
-      // Generate unique hash for deduplication
-      const hash = this.generateEventHash(fantasyEvent);
+      const events = this.getAllEvents();
+      events.push(event);
       
-      // Check if event already exists
-      if (this.events.has(hash)) {
-        debugLogger.info('EVENT_STORAGE', 'Duplicate event ignored', {
-          hash,
-          playerName: fantasyEvent.playerName,
-          action: fantasyEvent.action
-        });
-        return false;
-      }
-
-      const now = new Date();
-      const ttl = customTTL || this.DEFAULT_TTL;
+      // Keep only last 1000 events to prevent storage bloat
+      const trimmedEvents = events.slice(-this.maxEvents);
       
-      const storedEvent: StoredEvent = {
-        ...fantasyEvent,
-        storedAt: now.toISOString(),
-        ttl,
-        leagueId,
-        hash
-      };
-
-      this.events.set(hash, storedEvent);
+      localStorage.setItem(this.storageKey, JSON.stringify(trimmedEvents));
       
-      // Enforce max events limit
-      this.enforceStorageLimit();
-      
-      // Save to localStorage
-      this.saveToStorage();
-      
-      debugLogger.success('EVENT_STORAGE', 'Event saved successfully', {
-        hash,
-        playerName: fantasyEvent.playerName,
-        scoreImpact: fantasyEvent.scoreImpact,
-        leagueId,
-        totalEvents: this.events.size
+      debugLogger.info('EVENT_STORAGE', 'Event stored successfully', {
+        eventId: event.id,
+        player: event.playerName,
+        points: event.fantasyPoints,
+        leagueId
       });
-
-      // Trigger cleanup if needed
-      this.conditionalCleanup();
-      
-      return true;
       
     } catch (error) {
-      debugLogger.error('EVENT_STORAGE', 'Failed to save event', {
-        error: error.message,
-        event: fantasyEvent
-      });
-      return false;
+      debugLogger.error('EVENT_STORAGE', 'Failed to store event', error);
     }
   }
 
   /**
-   * Get recent events within specified timeframe (in minutes)
+   * Legacy method for compatibility
    */
-  public getRecentEvents(timeframeMinutes = 60): StoredEvent[] {
-    const now = Date.now();
-    const cutoffTime = now - (timeframeMinutes * 60 * 1000);
-    
-    const recentEvents = Array.from(this.events.values())
-      .filter(event => {
-        const eventTime = new Date(event.timestamp).getTime();
-        return eventTime >= cutoffTime;
-      })
-      .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
-
-    debugLogger.info('EVENT_STORAGE', 'Retrieved recent events', {
-      timeframeMinutes,
-      eventCount: recentEvents.length,
-      totalEvents: this.events.size
-    });
-
-    return recentEvents;
+  storeEvent(event: ConfigScoringEvent): void {
+    this.addEvent(event.leagueId, event);
   }
 
   /**
-   * Clear events older than specified hours (default 24 hours)
+   * Get all events from storage
    */
-  public clearOldEvents(hoursBack = 24): number {
-    const cutoffTime = Date.now() - (hoursBack * 60 * 60 * 1000);
-    let removedCount = 0;
-
-    for (const [hash, event] of this.events.entries()) {
-      const eventTime = new Date(event.timestamp).getTime();
-      const storedTime = new Date(event.storedAt).getTime();
+  getAllEvents(): ConfigScoringEvent[] {
+    try {
+      const stored = localStorage.getItem(this.storageKey);
+      if (!stored) return [];
       
-      // Remove if event is older than cutoff or TTL has expired
-      if (eventTime < cutoffTime || (storedTime + event.ttl) < Date.now()) {
-        this.events.delete(hash);
-        removedCount++;
-      }
+      const events = JSON.parse(stored);
+      return events.map((event: any) => ({
+        ...event,
+        timestamp: new Date(event.timestamp)
+      }));
+    } catch (error) {
+      debugLogger.error('EVENT_STORAGE', 'Failed to load events from storage', error);
+      return [];
     }
-
-    if (removedCount > 0) {
-      this.saveToStorage();
-      debugLogger.info('EVENT_STORAGE', 'Cleared old events', {
-        removedCount,
-        hoursBack,
-        remainingEvents: this.events.size
-      });
-    }
-
-    return removedCount;
   }
 
   /**
-   * Get events for a specific league
+   * Get events for a specific league and week
    */
-  public getEventsByLeague(leagueId: string, timeframeMinutes?: number): StoredEvent[] {
-    let events = Array.from(this.events.values())
-      .filter(event => event.leagueId === leagueId);
-
-    if (timeframeMinutes) {
-      const cutoffTime = Date.now() - (timeframeMinutes * 60 * 1000);
-      events = events.filter(event => {
-        const eventTime = new Date(event.timestamp).getTime();
-        return eventTime >= cutoffTime;
-      });
-    }
-
-    const sortedEvents = events.sort((a, b) => 
-      new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
-    );
-
-    debugLogger.info('EVENT_STORAGE', 'Retrieved league events', {
-      leagueId,
-      eventCount: sortedEvents.length,
-      timeframeMinutes
-    });
-
-    return sortedEvents;
+  getEvents(leagueId: string, week?: number): ConfigScoringEvent[] {
+    const allEvents = this.getAllEvents();
+    
+    return allEvents.filter(event => 
+      event.leagueId === leagueId && 
+      (week === undefined || event.week === week)
+    ).sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime());
   }
 
   /**
-   * Get filtered events based on criteria
+   * Legacy method for compatibility
    */
-  public getFilteredEvents(filter: EventFilter): StoredEvent[] {
-    let events = Array.from(this.events.values());
+  getLeagueEvents(leagueId: string, week?: number): ConfigScoringEvent[] {
+    return this.getEvents(leagueId, week);
+  }
 
-    // Apply league filter
+  /**
+   * Get recent events across all leagues
+   */
+  getRecentEvents(limit: number = 20): ConfigScoringEvent[] {
+    const allEvents = this.getAllEvents();
+    return allEvents
+      .sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime())
+      .slice(0, limit);
+  }
+
+  /**
+   * Filter events by criteria
+   */
+  filterEvents(filter: EventFilter): ConfigScoringEvent[] {
+    let events = this.getAllEvents();
+
     if (filter.leagueId) {
-      events = events.filter(event => event.leagueId === filter.leagueId);
+      events = events.filter(e => e.leagueId === filter.leagueId);
     }
 
-    // Apply timeframe filter
     if (filter.timeframe) {
-      const cutoffTime = Date.now() - (filter.timeframe * 60 * 1000);
-      events = events.filter(event => {
-        const eventTime = new Date(event.timestamp).getTime();
-        return eventTime >= cutoffTime;
-      });
+      const cutoff = new Date(Date.now() - filter.timeframe * 60 * 1000);
+      events = events.filter(e => e.timestamp > cutoff);
     }
 
-    // Apply player name filter
     if (filter.playerName) {
-      const searchTerm = safeLower(filter.playerName);
-      events = events.filter(event => 
-        safeIncludes(event.playerName, searchTerm)
-      );
+      const searchTerm = filter.playerName.toLowerCase();
+      events = events.filter(e => e.playerName.toLowerCase().includes(searchTerm));
     }
 
-    // Apply minimum points filter
     if (filter.minPoints !== undefined) {
-      events = events.filter(event => 
-        Math.abs(event.scoreImpact) >= filter.minPoints
-      );
+      events = events.filter(e => e.fantasyPoints >= filter.minPoints);
     }
 
-    const sortedEvents = events.sort((a, b) => 
-      new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
-    );
-
-    debugLogger.info('EVENT_STORAGE', 'Retrieved filtered events', {
-      filter,
-      eventCount: sortedEvents.length
-    });
-
-    return sortedEvents;
+    return events.sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime());
   }
 
   /**
-   * Get storage statistics
+   * Clear events for a specific league
    */
-  public getStorageStats(): StorageStats {
-    const now = Date.now();
-    const last24h = now - (24 * 60 * 60 * 1000);
-    
-    const events = Array.from(this.events.values());
-    const eventsLast24h = events.filter(event => 
-      new Date(event.timestamp).getTime() >= last24h
-    ).length;
-
-    const eventsByLeague: Record<string, number> = {};
-    events.forEach(event => {
-      if (event.leagueId) {
-        eventsByLeague[event.leagueId] = (eventsByLeague[event.leagueId] || 0) + 1;
-      }
-    });
-
-    const timestamps = events.map(e => new Date(e.timestamp).getTime());
-    const oldestEvent = timestamps.length > 0 
-      ? new Date(Math.min(...timestamps)).toISOString() 
-      : null;
-    const newestEvent = timestamps.length > 0 
-      ? new Date(Math.max(...timestamps)).toISOString() 
-      : null;
-
-    // Approximate storage size
-    const storageSize = this.getStorageSize();
-
-    return {
-      totalEvents: this.events.size,
-      eventsLast24h,
-      eventsByLeague,
-      oldestEvent,
-      newestEvent,
-      storageSize
-    };
-  }
-
-  /**
-   * Batch save multiple events
-   */
-  public batchSaveEvents(events: ScoringEvent[], leagueId?: string): number {
-    let savedCount = 0;
-    
-    for (const event of events) {
-      if (this.saveEvent(event, leagueId)) {
-        savedCount++;
-      }
+  clearLeagueEvents(leagueId: string): void {
+    try {
+      const allEvents = this.getAllEvents();
+      const filteredEvents = allEvents.filter(e => e.leagueId !== leagueId);
+      
+      localStorage.setItem(this.storageKey, JSON.stringify(filteredEvents));
+      
+      debugLogger.info('EVENT_STORAGE', 'League events cleared', { leagueId });
+    } catch (error) {
+      debugLogger.error('EVENT_STORAGE', 'Failed to clear league events', error);
     }
-
-    debugLogger.info('EVENT_STORAGE', 'Batch save completed', {
-      totalEvents: events.length,
-      savedCount,
-      duplicatesSkipped: events.length - savedCount
-    });
-
-    return savedCount;
   }
 
   /**
    * Clear all events
    */
-  public clearAllEvents(): void {
-    const eventCount = this.events.size;
-    this.events.clear();
-    this.saveToStorage();
-    
-    debugLogger.info('EVENT_STORAGE', 'Cleared all events', {
-      clearedCount: eventCount
-    });
+  clearAllEvents(): void {
+    try {
+      localStorage.removeItem(this.storageKey);
+      debugLogger.info('EVENT_STORAGE', 'All events cleared');
+    } catch (error) {
+      debugLogger.error('EVENT_STORAGE', 'Failed to clear all events', error);
+    }
   }
 
   /**
-   * Export events as JSON
+   * Get cache statistics
    */
-  public exportEvents(filter?: EventFilter): string {
-    const events = filter ? this.getFilteredEvents(filter) : Array.from(this.events.values());
+  getCacheStats(): StorageStats {
+    const events = this.getAllEvents();
+    const leagues = Array.from(new Set(events.map(e => e.leagueId)));
     
-    const exportData = {
-      exportedAt: new Date().toISOString(),
-      eventCount: events.length,
-      filter,
-      events
+    const timestamps = events.map(e => e.timestamp.getTime());
+    const last24h = events.filter(e => 
+      Date.now() - e.timestamp.getTime() < 24 * 60 * 60 * 1000
+    ).length;
+
+    const eventsByLeague: Record<string, number> = {};
+    for (const league of leagues) {
+      eventsByLeague[league] = events.filter(e => e.leagueId === league).length;
+    }
+    
+    return {
+      totalEvents: events.length,
+      eventsLast24h: last24h,
+      eventsByLeague,
+      oldestEvent: timestamps.length > 0 ? new Date(Math.min(...timestamps)).toISOString() : null,
+      newestEvent: timestamps.length > 0 ? new Date(Math.max(...timestamps)).toISOString() : null,
+      storageSize: JSON.stringify(events).length
     };
-
-    return JSON.stringify(exportData, null, 2);
   }
 
   /**
-   * Import events from JSON
+   * Legacy method for compatibility
    */
-  public importEvents(jsonData: string, mergeMode = true): number {
-    try {
-      const importData = JSON.parse(jsonData);
-      const events: StoredEvent[] = importData.events || [];
-      
-      if (!mergeMode) {
-        this.events.clear();
-      }
-
-      let importedCount = 0;
-      for (const event of events) {
-        // Validate event structure
-        if (this.isValidStoredEvent(event)) {
-          this.events.set(event.hash, event);
-          importedCount++;
-        }
-      }
-
-      this.saveToStorage();
-      
-      debugLogger.info('EVENT_STORAGE', 'Import completed', {
-        totalEvents: events.length,
-        importedCount,
-        mergeMode
-      });
-
-      return importedCount;
-      
-    } catch (error) {
-      debugLogger.error('EVENT_STORAGE', 'Import failed', {
-        error: error.message
-      });
-      throw error;
-    }
+  getStats(): StorageStats {
+    return this.getCacheStats();
   }
 
-  // Private helper methods
-
-  private generateEventHash(event: ScoringEvent): string {
-    // Create unique hash from event properties to prevent duplicates
-    const hashInput = `${event.playerName}_${event.action}_${event.timestamp}_${event.scoreImpact}`;
-    return btoa(hashInput).replace(/[^a-zA-Z0-9]/g, '');
-  }
-
-  private loadFromStorage(): void {
+  /**
+   * Clean up old events
+   */
+  cleanup(): void {
     try {
-      const stored = localStorage.getItem(this.STORAGE_KEY);
-      if (stored) {
-        const events: StoredEvent[] = JSON.parse(stored);
-        this.events.clear();
-        
-        events.forEach(event => {
-          if (this.isValidStoredEvent(event)) {
-            this.events.set(event.hash, event);
-          }
-        });
-
-        debugLogger.info('EVENT_STORAGE', 'Loaded events from storage', {
-          eventCount: this.events.size
+      const cutoff = new Date(Date.now() - this.ttlHours * 60 * 60 * 1000);
+      const events = this.getAllEvents();
+      const validEvents = events.filter(e => e.timestamp > cutoff);
+      
+      if (validEvents.length !== events.length) {
+        localStorage.setItem(this.storageKey, JSON.stringify(validEvents));
+        debugLogger.info('EVENT_STORAGE', 'Cleanup completed', {
+          removed: events.length - validEvents.length,
+          remaining: validEvents.length
         });
       }
     } catch (error) {
-      debugLogger.error('EVENT_STORAGE', 'Failed to load from storage', {
-        error: error.message
-      });
-      this.events.clear();
-    }
-  }
-
-  private saveToStorage(): void {
-    try {
-      const events = Array.from(this.events.values());
-      localStorage.setItem(this.STORAGE_KEY, JSON.stringify(events));
-    } catch (error) {
-      debugLogger.error('EVENT_STORAGE', 'Failed to save to storage', {
-        error: error.message,
-        eventCount: this.events.size
-      });
-    }
-  }
-
-  private enforceStorageLimit(): void {
-    if (this.events.size <= this.MAX_EVENTS) {
-      return;
-    }
-
-    // Sort events by timestamp and remove oldest
-    const events = Array.from(this.events.values())
-      .sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
-
-    const toRemove = this.events.size - this.MAX_EVENTS;
-    for (let i = 0; i < toRemove; i++) {
-      this.events.delete(events[i].hash);
-    }
-
-    debugLogger.info('EVENT_STORAGE', 'Enforced storage limit', {
-      removedEvents: toRemove,
-      maxEvents: this.MAX_EVENTS,
-      currentEvents: this.events.size
-    });
-  }
-
-  private conditionalCleanup(): void {
-    const now = Date.now();
-    if (now - this.lastCleanup >= this.CLEANUP_INTERVAL) {
-      this.clearOldEvents();
-      this.lastCleanup = now;
-    }
-  }
-
-  private scheduleCleanup(): void {
-    // Run cleanup every hour
-    setInterval(() => {
-      this.clearOldEvents();
-    }, this.CLEANUP_INTERVAL);
-
-    // Run initial cleanup on startup
-    setTimeout(() => {
-      this.clearOldEvents();
-    }, 5000); // 5 second delay on startup
-  }
-
-  private isValidStoredEvent(event: any): event is StoredEvent {
-    return event &&
-           typeof event.id === 'string' &&
-           typeof event.playerName === 'string' &&
-           typeof event.timestamp === 'string' &&
-           typeof event.storedAt === 'string' &&
-           typeof event.hash === 'string' &&
-           typeof event.ttl === 'number';
-  }
-
-  private getStorageSize(): number {
-    try {
-      const stored = localStorage.getItem(this.STORAGE_KEY);
-      return stored ? new Blob([stored]).size : 0;
-    } catch {
-      return 0;
+      debugLogger.error('EVENT_STORAGE', 'Cleanup failed', error);
     }
   }
 }

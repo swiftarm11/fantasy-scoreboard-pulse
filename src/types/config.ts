@@ -7,6 +7,7 @@ export interface LeagueConfig {
   platform: Platform;
   enabled: boolean;
   sleeperUsername?: string; // For identifying user's team in Sleeper leagues
+  teamId?: string; // Yahoo team ID when needed
 }
 
 export interface PollingConfig {

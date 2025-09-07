@@ -396,13 +396,79 @@ export class EventAttributionService {
 
   private async loadYahooRoster(leagueConfig: LeagueConfig, rosterPlayers: RosterPlayer[]): Promise<void> {
     try {
-      // This would integrate with Yahoo API to get roster data
-      // For now, we'll create a placeholder implementation
       debugLogger.info('EVENT_ATTRIBUTION', 'Loading Yahoo roster', { leagueId: leagueConfig.leagueId });
       
-      // TODO: Implement Yahoo roster loading
-      // const roster = await yahooFantasyAPI.getRoster(leagueConfig.leagueId);
-      // Process and add to cache
+      // Fetch roster from Yahoo API
+      const rosterData = await yahooFantasyAPI.getTeamRoster(leagueConfig.leagueId, leagueConfig.teamId || '');
+      
+      if (!rosterData) {
+        throw new Error(`Could not fetch roster for Yahoo league ${leagueConfig.leagueId}`);
+      }
+
+      const fantasyPlayers: FantasyPlayer[] = [];
+      
+      // Process Yahoo roster players
+      for (const player of rosterData.players || []) {
+        const fantasyPlayer: FantasyPlayer = {
+          id: `${leagueConfig.leagueId}-${player.player_id}`,
+          platformPlayerId: player.player_id,
+          name: player.name?.full || player.name?.display_name || 'Unknown Player',
+          position: player.position_type || player.primary_position || 'UNKNOWN',
+          team: player.editorial_team_abbr || 'UNKNOWN',
+          isStarter: player.selected_position?.position !== 'BN' && player.selected_position?.position !== 'IR',
+          isActive: !player.status_full?.includes('Out') && !player.status_full?.includes('IR')
+        };
+
+        fantasyPlayers.push(fantasyPlayer);
+
+        // Add to roster players for mapping service
+        rosterPlayers.push({
+          id: player.player_id,
+          name: fantasyPlayer.name,
+          team: fantasyPlayer.team,
+          position: fantasyPlayer.position,
+          platform: 'Yahoo'
+        });
+      }
+
+      // Create roster entry
+      const roster: FantasyRoster = {
+        leagueId: leagueConfig.leagueId,
+        teamId: leagueConfig.teamId || 'default',
+        teamName: leagueConfig.customTeamName || rosterData.team_name || `Team ${leagueConfig.teamId}`,
+        ownerId: 'current_user',
+        platform: 'Yahoo',
+        players: fantasyPlayers,
+        lastUpdated: new Date()
+      };
+
+      this.cache.rosters.set(`Yahoo-${leagueConfig.leagueId}`, roster);
+
+      // Create Yahoo standard scoring settings
+      const scoringSettings: LeagueScoringSettings = {
+        leagueId: leagueConfig.leagueId,
+        platform: 'Yahoo',
+        pointsPerPassingYard: 1/25, // 1 point per 25 yards
+        pointsPerPassingTd: 4,
+        pointsPerRushingYard: 1/10, // 1 point per 10 yards
+        pointsPerRushingTd: 6,
+        pointsPerReceivingYard: 1/10, // 1 point per 10 yards
+        pointsPerReceivingTd: 6,
+        pointsPerReception: 0, // Standard scoring, not PPR
+        pointsPerFieldGoal: 3,
+        pointsPerSafety: 2,
+        pointsPerFumble: -2,
+        pointsPerInterception: -2, // For QB throwing interceptions
+        customRules: {}, // Yahoo has consistent rules
+        lastUpdated: new Date()
+      };
+
+      this.cache.scoringSettings.set(leagueConfig.leagueId, scoringSettings);
+
+      debugLogger.success('EVENT_ATTRIBUTION', 'Yahoo roster loaded successfully', {
+        leagueId: leagueConfig.leagueId,
+        playerCount: fantasyPlayers.length
+      });
       
     } catch (error) {
       debugLogger.error('EVENT_ATTRIBUTION', 'Failed to load Yahoo roster', error);

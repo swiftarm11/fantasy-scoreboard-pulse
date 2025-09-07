@@ -1,12 +1,14 @@
 /**
  * ESPN NFL proxy – Supabase Edge Function
- * Supported endpoint(s):
- *   • scoreboard   (default)  →  /apis/v2/sports/football/nfl/scoreboard
+ * Supported endpoints:
+ *   • scoreboard      (default)  →  /apis/v2/sports/football/nfl/scoreboard
+ *   • game-summary    →  /apis/v2/sports/football/nfl/summary
  *
- *   Body payload example:
+ *   Body payload examples:
  *     { "endpoint": "scoreboard", "dates": "20250905" }
+ *     { "endpoint": "game-summary", "gameId": "401547439" }
  *
- * If no `dates` is supplied, today’s date (UTC) is used.
+ * If no `dates` is supplied, today's date (UTC) is used.
  */
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
@@ -24,7 +26,7 @@ serve(async (req) => {
     /* ----------------------------------------------------------------
        Parse request
     ---------------------------------------------------------------- */
-    const { endpoint = "scoreboard", dates } = await req.json();
+    const { endpoint = "scoreboard", dates, gameId } = await req.json();
 
     /* ----------------------------------------------------------------
        Build ESPN URL
@@ -38,9 +40,18 @@ serve(async (req) => {
           `https://site.api.espn.com/apis/v2/sports/football/nfl/scoreboard?dates=${queryDate}`;
         break;
       }
+      case "game-summary": {
+        if (!gameId) {
+          throw new Error("gameId is required for game-summary endpoint");
+        }
+        apiUrl = `https://site.api.espn.com/apis/v2/sports/football/nfl/summary?event=${gameId}`;
+        break;
+      }
       default:
         throw new Error(`Unknown ESPN endpoint: ${endpoint}`);
     }
+
+    console.log(`Fetching ESPN API: ${apiUrl}`);
 
     /* ----------------------------------------------------------------
        Make upstream request
@@ -63,12 +74,14 @@ serve(async (req) => {
         ...corsHeaders,
         "Content-Type": "application/json",
         Vary: "Accept",
+        "Cache-Control": "public, max-age=30", // Cache for 30 seconds
       },
     });
   } catch (err) {
     /* ----------------------------------------------------------------
        Local failure (parsing etc.)
     ---------------------------------------------------------------- */
+    console.error("ESPN API proxy error:", err);
     return new Response(
       JSON.stringify({ error: err.message }),
       {

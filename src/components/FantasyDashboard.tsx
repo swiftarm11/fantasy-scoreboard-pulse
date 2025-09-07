@@ -20,8 +20,7 @@ import { toast } from './ui/enhanced-toast';
 import { useHapticFeedback } from '../hooks/useHapticFeedback';
 import { DeleteLeagueConfirmation } from './ui/confirmation-dialog';
 import { useConfig } from '../hooks/useConfig';
-import { useYahooData } from '../hooks/useYahooData';
-import { useSleeperData } from '../hooks/useSleeperData';
+import { useFantasyDashboardWithLiveEvents } from '../hooks/useFantasyDashboardWithLiveEvents';
 import { usePolling } from '../hooks/usePolling';
 import { useNetworkStatus } from '../hooks/useNetworkStatus';
 import { useDemoLeague } from '../hooks/useDemoLeague';
@@ -51,14 +50,19 @@ const DashboardContent = () => {
     refetch
   } = useSleeperData(config.leagues);
 
-  // FIXED: Yahoo leagues - now properly uses saved selections from localStorage
+  // Enhanced dashboard with live events
   const {
-    leagues: yahooLeagues,
-    isLoading: yahooLoading,
-    error: yahooError,
-    refreshData: refreshYahooData,
-    getEnabledLeagueIds // Get enabled league IDs from saved selections
-  } = useYahooData();
+    leagues: enhancedLeagues,
+    isLoading: dashboardLoading,
+    error: dashboardError,
+    lastUpdated,
+    liveEventsState,
+    isLiveSystemReady,
+    startLiveEvents,
+    stopLiveEvents,
+    refreshData: refreshAllData,
+    refreshRosters
+  } = useFantasyDashboardWithLiveEvents();
   const {
     isOnline
   } = useNetworkStatus();
@@ -98,57 +102,24 @@ const DashboardContent = () => {
   // Use keyboard navigation
   useKeyboardNavigation();
 
-  // Memoized combined leagues calculation to prevent unnecessary recalculation
+  // Use enhanced leagues from the new hook
   const displayLeagues = useMemo(() => {
     const allLeagues: LeagueData[] = [];
 
-    // Add demo league
+    // Add demo league if enabled
     if (demoLeague) {
       allLeagues.push(demoLeague);
     }
 
-    // Add Sleeper leagues
-    if (sleeperLeagues.length > 0) {
-      allLeagues.push(...sleeperLeagues);
-    }
+    // Add enhanced leagues (contains both Yahoo and Sleeper with live events)
+    allLeagues.push(...enhancedLeagues);
 
-    // FIXED: Add Yahoo leagues from saved selections
-    if (yahooLeagues.length > 0) {
-      allLeagues.push(...yahooLeagues);
-    }
-
-    // Show mock data only if no real leagues configured, no demo league, and no loaded leagues
-    if (config.leagues.length === 0 && !demoLeague && sleeperLeagues.length === 0 && yahooLeagues.length === 0) {
+    // Show mock data only if no real leagues configured and no demo
+    if (allLeagues.length === 0) {
       allLeagues.push(...mockLeagueData);
     }
+
     return allLeagues;
-  }, [demoLeague, sleeperLeagues, yahooLeagues, config.leagues.length]);
-
-  // Enhance leagues with live events
-  const enhancedLeagues = useMemo(() => {
-    return displayLeagues.map(league => {
-      // Don't override demo league events
-      if (league.id === 'demo-league') {
-        return league;
-      }
-
-      // Get live events for this league
-      const liveEvents = getLiveEventsForLeague(league);
-      
-      // If we have live events, merge them with existing events
-      if (liveEvents.length > 0) {
-        return {
-          ...league,
-          scoringEvents: [
-            ...liveEvents.slice(0, 4), // Keep most recent 4 live events
-            ...league.scoringEvents.filter(e => !liveEvents.find(le => le.id === e.id))
-          ].slice(0, 4), // Limit total to 4 events
-          lastUpdated: liveState.isActive ? 'Live' : league.lastUpdated
-        };
-      }
-
-      return league;
-    });
   }, [displayLeagues, getLiveEventsForLeague, liveState.isActive]);
 
   // Memoized combined loading and error states
