@@ -34,8 +34,11 @@ export const useFantasyDashboardWithLiveEvents = (): UseFantasyDashboardReturn =
     refreshData: refreshYahooData
   } = useYahooData();
 
-  // Sleeper data hook - using minimal interface
-  const sleeperDataHook = useSleeperData([]);
+  // Get Sleeper league configurations from config
+  const sleeperConfigs = []; // TODO: Extract from main config when Sleeper is implemented
+  
+  // Sleeper data hook - pass actual configs when available
+  const sleeperDataHook = useSleeperData(sleeperConfigs);
   const sleeperLeagues = sleeperDataHook.leagues || [];
   const sleeperLoading = false; // Sleeper hook doesn't expose loading state
   const sleeperError = sleeperDataHook.error || null;
@@ -44,7 +47,7 @@ export const useFantasyDashboardWithLiveEvents = (): UseFantasyDashboardReturn =
   // Get all enabled league configurations
   const allLeagueConfigs: LeagueConfig[] = [
     ...yahooSelections.filter(config => config.enabled),
-    // Add Sleeper configs when available
+    ...sleeperConfigs.filter(config => config.enabled)
   ];
 
   // Live events system
