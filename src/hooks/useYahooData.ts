@@ -1,32 +1,52 @@
-# Updated useYahooData Hook (Drop-in Replacement)
-
-
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { YahooOAuthService } from '../utils/yahooOAuth';
-import { LeagueData, AuthTokens } from '../utils/config';
+import { yahooOAuth } from '../utils/yahooOAuth';
+import { LeagueData } from '../types/fantasy';
+import { LeagueConfig } from '../types/config';
+import { YahooTokens } from '../types/yahoo';
+
+// Yahoo API league structure
+interface YahooLeague {
+  league_key: string;
+  name: string;
+  num_teams: number;
+  league_type: string;
+  scoring_type: string;
+  season: string;
+  is_finished: number;
+  start_date: string;
+  end_date: string;
+}
 
 interface UseYahooDataState {
   leagues: LeagueData[];
   isLoading: boolean;
   error: string | null;
   isAuthenticated: boolean;
+  availableLeagues: YahooLeague[];
+  lastUpdated: string | null;
+  savedSelections: LeagueConfig[];
 }
 
 interface UseYahooDataActions {
   login: () => Promise<void>;
   logout: () => void;
   refreshData: () => Promise<void>;
+  fetchAvailableLeagues: () => Promise<void>;
+  saveLeagueSelections: (selections: LeagueConfig[]) => void;
+  getEnabledLeagueIds: () => string[];
 }
 
 export const useYahooData = (): UseYahooDataState & UseYahooDataActions => {
   // State management
   const [leagues, setLeagues] = useState<LeagueData[]>([]);
+  const [availableLeagues, setAvailableLeagues] = useState<YahooLeague[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [lastUpdated, setLastUpdated] = useState<string | null>(null);
+  const [savedSelections, setSavedSelections] = useState<LeagueConfig[]>([]);
 
   // Refs to prevent infinite loops
-  const oauthServiceRef = useRef<YahooOAuthService>(new YahooOAuthService());
   const isInitializedRef = useRef(false);
   const refreshTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
@@ -37,70 +57,77 @@ export const useYahooData = (): UseYahooDataState & UseYahooDataActions => {
     setIsLoading(false);
   }, []);
 
-  // Stable token refresh function using useCallback
-  const checkAndRefreshToken = useCallback(async (): Promise<boolean> => {
-    try {
-      const tokens = oauthServiceRef.current.getStoredTokens();
-      if (!tokens) {
-        setIsAuthenticated(false);
-        return false;
-      }
-
-      // Check if token is expired or will expire in the next 5 minutes
-      const now = Date.now();
-      const tokenExpiry = tokens.expires_at * 1000; // Convert to milliseconds
-      const fiveMinutesFromNow = now + 5 * 60 * 1000;
-
-      if (tokenExpiry <= fiveMinutesFromNow) {
-        console.log('Token expired or expiring soon, refreshing...');
-        const refreshed = await oauthServiceRef.current.refreshToken();
-        if (!refreshed) {
-          setIsAuthenticated(false);
-          return false;
-        }
-      }
-
-      setIsAuthenticated(true);
-      return true;
-    } catch (error) {
-      handleError('Failed to refresh token', error);
-      setIsAuthenticated(false);
-      return false;
-    }
-  }, [handleError]);
+  // Check authentication status
+  const checkAuthentication = useCallback(() => {
+    const isConnected = yahooOAuth.isConnected();
+    setIsAuthenticated(isConnected);
+    return isConnected;
+  }, []);
 
   // Stable data fetching function using useCallback
-  const fetchLeagues = useCallback(async (): Promise<void> => {
+  const fetchAvailableLeagues = useCallback(async (): Promise<void> => {
     if (isLoading) return; // Prevent multiple simultaneous calls
 
     setIsLoading(true);
     setError(null);
 
     try {
-      // Check token validity first
-      const isTokenValid = await checkAndRefreshToken();
-      if (!isTokenValid) {
+      if (!checkAuthentication()) {
         handleError('Authentication required');
         return;
       }
 
-      // Fetch leagues data
-      const leaguesData = await oauthServiceRef.current.getLeagues();
+      // For now, return mock data until actual API integration
+      const mockYahooLeagues: YahooLeague[] = [
+        {
+          league_key: '123.l.456789',
+          name: 'My Awesome Fantasy League',
+          num_teams: 12,
+          league_type: 'private',
+          scoring_type: 'head',
+          season: '2024',
+          is_finished: 0,
+          start_date: '2024-09-05',
+          end_date: '2024-12-30'
+        },
+        {
+          league_key: '123.l.789012',
+          name: 'Work League 2024',
+          num_teams: 10,
+          league_type: 'private',
+          scoring_type: 'head',
+          season: '2024',
+          is_finished: 0,
+          start_date: '2024-09-05',
+          end_date: '2024-12-30'
+        }
+      ];
+
+      const mockLeagueData: LeagueData[] = mockYahooLeagues.map(league => ({
+        id: league.league_key,
+        leagueName: league.name,
+        platform: 'Yahoo',
+        teamName: 'My Team',
+        myScore: 125.5,
+        opponentScore: 118.2,
+        opponentName: 'Opponent Team',
+        record: '7-3',
+        leaguePosition: '2nd',
+        status: 'winning',
+        scoringEvents: [],
+        lastUpdated: new Date().toISOString()
+      }));
       
-      // Validate and set leagues data
-      if (Array.isArray(leaguesData)) {
-        setLeagues(leaguesData);
-        console.log(`Successfully loaded ${leaguesData.length} leagues`);
-      } else {
-        console.warn('Unexpected leagues data format:', leaguesData);
-        setLeagues([]);
-      }
+      setAvailableLeagues(mockYahooLeagues);
+      setLeagues(mockLeagueData);
+      setLastUpdated(new Date().toISOString());
+      console.log(`Successfully loaded ${mockYahooLeagues.length} leagues`);
     } catch (error) {
       handleError('Failed to fetch leagues data', error);
     } finally {
       setIsLoading(false);
     }
-  }, [isLoading, checkAndRefreshToken, handleError]);
+  }, [isLoading, checkAuthentication, handleError]);
 
   // Stable login function using useCallback
   const login = useCallback(async (): Promise<void> => {
@@ -108,7 +135,9 @@ export const useYahooData = (): UseYahooDataState & UseYahooDataActions => {
       setIsLoading(true);
       setError(null);
       
-      await oauthServiceRef.current.initiateLogin();
+      const authUrl = await yahooOAuth.getAuthUrl();
+      window.location.href = authUrl;
+      
       // Note: The actual authentication will happen via redirect
       // Token storage and state update will occur in the handleCallback effect
     } catch (error) {
@@ -121,10 +150,15 @@ export const useYahooData = (): UseYahooDataState & UseYahooDataActions => {
   // Stable logout function using useCallback
   const logout = useCallback((): void => {
     try {
-      oauthServiceRef.current.clearTokens();
+      // Clear tokens and user info from localStorage
+      localStorage.removeItem('yahoo_tokens');
+      localStorage.removeItem('yahoo_user_info');
+      
       setIsAuthenticated(false);
       setLeagues([]);
+      setAvailableLeagues([]);
       setError(null);
+      setLastUpdated(null);
       
       // Clear any pending refresh timeouts
       if (refreshTimeoutRef.current) {
@@ -141,9 +175,20 @@ export const useYahooData = (): UseYahooDataState & UseYahooDataActions => {
   // Stable refresh data function using useCallback
   const refreshData = useCallback(async (): Promise<void> => {
     if (isAuthenticated) {
-      await fetchLeagues();
+      await fetchAvailableLeagues();
     }
-  }, [isAuthenticated, fetchLeagues]);
+  }, [isAuthenticated, fetchAvailableLeagues]);
+
+  // Save league selections
+  const saveLeagueSelections = useCallback((selections: LeagueConfig[]) => {
+    setSavedSelections(selections);
+    localStorage.setItem('yahoo_league_selections', JSON.stringify(selections));
+  }, []);
+
+  // Get enabled league IDs
+  const getEnabledLeagueIds = useCallback((): string[] => {
+    return savedSelections.filter(s => s.enabled).map(s => s.leagueId);
+  }, [savedSelections]);
 
   // Initialize authentication state on mount
   useEffect(() => {
@@ -154,15 +199,39 @@ export const useYahooData = (): UseYahooDataState & UseYahooDataActions => {
       
       try {
         // Check for stored tokens
-        const tokens = oauthServiceRef.current.getStoredTokens();
-        if (tokens) {
-          const isValid = await checkAndRefreshToken();
-          if (isValid) {
-            // Fetch leagues data after successful authentication
-            await fetchLeagues();
+        const isConnected = checkAuthentication();
+        
+        // Load saved league selections
+        const savedSelectionsRaw = localStorage.getItem('yahoo_league_selections');
+        if (savedSelectionsRaw) {
+          try {
+            const parsed = JSON.parse(savedSelectionsRaw);
+            // Handle both old format (strings) and new format (LeagueConfig objects)
+            if (Array.isArray(parsed) && parsed.length > 0) {
+              if (typeof parsed[0] === 'string') {
+                // Old format - convert to new format
+                const converted: LeagueConfig[] = parsed.map((leagueId: string, index: number) => ({
+                  id: `yahoo_converted_${index}`,
+                  leagueId,
+                  platform: 'Yahoo' as const,
+                  enabled: true
+                }));
+                setSavedSelections(converted);
+                localStorage.setItem('yahoo_league_selections', JSON.stringify(converted));
+              } else {
+                // New format
+                setSavedSelections(parsed);
+              }
+            }
+          } catch (error) {
+            console.error('Failed to parse saved selections:', error);
+            setSavedSelections([]);
           }
-        } else {
-          setIsAuthenticated(false);
+        }
+        
+        if (isConnected) {
+          // Fetch leagues data after successful authentication
+          await fetchAvailableLeagues();
         }
       } catch (error) {
         handleError('Failed to initialize authentication', error);
@@ -184,11 +253,11 @@ export const useYahooData = (): UseYahooDataState & UseYahooDataActions => {
           setIsLoading(true);
           setError(null);
           
-          const success = await oauthServiceRef.current.handleCallback(code, state);
-          if (success) {
+          const tokens = await yahooOAuth.exchangeCodeForTokens(code, state);
+          if (tokens) {
             setIsAuthenticated(true);
             // Fetch leagues data after successful callback
-            await fetchLeagues();
+            await fetchAvailableLeagues();
             
             // Clean up URL
             const newUrl = window.location.origin + window.location.pathname;
@@ -210,48 +279,21 @@ export const useYahooData = (): UseYahooDataState & UseYahooDataActions => {
     }
   }, []); // Empty dependency array - runs only on mount
 
-  // Set up automatic token refresh
-  useEffect(() => {
-    if (!isAuthenticated) return;
-
-    const setupTokenRefresh = () => {
-      const tokens = oauthServiceRef.current.getStoredTokens();
-      if (!tokens) return;
-
-      // Calculate time until token expires (with 5-minute buffer)
-      const now = Date.now();
-      const tokenExpiry = tokens.expires_at * 1000;
-      const refreshTime = tokenExpiry - now - (5 * 60 * 1000); // 5 minutes before expiry
-
-      if (refreshTime > 0) {
-        refreshTimeoutRef.current = setTimeout(async () => {
-          console.log('Automatic token refresh triggered');
-          await checkAndRefreshToken();
-          setupTokenRefresh(); // Schedule next refresh
-        }, refreshTime);
-      }
-    };
-
-    setupTokenRefresh();
-
-    // Cleanup timeout on unmount or auth change
-    return () => {
-      if (refreshTimeoutRef.current) {
-        clearTimeout(refreshTimeoutRef.current);
-        refreshTimeoutRef.current = null;
-      }
-    };
-  }, [isAuthenticated, checkAndRefreshToken]); // Dependencies: isAuthenticated and stable checkAndRefreshToken
-
   return {
     // State
     leagues,
+    availableLeagues,
     isLoading,
     error,
     isAuthenticated,
+    lastUpdated,
+    savedSelections,
     // Actions
     login,
     logout,
     refreshData,
+    fetchAvailableLeagues,
+    saveLeagueSelections,
+    getEnabledLeagueIds,
   };
 };

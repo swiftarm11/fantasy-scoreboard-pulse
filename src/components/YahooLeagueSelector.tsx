@@ -174,7 +174,7 @@ export const YahooLeagueSelector = () => {
                         <span className="text-xs text-muted-foreground">
                           Season: {league.season}
                         </span>
-                        {league.is_finished === '1' && (
+                        {league.is_finished === 1 && (
                           <Badge variant="outline" className="text-xs">
                             Finished
                           </Badge>

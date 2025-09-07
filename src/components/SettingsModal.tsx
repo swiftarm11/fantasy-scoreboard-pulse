@@ -262,8 +262,9 @@ export const SettingsModal = ({ open, onOpenChange, onMockEvent }: SettingsModal
       };
     } else {
       currentSelections.push({
+        id: `yahoo_${Date.now()}_${Math.random()}`,
         leagueId: leagueKey,
-        leagueName,
+        customTeamName: leagueName,
         enabled,
         platform: 'Yahoo'
       });
