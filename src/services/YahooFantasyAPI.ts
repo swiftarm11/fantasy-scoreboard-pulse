@@ -41,6 +41,41 @@ export class YahooFantasyAPIService {
   }
 
   /**
+   * Get user leagues
+   */
+  async getUserLeagues(season?: string): Promise<any[]> {
+    try {
+      debugLogger.info('YAHOO_API', 'Fetching user leagues', { season });
+      
+      // Mock implementation for now
+      const mockLeagues = [
+        {
+          league_id: 'mock-league-1',
+          name: 'Mock League 1',
+          season: season || '2024',
+          is_finished: 0
+        }
+      ];
+
+      return mockLeagues;
+    } catch (error) {
+      debugLogger.error('YAHOO_API', 'Failed to fetch user leagues', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Get rate limit status
+   */
+  getRateLimitStatus(): any {
+    return {
+      remaining: 100,
+      limit: 999,
+      resetTime: Date.now() + 3600000 // 1 hour from now
+    };
+  }
+
+  /**
    * Get team roster for a specific league and team
    */
   async getTeamRoster(leagueId: string, teamId: string): Promise<any> {

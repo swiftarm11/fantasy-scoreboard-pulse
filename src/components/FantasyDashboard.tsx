@@ -11,10 +11,8 @@ import { useFantasyDashboardWithLiveEvents } from '../hooks/useFantasyDashboardW
 import { useNetworkStatus } from '../hooks/useNetworkStatus';
 import { useDemoLeague } from '../hooks/useDemoLeague';
 import { useLiveEventsSystem } from '../hooks/useLiveEventsSystem';
-import { usePolling } from '../hooks/usePolling';
 import { usePerformanceMonitor } from '../hooks/usePerformanceMonitor';
 import { useResponsiveBreakpoint, useIsMobile, useDeviceCapabilities } from '../hooks/use-mobile';
-import { usePolling } from '../hooks/usePolling';
 import { usePullToRefresh } from '../hooks/usePullToRefresh';
 import { useHapticFeedback } from '../hooks/useHapticFeedback';
 import { useEventAnimations } from '../hooks/useEventAnimations';
@@ -296,22 +294,14 @@ const DashboardContent = () => {
       </div>
 
       {/* Modals */}
-      {isMobile ? (
-        <MobileSettingsModal
-          isOpen={settingsOpen}
-          onClose={() => setSettingsOpen(false)}
-        />
-      ) : (
-        <SettingsModal
-          open={settingsOpen}
-          onOpenChange={setSettingsOpen}
-        />
-      )}
+      <SettingsModal
+        open={settingsOpen}
+        onOpenChange={setSettingsOpen}
+      />
 
       <ExportShareModal
         open={exportShareOpen}
         onOpenChange={setExportShareOpen}
-        data={displayLeagues}
       />
     </div>
   );

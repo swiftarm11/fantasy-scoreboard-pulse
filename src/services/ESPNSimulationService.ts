@@ -564,7 +564,18 @@ export class ESPNSimulationService {
                     for (const leagueId of player.leagueIds) {
                       if (leagueId && typeof leagueId === 'string') {
                         try {
-                          eventStorageService.saveEvent(event, leagueId);
+                          eventStorageService.addEvent(leagueId, {
+                            id: event.id,
+                            playerId: 'simulation-player',
+                            playerName: event.playerName,
+                            teamAbbr: 'SIM',
+                            eventType: 'rushing_td',
+                            description: event.action,
+                            fantasyPoints: event.scoreImpact,
+                            timestamp: new Date(event.timestamp),
+                            week: 1,
+                            leagueId
+                          });
                         } catch (storageError) {
                           debugLogger.error('ESPN_SIMULATION', 'Failed to save event to storage', { storageError, event, leagueId });
                         }
