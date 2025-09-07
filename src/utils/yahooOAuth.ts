@@ -113,11 +113,14 @@ export class YahooOAuthService {
 
   async getValidAccessToken(): Promise<string> {
     const tokens = this.getStoredTokens();
-    if (!tokens) {
-      yahooLogger.error('OAUTH_SERVICE', 'No tokens available for access token request');
-      throw new Error('Not authenticated');
+    if (!tokens || !tokens.access_token) {
+      yahooLogger.error('OAUTH_SERVICE', 'No valid access token available', {
+        hasTokens: !!tokens,
+        hasAccessToken: !!tokens?.access_token
+      });
+      throw new Error('Not authenticated - no valid access token');
     }
-    yahooLogger.debug('OAUTH_SERVICE', 'Valid access token retrieved');
+    yahooLogger.debug('OAUTH_SERVICE', 'Valid access token retrieved', tokens.access_token);
     return tokens.access_token;
   }
 

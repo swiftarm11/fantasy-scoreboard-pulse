@@ -48,6 +48,11 @@ export const useLiveEventsSystem = ({
   // Initialize system
   const initializeSystem = useCallback(async () => {
     if (!enabled || leagues.length === 0 || isInitialized.current) {
+      debugLogger.info('LIVE_EVENTS', 'Skipping initialization', {
+        enabled,
+        leagueCount: leagues.length,
+        alreadyInitialized: isInitialized.current
+      });
       return;
     }
 
@@ -228,12 +233,16 @@ export const useLiveEventsSystem = ({
     debugLogger.info('LIVE_EVENTS', 'Test event triggered manually');
   }, [updateRecentEvents]);
 
-  // Initialize on mount if enabled
+  // Initialize on mount if enabled - with debouncing
   useEffect(() => {
-    if (enabled && leagues.length > 0 && !isInitialized.current) {
-      initializeSystem();
-    }
-  }, [enabled, leagues, initializeSystem]);
+    const timeoutId = setTimeout(() => {
+      if (enabled && leagues.length > 0 && !isInitialized.current) {
+        initializeSystem();
+      }
+    }, 1000); // Delay initialization to prevent conflicts
+
+    return () => clearTimeout(timeoutId);
+  }, [enabled, leagues.length]); // Only depend on primitive values
 
   // Cleanup on unmount
   useEffect(() => {

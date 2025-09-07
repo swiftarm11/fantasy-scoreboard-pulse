@@ -7,14 +7,13 @@ import { YahooTokens } from '../types/yahoo';
 // Yahoo API league structure
 interface YahooLeague {
   league_key: string;
+  league_id: string;
   name: string;
+  url?: string;
+  logo_url?: string;
+  draft_status?: string;
   num_teams: number;
-  league_type: string;
-  scoring_type: string;
   season: string;
-  is_finished: number;
-  start_date: string;
-  end_date: string;
 }
 
 interface UseYahooDataState {
@@ -66,18 +65,21 @@ export const useYahooData = (): UseYahooDataState & UseYahooDataActions => {
 
   // Stable data fetching function using useCallback
   const fetchAvailableLeagues = useCallback(async (): Promise<void> => {
-    if (isLoading) return; // Prevent multiple simultaneous calls
+    if (!yahooOAuth.isConnected()) {
+      console.log('Not connected to Yahoo - skipping fetch');
+      setAvailableLeagues([]);
+      return;
+    }
+
+    if (isLoading) {
+      console.log('Already loading leagues - skipping duplicate request');
+      return;
+    }
 
     setIsLoading(true);
     setError(null);
 
     try {
-      if (!checkAuthentication()) {
-        handleError('Authentication required');
-        return;
-      }
-
-      // Make actual API call through Supabase edge function
       const accessToken = await yahooOAuth.getValidAccessToken();
       
       const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/yahoo-api`, {
@@ -88,60 +90,50 @@ export const useYahooData = (): UseYahooDataState & UseYahooDataActions => {
           'apikey': import.meta.env.VITE_SUPABASE_ANON_KEY
         },
         body: JSON.stringify({
-          endpoint: 'users;use_login=1/games;game_keys=nfl/leagues',
+          endpoint: 'getUserLeagues',
           accessToken
         })
       });
 
       if (!response.ok) {
-        throw new Error(`API call failed: ${response.status} ${response.statusText}`);
+        const errorData = await response.text();
+        throw new Error(`Failed to fetch leagues: ${response.status} - ${errorData}`);
       }
 
       const data = await response.json();
       
-      // Extract leagues from Yahoo API response
-      const leagues = data?.fantasy_content?.users?.[0]?.user?.[1]?.games?.[0]?.game?.[1]?.leagues || [];
-      const yahooLeagues: YahooLeague[] = leagues.map((leagueData: any) => {
-        const league = leagueData.league?.[0] || leagueData;
+      // Parse Yahoo API response structure
+      const leaguesData = data?.fantasy_content?.users?.[0]?.user?.[0]?.games?.[0]?.game?.[0]?.leagues?.[0]?.league || [];
+      
+      const parsedLeagues: YahooLeague[] = leaguesData.map((leagueArray: any[]) => {
+        const league = Array.isArray(leagueArray) ? leagueArray[0] : leagueArray;
         return {
-          league_key: league.league_key || '',
-          name: league.name || 'Unknown League',
-          num_teams: parseInt(league.num_teams) || 0,
-          league_type: league.league_type || 'private',
-          scoring_type: league.scoring_type || 'head',
-          season: league.season || '2024',
-          is_finished: parseInt(league.is_finished) || 0,
-          start_date: league.start_date || '',
-          end_date: league.end_date || ''
+          league_key: league.league_key,
+          league_id: league.league_id,
+          name: league.name,
+          url: league.url,
+          logo_url: league.logo_url,
+          draft_status: league.draft_status,
+          num_teams: league.num_teams,
+          season: league.season
         };
       });
 
-      // Create league data for dashboard display
-      const leagueData: LeagueData[] = yahooLeagues.map(league => ({
-        id: league.league_key,
-        leagueName: league.name,
-        platform: 'Yahoo',
-        teamName: 'My Team', // Will be fetched separately
-        myScore: 0,
-        opponentScore: 0,
-        opponentName: 'TBD',
-        record: '0-0',
-        leaguePosition: 'TBD',
-        status: 'neutral',
-        scoringEvents: [],
-        lastUpdated: new Date().toISOString()
-      }));
+      setAvailableLeagues(parsedLeagues);
+      console.log(`Fetched ${parsedLeagues.length} Yahoo leagues successfully`);
       
-      setAvailableLeagues(yahooLeagues);
-      setLeagues(leagueData);
-      setLastUpdated(new Date().toISOString());
-      console.log(`Successfully loaded ${yahooLeagues.length} Yahoo leagues`);
     } catch (error) {
-      handleError('Failed to fetch leagues data', error);
+      console.error('Yahoo Data Error: Failed to fetch leagues data', error);
+      setError(error.message || 'Failed to fetch leagues data');
+      
+      // In preview/development mode, don't spam with errors
+      if (import.meta.env.DEV) {
+        console.log('Yahoo OAuth not available in preview mode - this is expected');
+      }
     } finally {
       setIsLoading(false);
     }
-  }, [isLoading, checkAuthentication, handleError]);
+  }, [isLoading]);
 
   // Stable login function using useCallback
   const login = useCallback(async (): Promise<void> => {

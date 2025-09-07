@@ -107,11 +107,14 @@ serve(async (req) => {
       status: yres.status,
     });
   } catch (err) {
+    console.error("Yahoo-API Error:", err);
+    
     /* Map common errors to sensible HTTP codes */
     let status = 400;
     if (err.message.match(/token.*expired|invalid/i)) status = 401;
     else if (err.message.includes("Rate limit")) status = 429;
     else if (err.message.includes("forbidden")) status = 403;
+    else if (err.message.includes("Access token is required")) status = 401;
 
     return new Response(
       JSON.stringify({ error: err.message, endpoint }),
