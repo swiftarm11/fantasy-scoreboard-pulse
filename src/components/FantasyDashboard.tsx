@@ -1,61 +1,47 @@
-import React, { useState, useCallback, useRef, useMemo } from 'react';
+import React, { useState, useMemo, useCallback, useRef } from 'react';
 import { useLocation } from 'react-router-dom';
-import { LeagueBlock } from './LeagueBlock';
-import { MobileLeagueCard } from './MobileLeagueCard';
-import { CompactLeagueView } from './CompactLeagueView';
-import { WinProbabilityTrend } from './WinProbabilityTrend';
-import { CompactLeagueSummary } from './CompactLeagueSummary';
-import { MobileSettingsModal } from './MobileSettingsModal';
-import { LeagueData } from '../types/fantasy';
-import { Settings, RefreshCw, Plus, Share2, Menu } from 'lucide-react';
-import { Button } from './ui/button';
-import { SettingsModal } from './SettingsModal';
-import { ExportShareModal } from './ExportShareModal';
-import { LoadingScreen } from './LoadingScreen';
-import { OfflineBanner } from './OfflineBanner';
-import { AccessibilityProvider, useKeyboardNavigation } from './AccessibilityProvider';
-import { ConnectionIndicator } from './ConnectionIndicator';
-import { SkeletonLoader } from './ui/skeleton-loader';
-import { toast } from './ui/enhanced-toast';
-import { useHapticFeedback } from '../hooks/useHapticFeedback';
-import { DeleteLeagueConfirmation } from './ui/confirmation-dialog';
+import { AlertCircle, Settings, Share2, ArrowDown, ArrowUp, Zap, Download, User, Target, RotateCcw } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Skeleton } from '@/components/ui/skeleton';
 import { useConfig } from '../hooks/useConfig';
 import { useFantasyDashboardWithLiveEvents } from '../hooks/useFantasyDashboardWithLiveEvents';
-import { usePolling } from '../hooks/usePolling';
 import { useNetworkStatus } from '../hooks/useNetworkStatus';
 import { useDemoLeague } from '../hooks/useDemoLeague';
 import { useLiveEventsSystem } from '../hooks/useLiveEventsSystem';
-import { useIsMobile, useResponsiveBreakpoint, useDeviceCapabilities } from '../hooks/use-mobile';
+import { usePolling } from '../hooks/usePolling';
+import { usePerformanceMonitor } from '../hooks/usePerformanceMonitor';
+import { useResponsiveBreakpoint, useIsMobile, useDeviceCapabilities } from '../hooks/use-mobile';
+import { usePolling } from '../hooks/usePolling';
 import { usePullToRefresh } from '../hooks/usePullToRefresh';
-import { mockLeagueData } from '../data/mockData';
-import { Skeleton } from './ui/skeleton';
-import { Alert, AlertDescription } from './ui/alert';
-import { Card } from './ui/card';
-import { LoadingOverlay } from './LoadingOverlay';
-import { enhancedAPIHandler, getUserFriendlyErrorMessage } from '../utils/enhancedErrorHandling';
-import { useSwipeable } from 'react-swipeable';
-import { RefreshCw as RefreshIcon } from 'lucide-react';
-import { DebugConsole } from './DebugConsole';
+import { useHapticFeedback } from '../hooks/useHapticFeedback';
+import { useEventAnimations } from '../hooks/useEventAnimations';
+import { LeagueBlock } from './LeagueBlock';
+import { SettingsModal } from './SettingsModal';
+import { ExportShareModal } from './ExportShareModal';
+import { ConnectionStatusBanner } from './ConnectionStatusBanner';
 import { LiveEventIndicator } from './LiveEventIndicator';
-const DashboardContent = () => {
-  const {
-    config
-  } = useConfig();
-  const location = useLocation();
-  const {
-    leagues: sleeperLeagues,
-    loading,
-    error,
-    lastUpdated,
-    refetch
-  } = useSleeperData(config.leagues);
+import { PerformanceDashboard } from './PerformanceDashboard';
+import { LoadingScreen } from './LoadingScreen';
+import { LoadingOverlay } from './LoadingOverlay';
+import { OfflineBanner } from './OfflineBanner';
+import { MobileLeagueCard } from './MobileLeagueCard';
+import { MobileSettingsModal } from './MobileSettingsModal';
+import { mockLeagueData } from '../data/mockData';
+import { LeagueData } from '../types/fantasy';
 
-  // Enhanced dashboard with live events
+const DashboardContent = () => {
+  const { config } = useConfig();
+  const location = useLocation();
+
+  // Enhanced dashboard with live events - this replaces individual Yahoo/Sleeper hooks
   const {
     leagues: enhancedLeagues,
     isLoading: dashboardLoading,
     error: dashboardError,
-    lastUpdated,
+    lastUpdated: dashboardLastUpdated,
     liveEventsState,
     isLiveSystemReady,
     startLiveEvents,
@@ -63,9 +49,9 @@ const DashboardContent = () => {
     refreshData: refreshAllData,
     refreshRosters
   } = useFantasyDashboardWithLiveEvents();
-  const {
-    isOnline
-  } = useNetworkStatus();
+
+  // Network status and demo league hooks
+  const { isOnline } = useNetworkStatus();
   const {
     demoLeague,
     triggerManualEvent
@@ -83,9 +69,11 @@ const DashboardContent = () => {
     triggerTestEvent
   } = useLiveEventsSystem({
     leagues: config.leagues,
-    enabled: !config.demoMode.enabled && config.leagues.length > 0, // Don't run with demo mode
+    enabled: !config.demoMode.enabled && config.leagues.length > 0,
     pollingInterval: config.polling?.interval || 30
   });
+
+  // UI State
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [exportShareOpen, setExportShareOpen] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -94,13 +82,7 @@ const DashboardContent = () => {
   // Mobile and responsive hooks
   const isMobile = useIsMobile();
   const breakpoint = useResponsiveBreakpoint();
-  const {
-    hasHaptics,
-    isTouch
-  } = useDeviceCapabilities();
-
-  // Use keyboard navigation
-  useKeyboardNavigation();
+  const { hasHaptics, isTouch } = useDeviceCapabilities();
 
   // Use enhanced leagues from the new hook
   const displayLeagues = useMemo(() => {
@@ -120,40 +102,14 @@ const DashboardContent = () => {
     }
 
     return allLeagues;
-  }, [displayLeagues, getLiveEventsForLeague, liveState.isActive]);
+  }, [demoLeague, enhancedLeagues]);
 
-  // Memoized combined loading and error states
-  const {
-    combinedLoading,
-    combinedError
-  } = useMemo(() => ({
-    combinedLoading: loading || yahooLoading,
-    combinedError: error || yahooError
-  }), [loading, yahooLoading, error, yahooError]);
+  // Loading and error states from enhanced dashboard
+  const isLoading = dashboardLoading;
+  const error = dashboardError;
 
-  // CHANGE: Disable polling during OAuth callback to prevent interference
-  const isOnOAuthCallback = location.pathname === '/auth/yahoo/callback';
-  const {
-    startPolling,
-    stopPolling,
-    isPolling
-  } = usePolling({
-    callback: refetch,
-    config: config.polling,
-    enabled: !isOnOAuthCallback // CHANGE: Disable polling on OAuth callback route
-  });
-
-  // Log when polling is disabled
-  React.useEffect(() => {
-    if (isOnOAuthCallback) {
-      console.log('Polling disabled - on OAuth callback page');
-    }
-  }, [isOnOAuthCallback]);
-
-  // Add ref to track last refresh time
+  // Debounced refresh to prevent spam
   const lastRefreshRef = useRef(0);
-
-  // Debounced refresh function to prevent rapid successive calls
   const debouncedRefetch = useCallback(async () => {
     const now = Date.now();
     if (now - lastRefreshRef.current < 2000) {
@@ -161,9 +117,18 @@ const DashboardContent = () => {
       return;
     }
     lastRefreshRef.current = now;
-    // Refresh both platforms with error handling
-    await Promise.allSettled([refetch(), refreshYahooData()]);
-  }, [refetch, refreshYahooData]);
+    try {
+      setIsRefreshing(true);
+      await Promise.allSettled([
+        refreshAllData(),
+        triggerManualEvent ? triggerManualEvent() : Promise.resolve()
+      ]);
+    } catch (error) {
+      console.error('Error refreshing data:', error);
+    } finally {
+      setIsRefreshing(false);
+    }
+  }, [refreshAllData, triggerManualEvent]);
 
   // Pull to refresh for mobile with throttling
   const {
@@ -179,33 +144,10 @@ const DashboardContent = () => {
     distanceToRefresh: 80
   });
 
-  // Swipe navigation for mobile
-  const swipeHandlers = useSwipeable({
-    onSwipedLeft: () => {
-      if (isMobile && enhancedLeagues.length > 1) {
-        setCurrentLeagueIndex(prev => prev < enhancedLeagues.length - 1 ? prev + 1 : 0);
-        if (hasHaptics) navigator.vibrate?.(25);
-      }
-    },
-    onSwipedRight: () => {
-      if (isMobile && enhancedLeagues.length > 1) {
-        setCurrentLeagueIndex(prev => prev > 0 ? prev - 1 : enhancedLeagues.length - 1);
-        if (hasHaptics) navigator.vibrate?.(25);
-      }
-    },
-    trackMouse: false,
-    preventScrollOnSwipe: true
-  });
-  const handleLeagueClick = (league: LeagueData) => {
-    console.log('League clicked:', league.leagueName);
-    if (hasHaptics) navigator.vibrate?.(50);
-    // TODO: Implement detailed view modal
-  };
   const handleRefresh = async () => {
     setIsRefreshing(true);
     try {
-      // Refresh both Sleeper and Yahoo data in parallel
-      await Promise.allSettled([refetch(), refreshYahooData()]);
+      await refreshAllData();
     } finally {
       setIsRefreshing(false);
     }
@@ -218,187 +160,163 @@ const DashboardContent = () => {
       return "grid grid-cols-1 gap-4";
     }
 
-    // Adaptive grid for desktop/laptop - optimized for 13" MacBook Air
-    if (leagueCount <= 2) {
-      return "grid grid-cols-1 lg:grid-cols-2 gap-6 max-w-4xl mx-auto";
-    } else if (leagueCount <= 4) {
-      return "grid grid-cols-2 gap-6 max-w-5xl mx-auto";
-    } else if (leagueCount <= 6) {
-      return "grid grid-cols-2 lg:grid-cols-3 gap-5 max-w-6xl mx-auto";
-    } else if (leagueCount <= 9) {
-      return "grid grid-cols-3 lg:grid-cols-3 xl:grid-cols-4 gap-4 max-w-7xl mx-auto";
-    } else if (leagueCount <= 12) {
-      return "grid grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4 max-w-7xl mx-auto";
-    } else {
-      // 13-14 leagues: compact 5-7 column layout for optimal space usage
-      return "grid grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-7 gap-3 max-w-[1600px] mx-auto";
-    }
+    if (leagueCount <= 2) return "grid grid-cols-1 lg:grid-cols-2 gap-6";
+    if (leagueCount <= 4) return "grid grid-cols-1 md:grid-cols-2 gap-4";
+    if (leagueCount <= 6) return "grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4";
+    return "grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3";
   }, [enhancedLeagues.length, isMobile]);
 
-  // Calculate card size class based on layout density
-  const getCardSizeClass = useMemo(() => {
-    const leagueCount = enhancedLeagues.length;
-    if (leagueCount <= 2) {
-      return "min-h-[400px]"; // Large cards for few leagues
-    } else if (leagueCount <= 6) {
-      return "min-h-[350px]"; // Medium cards
-    } else if (leagueCount <= 9) {
-      return "min-h-[320px]"; // Compact cards
-    } else {
-      return "min-h-[280px]"; // Very compact for 10+ leagues
-    }
-  }, [enhancedLeagues.length]);
-  const formatLastUpdate = (date: Date | null) => {
-    return date ? date.toLocaleTimeString([], {
-      hour: '2-digit',
-      minute: '2-digit'
-    }) : 'Never';
+  const handleLeagueClick = (league: LeagueData) => {
+    console.log('League clicked:', league.leagueName);
+    if (hasHaptics) navigator.vibrate?.(50);
   };
 
-  // Show loading screen on initial load
-  if (combinedLoading && !displayLeagues.length) {
-    return <LoadingScreen isLoading={true} loadingStage="Loading leagues..." progress={50} />;
+  // Performance monitoring
+  const performanceHook = usePerformanceMonitor();
+
+  if (isLoading && displayLeagues.length === 0) {
+    return <LoadingScreen isLoading={true} />;
   }
-  const dashboardData = {
-    leagues: enhancedLeagues,
-    nflState: {
-      week: 3
-    },
-    // This should come from your API
-    lastUpdated
-  };
-  const renderLeagueCards = () => {
-    if (isMobile) {
-      return enhancedLeagues.map((league, index) => <MobileLeagueCard key={league.id} league={league} onClick={() => handleLeagueClick(league)} onLongPress={() => {
-        console.log('Long press on league:', league.leagueName);
-        // TODO: Show quick actions menu
-      }} />);
-    }
-    return enhancedLeagues.map((league, index) => {
-      if (config.display?.compactView) {
-        return <div key={league.id} className="space-y-2">
-            <CompactLeagueView league={league} onClick={() => handleLeagueClick(league)} />
-            {config.display?.showWinProbabilityTrends && <WinProbabilityTrend league={league} />}
-          </div>;
-      }
-      return <div key={league.id} tabIndex={0} onKeyDown={e => {
-        if (e.key === 'Enter' || e.key === ' ') {
-          e.preventDefault();
-          handleLeagueClick(league);
-        }
-      }} aria-label={`League: ${league.leagueName}`} className={getCardSizeClass}>
-          <LeagueBlock league={league} onClick={() => handleLeagueClick(league)} />
-        </div>;
-    });
-  };
-  return <div ref={containerRef} {...swipeHandlers} className="min-h-screen bg-background">
-      {/* Skip to content link for accessibility */}
-      <a href="#main-content" className="sr-only focus:not-sr-only focus:absolute focus:top-4 focus:left-4 bg-blue-600 text-white px-4 py-2 rounded-md z-50">
-        Skip to main content
-      </a>
 
-      {/* Pull to refresh indicator */}
-      {isPullRefreshing && <div className="fixed top-0 left-0 right-0 bg-blue-500 text-white text-center py-2 z-40">
-          <RefreshIcon className="inline-block animate-spin mr-2" size={16} />
-          Refreshing...
-        </div>}
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-background via-background/95 to-background/90">
+      {/* Network Status */}
+      {!isOnline && <OfflineBanner />}
 
-      {/* Offline banner */}
-      <OfflineBanner />
+      {/* Live Events Status */}
+      {isSystemReady && liveState.isActive && (
+        <div className="bg-primary/10 border border-primary/20 rounded-lg p-3 mb-4">
+          <p className="text-sm text-primary">
+            Live Events: {liveState.eventCount} events • Last: {liveState.lastEventTime || 'None'}
+          </p>
+        </div>
+      )}
 
-      {/* Compact summary for mobile */}
-      {isMobile && enhancedLeagues.length > 0 && <CompactLeagueSummary leagues={enhancedLeagues} onLeagueSelect={handleLeagueClick} />}
-
-      {/* Header */}
-      <header className="sticky top-0 z-30 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-        <div className="container flex h-14 items-center">
-          <div className="mr-4 hidden md:flex">
-            <h1 className="text-xl font-extrabold">Fantasy Central</h1>
+      {/* Main Container */}
+      <div 
+        ref={containerRef}
+        className="container mx-auto px-4 py-6 space-y-6 relative"
+        style={{
+          transform: isPullRefreshing ? `translateY(${Math.min(pullDistance * 0.5, 50)}px)` : undefined,
+          transition: isPullRefreshing ? 'none' : 'transform 0.3s ease-out'
+        }}
+      >
+        {/* Header */}
+        <div className="flex justify-between items-center">
+          <div>
+            <h1 className="text-3xl font-bold tracking-tight text-foreground">
+              Fantasy Dashboard
+            </h1>
+            <p className="text-muted-foreground mt-1">
+              {displayLeagues.length} league{displayLeagues.length !== 1 ? 's' : ''} • 
+              {isSystemReady && liveState.isActive ? (
+                <span className="text-primary ml-1">Live</span>
+              ) : (
+                <span className="ml-1">Updated {dashboardLastUpdated ? new Date(dashboardLastUpdated).toLocaleTimeString() : 'never'}</span>
+              )}
+            </p>
           </div>
-          
-          <div className="flex flex-1 items-center justify-between space-x-2 md:justify-end">
-            <div className="w-full flex-1 md:w-auto md:flex-none">
-              <div className="flex items-center gap-4">
-                <ConnectionIndicator />
-                <LiveEventIndicator liveState={liveState} className="hidden md:flex" />
-              </div>
-            </div>
-            
-            <nav className="flex items-center space-x-1">
-              <Button variant="ghost" size="sm" onClick={handleRefresh} disabled={isRefreshing} className="h-8 w-8 px-0">
-                <RefreshCw className={`h-4 w-4 ${isRefreshing ? 'animate-spin' : ''}`} />
-                <span className="sr-only">Refresh</span>
-              </Button>
-              
-              <Button variant="ghost" size="sm" onClick={() => setExportShareOpen(true)} className="h-8 w-8 px-0">
-                <Share2 className="h-4 w-4" />
-                <span className="sr-only">Share</span>
-              </Button>
-              
-              <Button variant="ghost" size="sm" onClick={() => setSettingsOpen(true)} className="h-8 w-8 px-0">
-                <Settings className="h-4 w-4" />
-                <span className="sr-only">Settings</span>
-              </Button>
-            </nav>
+
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleRefresh}
+              disabled={isRefreshing}
+              className="transition-all duration-200 hover:scale-105"
+            >
+              <RotateCcw className={`h-4 w-4 mr-2 ${isRefreshing ? 'animate-spin' : ''}`} />
+              Refresh
+            </Button>
+
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setExportShareOpen(true)}
+              className="transition-all duration-200 hover:scale-105"
+            >
+              <Share2 className="h-4 w-4 mr-2" />
+              Export
+            </Button>
+
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setSettingsOpen(true)}
+              className="transition-all duration-200 hover:scale-105"
+            >
+              <Settings className="h-4 w-4 mr-2" />
+              Settings
+            </Button>
           </div>
         </div>
-      </header>
 
-      {/* Main content */}
-      <main id="main-content" className="container mx-auto px-4 py-6">
-        {combinedError ? <Alert className="mb-6">
-            <AlertDescription>
-              {getUserFriendlyErrorMessage(combinedError)}
-            </AlertDescription>
-          </Alert> : enhancedLeagues.length > 0 ? <div className={getGridLayout}>
-            {renderLeagueCards()}
-          </div> :
-      // Loading skeletons with adaptive layout
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {Array.from({
-          length: isMobile ? 3 : 6
-        }).map((_, i) => <SkeletonLoader key={i} />)}
-          </div>}
+        {/* Error Display */}
+        {error && (
+          <Alert className="border-destructive/50 bg-destructive/10">
+            <AlertCircle className="h-4 w-4" />
+            <AlertDescription>{error}</AlertDescription>
+          </Alert>
+        )}
 
-        {/* Add new league placeholder */}
-        {config.leagues.length < 10 && <Card className="mt-6 p-8 border-2 border-dashed border-muted-foreground/25 hover:border-muted-foreground/50 transition-colors cursor-pointer" onClick={() => setSettingsOpen(true)} role="button" tabIndex={0} aria-label="Add new fantasy league" onKeyDown={e => {
-        if (e.key === 'Enter' || e.key === ' ') {
-          e.preventDefault();
-          setSettingsOpen(true);
-        }
-      }}>
-            <div className="text-center text-muted-foreground">
-              <Plus className="mx-auto h-12 w-12 mb-4" />
-              <h3 className="text-lg font-medium mb-2">Add League</h3>
-              <p className="text-sm">Connect another fantasy league</p>
-            </div>
-          </Card>}
-      </main>
-
-      {/* Footer - Hidden on mobile */}
-      {!isMobile && <footer className="border-t py-6 md:py-0">
-          <div className="container flex flex-col items-center justify-between gap-4 md:h-24 md:flex-row">
-            <div className="flex flex-col items-center gap-4 px-8 md:flex-row md:gap-2 md:px-0">
-              <p className="text-center text-sm leading-loose text-muted-foreground md:text-left">
-                Last updated: {formatLastUpdate(lastUpdated)}
-              </p>
-            </div>
+        {/* Leagues Grid */}
+        {isMobile ? (
+          // Mobile: Card-based layout with swipe navigation
+          <div className="space-y-4">
+            {displayLeagues.map((league) => (
+              <MobileLeagueCard
+                key={league.id}
+                league={league}
+                onClick={() => handleLeagueClick(league)}
+              />
+            ))}
           </div>
-        </footer>}
+        ) : (
+          // Desktop: Grid layout
+          <div className={getGridLayout}>
+            {displayLeagues.map((league) => (
+              <LeagueBlock
+                key={league.id}
+                league={league}
+                onClick={() => handleLeagueClick(league)}
+              />
+            ))}
+          </div>
+        )}
+
+        {/* Performance Dashboard (Debug Mode) */}
+        {config.debug.enabled && (
+          <div className="mt-4 p-4 bg-muted rounded-lg">
+            <p className="text-sm text-muted-foreground">Debug Mode Active</p>
+          </div>
+        )}
+
+        {/* Loading Overlay */}
+        {(isRefreshing || isPullRefreshing) && <LoadingOverlay isVisible={true} />}
+      </div>
 
       {/* Modals */}
-      <SettingsModal open={settingsOpen} onOpenChange={setSettingsOpen} />
-      <ExportShareModal open={exportShareOpen} onOpenChange={setExportShareOpen} dashboardData={dashboardData} />
+      {isMobile ? (
+        <MobileSettingsModal
+          isOpen={settingsOpen}
+          onClose={() => setSettingsOpen(false)}
+        />
+      ) : (
+        <SettingsModal
+          open={settingsOpen}
+          onOpenChange={setSettingsOpen}
+        />
+      )}
 
-      {/* Loading overlay */}
-      {(isRefreshing || isPullRefreshing) && <LoadingOverlay isVisible={true} message="Refreshing leagues..." />}
-
-      {/* Debug Console - Only shows in dev or when there are config issues */}
-      <DebugConsole />
-    </div>;
+      <ExportShareModal
+        open={exportShareOpen}
+        onOpenChange={setExportShareOpen}
+        data={displayLeagues}
+      />
+    </div>
+  );
 };
+
 export const FantasyDashboard = () => {
-  return <AccessibilityProvider>
-      <DashboardContent />
-    </AccessibilityProvider>;
+  return <DashboardContent />;
 };
