@@ -103,23 +103,56 @@ export const useYahooData = (): UseYahooDataState & UseYahooDataActions => {
       const data = await response.json();
       
       // Parse Yahoo API response structure
-      const leaguesData = data?.fantasy_content?.users?.[0]?.user?.[0]?.games?.[0]?.game?.[0]?.leagues?.[0]?.league || [];
+      const gamesData = data?.fantasy_content?.users?.[0]?.user?.[0]?.games?.[0]?.game?.[0];
+      const leaguesObject = gamesData?.leagues?.[0] || {};
       
-      const parsedLeagues: YahooLeague[] = leaguesData.map((leagueArray: any[]) => {
-        const league = Array.isArray(leagueArray) ? leagueArray[0] : leagueArray;
-        return {
-          league_key: league.league_key,
-          league_id: league.league_id,
-          name: league.name,
-          url: league.url,
-          logo_url: league.logo_url,
-          draft_status: league.draft_status,
-          num_teams: league.num_teams,
-          season: league.season
-        };
+      // Extract leagues from numbered keys (0, 1, 2, etc.)
+      const parsedLeagues: YahooLeague[] = [];
+      Object.keys(leaguesObject).forEach(key => {
+        if (key !== 'count' && leaguesObject[key]?.league) {
+          const leagueArray = leaguesObject[key].league;
+          const league = Array.isArray(leagueArray) ? leagueArray[0] : leagueArray;
+          if (league && league.league_key) {
+            parsedLeagues.push({
+              league_key: league.league_key,
+              league_id: league.league_id,
+              name: league.name,
+              url: league.url,
+              logo_url: league.logo_url,
+              draft_status: league.draft_status,
+              num_teams: league.num_teams,
+              season: league.season
+            });
+          }
+        }
       });
 
       setAvailableLeagues(parsedLeagues);
+      
+      // Convert to LeagueData format for dashboard display
+      const leagueDataArray: LeagueData[] = parsedLeagues.map(league => ({
+        id: league.league_key,
+        leagueName: league.name,
+        platform: 'Yahoo' as const,
+        teamName: `Team in ${league.name}`,
+        myScore: 0, // Will be populated by scoreboard data
+        opponentScore: 0,
+        opponentName: 'TBD',
+        record: '0-0-0',
+        leaguePosition: 'TBD',
+        status: 'neutral' as const,
+        scoringEvents: [],
+        lastUpdated: new Date().toISOString(),
+        week: 1,
+        winProbability: 50,
+        wins: 0,
+        losses: 0,
+        rank: 0,
+        totalTeams: league.num_teams,
+        events: []
+      }));
+      
+      setLeagues(leagueDataArray);
       console.log(`Fetched ${parsedLeagues.length} Yahoo leagues successfully`);
       
     } catch (error) {
