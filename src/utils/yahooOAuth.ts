@@ -118,9 +118,26 @@ export class YahooOAuthService {
         hasTokens: !!tokens,
         hasAccessToken: !!tokens?.access_token
       });
-      throw new Error('Not authenticated - no valid access token');
+      throw new Error('REAUTH_REQUIRED');
     }
-    yahooLogger.debug('OAUTH_SERVICE', 'Valid access token retrieved', tokens.access_token);
+
+    // Check if token is expired
+    if (tokens.expires_in) {
+      const expirationTime = Date.now() + (tokens.expires_in * 1000);
+      if (Date.now() >= expirationTime) {
+        yahooLogger.warn('OAUTH_SERVICE', 'Access token expired, attempting refresh');
+        try {
+          const refreshedTokens = await this.refreshTokens();
+          yahooLogger.debug('OAUTH_SERVICE', 'Token refreshed successfully', refreshedTokens.access_token.substring(0, 10) + '...');
+          return refreshedTokens.access_token;
+        } catch (error) {
+          yahooLogger.error('OAUTH_SERVICE', 'Token refresh failed', error);
+          throw new Error('REAUTH_REQUIRED');
+        }
+      }
+    }
+    
+    yahooLogger.debug('OAUTH_SERVICE', 'Valid access token retrieved', tokens.access_token.substring(0, 10) + '...');
     return tokens.access_token;
   }
 

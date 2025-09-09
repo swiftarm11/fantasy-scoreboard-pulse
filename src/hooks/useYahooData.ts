@@ -48,6 +48,7 @@ export const useYahooData = (): UseYahooDataState & UseYahooDataActions => {
   // Refs to prevent infinite loops
   const isInitializedRef = useRef(false);
   const refreshTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const isLoadingRef = useRef(false);
 
   // Stable error handler using useCallback
   const handleError = useCallback((errorMessage: string, error?: any) => {
@@ -66,28 +67,33 @@ export const useYahooData = (): UseYahooDataState & UseYahooDataActions => {
   // Stable data fetching function using useCallback
   const fetchAvailableLeagues = useCallback(async (): Promise<void> => {
     if (!yahooOAuth.isConnected()) {
-      console.log('Not connected to Yahoo - skipping fetch');
+      console.log('Yahoo not connected - clearing leagues');
       setAvailableLeagues([]);
+      setLeagues([]);
       return;
     }
 
-    if (isLoading) {
+    // Use ref to prevent race conditions
+    if (isLoadingRef.current) {
       console.log('Already loading leagues - skipping duplicate request');
       return;
     }
 
+    isLoadingRef.current = true;
     setIsLoading(true);
     setError(null);
 
     try {
+      console.log('Yahoo: Starting league fetch...');
       const accessToken = await yahooOAuth.getValidAccessToken();
+      console.log('Yahoo: Got valid access token');
       
-      const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/yahoo-api`, {
+      const response = await fetch(`https://doyquitecogdnvbyiszt.supabase.co/functions/v1/yahoo-api`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
-          'apikey': import.meta.env.VITE_SUPABASE_ANON_KEY
+          'Authorization': `Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRveXF1aXRlY29nZG52Ynlpc3p0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTU2ODg0OTMsImV4cCI6MjA3MTI2NDQ5M30.63TmTlCTK_jVJnG_4vuZWUwS--UcyNgOSem5tI7q_1w`,
+          'apikey': 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRveXF1aXRlY29nZG52Ynlpc3p0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTU2ODg0OTMsImV4cCI6MjA3MTI2NDQ5M30.63TmTlCTK_jVJnG_4vuZWUwS--UcyNgOSem5tI7q_1w'
         },
         body: JSON.stringify({
           endpoint: 'getUserLeagues',
@@ -95,12 +101,19 @@ export const useYahooData = (): UseYahooDataState & UseYahooDataActions => {
         })
       });
 
+      console.log('Yahoo: API response status:', response.status);
+
       if (!response.ok) {
         const errorData = await response.text();
+        console.error('Yahoo: API Error Response:', errorData);
+        if (response.status === 401) {
+          throw new Error('REAUTH_REQUIRED');
+        }
         throw new Error(`Failed to fetch leagues: ${response.status} - ${errorData}`);
       }
 
       const data = await response.json();
+      console.log('Yahoo: Raw API response:', data);
       
       // Parse Yahoo API response structure
       const gamesData = data?.fantasy_content?.users?.[0]?.user?.[0]?.games?.[0]?.game?.[0];
@@ -153,20 +166,30 @@ export const useYahooData = (): UseYahooDataState & UseYahooDataActions => {
       }));
       
       setLeagues(leagueDataArray);
-      console.log(`Fetched ${parsedLeagues.length} Yahoo leagues successfully`);
+      setLastUpdated(new Date().toISOString());
+      console.log(`Yahoo: Successfully fetched ${parsedLeagues.length} leagues:`, parsedLeagues.map(l => l.name));
       
     } catch (error) {
-      console.error('Yahoo Data Error: Failed to fetch leagues data', error);
-      setError(error.message || 'Failed to fetch leagues data');
+      console.error('Yahoo: Failed to fetch leagues data', error);
       
-      // In preview/development mode, don't spam with errors
-      if (import.meta.env.DEV) {
-        console.log('Yahoo OAuth not available in preview mode - this is expected');
+      if (error.message === 'REAUTH_REQUIRED') {
+        console.log('Yahoo: Re-authentication required');
+        setIsAuthenticated(false);
+        yahooOAuth.disconnect();
+        setError('Yahoo authentication expired. Please reconnect your account.');
+      } else {
+        setError(error.message || 'Failed to fetch leagues data');
+        
+        // In preview/development mode, don't spam with errors
+        if (import.meta.env.DEV) {
+          console.log('Yahoo OAuth issues in preview mode are expected');
+        }
       }
     } finally {
       setIsLoading(false);
+      isLoadingRef.current = false;
     }
-  }, [isLoading]);
+  }, []);
 
   // Stable login function using useCallback
   const login = useCallback(async (): Promise<void> => {
@@ -189,9 +212,8 @@ export const useYahooData = (): UseYahooDataState & UseYahooDataActions => {
   // Stable logout function using useCallback
   const logout = useCallback((): void => {
     try {
-      // Clear tokens and user info from localStorage
-      localStorage.removeItem('yahoo_tokens');
-      localStorage.removeItem('yahoo_user_info');
+      // Use the OAuth service disconnect method
+      yahooOAuth.disconnect();
       
       setIsAuthenticated(false);
       setLeagues([]);
@@ -205,7 +227,11 @@ export const useYahooData = (): UseYahooDataState & UseYahooDataActions => {
         refreshTimeoutRef.current = null;
       }
       
-      console.log('User logged out successfully');
+      // Reset loading refs
+      isLoadingRef.current = false;
+      isInitializedRef.current = false;
+      
+      console.log('Yahoo: User logged out successfully');
     } catch (error) {
       handleError('Failed to logout', error);
     }
