@@ -10,7 +10,7 @@ import { useConfig } from '../hooks/useConfig';
 import { useFantasyDashboardWithLiveEvents } from '../hooks/useFantasyDashboardWithLiveEvents';
 import { useNetworkStatus } from '../hooks/useNetworkStatus';
 import { useDemoLeague } from '../hooks/useDemoLeague';
-import { useLiveEventsSystem } from '../hooks/useLiveEventsSystem';
+
 import { usePerformanceMonitor } from '../hooks/usePerformanceMonitor';
 import { useResponsiveBreakpoint, useIsMobile, useDeviceCapabilities } from '../hooks/use-mobile';
 import { usePullToRefresh } from '../hooks/usePullToRefresh';
@@ -58,18 +58,18 @@ const DashboardContent = () => {
     updateInterval: config.demoMode.updateInterval
   });
 
-  // Live events system integration
-  const {
-    liveState,
-    recentEvents,
-    isSystemReady,
-    getLiveEventsForLeague,
-    triggerTestEvent
-  } = useLiveEventsSystem({
-    leagues: config.leagues,
-    enabled: !config.demoMode.enabled && config.leagues.length > 0,
-    pollingInterval: config.polling?.interval || 30
-  });
+  // Remove duplicate live events system - already handled in useFantasyDashboardWithLiveEvents
+  // const {
+  //   liveState,
+  //   recentEvents,
+  //   isSystemReady,
+  //   getLiveEventsForLeague,
+  //   triggerTestEvent
+  // } = useLiveEventsSystem({
+  //   leagues: config.leagues,
+  //   enabled: !config.demoMode.enabled && config.leagues.length > 0,
+  //   pollingInterval: config.polling?.interval || 30
+  // });
 
   // UI State
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -177,11 +177,11 @@ const DashboardContent = () => {
       {/* Network Status */}
       {!isOnline && <OfflineBanner />}
 
-      {/* Live Events Status */}
-      {isSystemReady && liveState.isActive && (
+      {/* Live Events Status - using enhanced dashboard state */}
+      {isLiveSystemReady && liveEventsState.isActive && (
         <div className="bg-primary/10 border border-primary/20 rounded-lg p-3 mb-4">
           <p className="text-sm text-primary">
-            Live Events: {liveState.eventCount} events • Last: {liveState.lastEventTime || 'None'}
+            Live Events: {liveEventsState.eventCount || 0} events • Last: {liveEventsState.lastEventTime || 'None'}
           </p>
         </div>
       )}
@@ -203,7 +203,7 @@ const DashboardContent = () => {
             </h1>
             <p className="text-muted-foreground mt-1">
               {displayLeagues.length} league{displayLeagues.length !== 1 ? 's' : ''} • 
-              {isSystemReady && liveState.isActive ? (
+              {isLiveSystemReady && liveEventsState.isActive ? (
                 <span className="text-primary ml-1">Live</span>
               ) : (
                 <span className="ml-1">Updated {dashboardLastUpdated ? new Date(dashboardLastUpdated).toLocaleTimeString() : 'never'}</span>
