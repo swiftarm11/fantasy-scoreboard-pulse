@@ -27,7 +27,7 @@ import { LoadingOverlay } from './LoadingOverlay';
 import { OfflineBanner } from './OfflineBanner';
 import { MobileLeagueCard } from './MobileLeagueCard';
 import { MobileSettingsModal } from './MobileSettingsModal';
-import { mockLeagueData } from '../data/mockData';
+
 import { LeagueData } from '../types/fantasy';
 
 const DashboardContent = () => {
@@ -94,11 +94,7 @@ const DashboardContent = () => {
     // Add enhanced leagues (contains both Yahoo and Sleeper with live events)
     allLeagues.push(...enhancedLeagues);
 
-    // Show mock data only if no real leagues configured and no demo
-    if (allLeagues.length === 0) {
-      allLeagues.push(...mockLeagueData);
-    }
-
+    // No fallback to mock data - only show configured leagues and demo
     return allLeagues;
   }, [demoLeague, enhancedLeagues]);
 
