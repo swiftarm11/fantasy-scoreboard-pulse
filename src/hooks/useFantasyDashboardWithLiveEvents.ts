@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useYahooData } from './useYahooData';
 import { useSleeperData } from './useSleeperData';
 import { useLiveEventsManager } from './useLiveEventsManager';
+import { useConfig } from './useConfig';
 import { LeagueData } from '../types/fantasy';
 import { LeagueConfig } from '../types/config';
 import { debugLogger } from '../utils/debugLogger';
@@ -25,6 +26,9 @@ export const useFantasyDashboardWithLiveEvents = (): UseFantasyDashboardReturn =
   const [error, setError] = useState<string | null>(null);
   const [lastUpdated, setLastUpdated] = useState<string | null>(null);
 
+  // Get configuration
+  const { config } = useConfig();
+
   // Yahoo data hook
   const {
     leagues: yahooLeagues,
@@ -34,22 +38,61 @@ export const useFantasyDashboardWithLiveEvents = (): UseFantasyDashboardReturn =
     refreshData: refreshYahooData
   } = useYahooData();
 
-  // Get Sleeper league configurations from saved selections
-  // For now, we'll use an empty array since we need proper config integration
-  const sleeperConfigs: LeagueConfig[] = [];
+  // Debug the current configuration state
+  useEffect(() => {
+    debugLogger.info('DASHBOARD', 'Configuration loaded', {
+      totalLeagues: config.leagues.length,
+      yahooLeagues: config.leagues.filter(l => l.platform === 'yahoo' || l.platform === 'Yahoo').length,
+      sleeperLeagues: config.leagues.filter(l => l.platform === 'sleeper' || l.platform === 'Sleeper').length,
+      enabledLeagues: config.leagues.filter(l => l.enabled).length
+    });
+  }, [config.leagues]);
+
+  // Extract Sleeper league configurations from main config
+  const sleeperConfigs: LeagueConfig[] = config.leagues.filter(
+    league => (league.platform === 'sleeper' || league.platform === 'Sleeper') && league.enabled
+  );
   
-  // Sleeper data hook - pass actual configs when available
+  // Add helpful logging for debugging
+  useEffect(() => {
+    if (config.leagues.length === 0) {
+      console.log('📋 DASHBOARD: No leagues configured');
+      console.log('ℹ️  To add a Sleeper league:');
+      console.log('   1. Click Settings button');
+      console.log('   2. Go to League Management tab');
+      console.log('   3. Select "Sleeper" platform');
+      console.log('   4. Enter a valid Sleeper league ID');
+      console.log('   5. Optionally enter your Sleeper username');
+      console.log('   6. Click "Add League"');
+    } else {
+      console.log('📋 DASHBOARD: Leagues configured:', config.leagues.map(l => ({ platform: l.platform, enabled: l.enabled, id: l.leagueId })));
+    }
+  }, [config.leagues]);
+  
+  debugLogger.info('DASHBOARD', 'Sleeper configs loaded', {
+    total: config.leagues.length,
+    sleeper: sleeperConfigs.length,
+    enabled: sleeperConfigs.filter(c => c.enabled).length
+  });
+  
+  // Sleeper data hook - now gets actual configurations!
   const sleeperDataHook = useSleeperData(sleeperConfigs);
   const sleeperLeagues = sleeperDataHook.leagues || [];
   const sleeperLoading = sleeperDataHook.loading || false;
   const sleeperError = sleeperDataHook.error || null;
   const refreshSleeperData = sleeperDataHook.refetch || (() => Promise.resolve());
 
-  // Get all enabled league configurations
+  // Get all enabled league configurations from config
   const allLeagueConfigs: LeagueConfig[] = [
     ...yahooSelections.filter(config => config.enabled),
-    ...sleeperConfigs.filter(config => config.enabled)
+    ...sleeperConfigs // These are already filtered for enabled status
   ];
+
+  debugLogger.info('DASHBOARD', 'All league configs', {
+    yahoo: yahooSelections.filter(c => c.enabled).length,
+    sleeper: sleeperConfigs.length,
+    total: allLeagueConfigs.length
+  });
 
   // Live events system
   const {
@@ -122,6 +165,7 @@ export const useFantasyDashboardWithLiveEvents = (): UseFantasyDashboardReturn =
         total: enrichedLeagues.length,
         yahoo: yahooLeagues.length,
         sleeper: sleeperLeagues.length,
+        sleeperConfigs: sleeperConfigs.length,
         withLiveEvents: isLiveSystemReady,
         liveSystemState: liveEventsState.pollingStatus
       });
@@ -139,7 +183,8 @@ export const useFantasyDashboardWithLiveEvents = (): UseFantasyDashboardReturn =
     sleeperError,
     isLiveSystemReady,
     liveEventsState.pollingStatus,
-    enrichLeaguesWithLiveEvents
+    enrichLeaguesWithLiveEvents,
+    config.leagues.length // Add config dependency
   ]);
 
   // Start live events when leagues are available
