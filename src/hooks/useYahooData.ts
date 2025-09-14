@@ -2,19 +2,8 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { yahooOAuth } from '../utils/yahooOAuth';
 import { LeagueData } from '../types/fantasy';
 import { LeagueConfig } from '../types/config';
-import { YahooTokens } from '../types/yahoo';
-
-// Yahoo API league structure
-interface YahooLeague {
-  league_key: string;
-  league_id: string;
-  name: string;
-  url?: string;
-  logo_url?: string;
-  draft_status?: string;
-  num_teams: number;
-  season: string;
-}
+import { YahooLeague } from '../types/yahoo';
+import { YahooDataService } from '../services/YahooDataService';
 
 interface UseYahooDataState {
   leagues: LeagueData[];
@@ -64,7 +53,7 @@ export const useYahooData = (): UseYahooDataState & UseYahooDataActions => {
     return isConnected;
   }, []);
 
-  // Stable data fetching function using useCallback
+  // FIXED: Use YahooDataService instead of duplicate parsing logic
   const fetchAvailableLeagues = useCallback(async (): Promise<void> => {
     if (!yahooOAuth.isConnected()) {
       console.log('Yahoo not connected - clearing leagues');
@@ -84,66 +73,13 @@ export const useYahooData = (): UseYahooDataState & UseYahooDataActions => {
     setError(null);
 
     try {
-      console.log('Yahoo: Starting league fetch...');
-      const accessToken = await yahooOAuth.getValidAccessToken();
-      console.log('Yahoo: Got valid access token');
+      // FIXED: Use YahooDataService with correct parsing logic
+      const fetchedLeagues = await YahooDataService.fetchUserLeagues();
       
-      const response = await fetch(`https://doyquitecogdnvbyiszt.supabase.co/functions/v1/yahoo-api`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRveXF1aXRlY29nZG52Ynlpc3p0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTU2ODg0OTMsImV4cCI6MjA3MTI2NDQ5M30.63TmTlCTK_jVJnG_4vuZWUwS--UcyNgOSem5tI7q_1w`,
-          'apikey': 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRveXF1aXRlY29nZG52Ynlpc3p0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTU2ODg0OTMsImV4cCI6MjA3MTI2NDQ5M30.63TmTlCTK_jVJnG_4vuZWUwS--UcyNgOSem5tI7q_1w'
-        },
-        body: JSON.stringify({
-          endpoint: 'getUserLeagues',
-          accessToken
-        })
-      });
-
-      console.log('Yahoo: API response status:', response.status);
-
-      if (!response.ok) {
-        const errorData = await response.text();
-        console.error('Yahoo: API Error Response:', errorData);
-        if (response.status === 401) {
-          throw new Error('REAUTH_REQUIRED');
-        }
-        throw new Error(`Failed to fetch leagues: ${response.status} - ${errorData}`);
-      }
-
-      const data = await response.json();
-      console.log('Yahoo: Raw API response:', data);
-      
-      // Parse Yahoo API response structure
-      const gamesData = data?.fantasy_content?.users?.[0]?.user?.[0]?.games?.[0]?.game?.[0];
-      const leaguesObject = gamesData?.leagues?.[0] || {};
-      
-      // Extract leagues from numbered keys (0, 1, 2, etc.)
-      const parsedLeagues: YahooLeague[] = [];
-      Object.keys(leaguesObject).forEach(key => {
-        if (key !== 'count' && leaguesObject[key]?.league) {
-          const leagueArray = leaguesObject[key].league;
-          const league = Array.isArray(leagueArray) ? leagueArray[0] : leagueArray;
-          if (league && league.league_key) {
-            parsedLeagues.push({
-              league_key: league.league_key,
-              league_id: league.league_id,
-              name: league.name,
-              url: league.url,
-              logo_url: league.logo_url,
-              draft_status: league.draft_status,
-              num_teams: league.num_teams,
-              season: league.season
-            });
-          }
-        }
-      });
-
-      setAvailableLeagues(parsedLeagues);
+      setAvailableLeagues(fetchedLeagues);
       
       // Convert to LeagueData format for dashboard display
-      const leagueDataArray: LeagueData[] = parsedLeagues.map(league => ({
+      const leagueDataArray: LeagueData[] = fetchedLeagues.map(league => ({
         id: league.league_key,
         leagueName: league.name,
         platform: 'Yahoo' as const,
@@ -167,10 +103,10 @@ export const useYahooData = (): UseYahooDataState & UseYahooDataActions => {
       
       setLeagues(leagueDataArray);
       setLastUpdated(new Date().toISOString());
-      console.log(`Yahoo: Successfully fetched ${parsedLeagues.length} leagues:`, parsedLeagues.map(l => l.name));
+      console.log(`✅ [USE_YAHOO_DATA] Successfully loaded ${fetchedLeagues.length} leagues`);
       
     } catch (error) {
-      console.error('Yahoo: Failed to fetch leagues data', error);
+      console.error('❌ [USE_YAHOO_DATA] Failed to fetch leagues data', error);
       
       if (error.message === 'REAUTH_REQUIRED') {
         console.log('Yahoo: Re-authentication required');
