@@ -24,9 +24,25 @@ serve(async (req) => {
 
   try {
     /* ----------------------------------------------------------------
-       Parse request
+       Parse request - handle both GET query params and POST JSON body
     ---------------------------------------------------------------- */
-    const { endpoint = "scoreboard", dates, gameId } = await req.json();
+    let endpoint = "scoreboard";
+    let dates = null;
+    let gameId = null;
+
+    if (req.method === "GET") {
+      // Handle GET requests with query parameters
+      const url = new URL(req.url);
+      endpoint = url.searchParams.get("endpoint") || "scoreboard";
+      dates = url.searchParams.get("dates");
+      gameId = url.searchParams.get("gameId");
+    } else if (req.method === "POST") {
+      // Handle POST requests with JSON body
+      const body = await req.json();
+      endpoint = body.endpoint || "scoreboard";
+      dates = body.dates;
+      gameId = body.gameId;
+    }
 
     /* ----------------------------------------------------------------
        Build ESPN URL
