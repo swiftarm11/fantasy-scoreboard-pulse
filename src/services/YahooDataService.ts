@@ -66,13 +66,13 @@ export class YahooDataService {
   }
 
   /**
-   * Fetch user leagues from Yahoo API
+   * Fetch user leagues from Yahoo API with automatic token refresh
    */
   static async fetchUserLeagues(): Promise<YahooLeague[]> {
     try {
       console.log('🚀 [YAHOO_SERVICE] Starting to fetch user leagues');
       
-      // CRITICAL FIX: Use getValidAccessToken() instead of getAccessToken()
+      // Get valid access token (may trigger refresh)
       const accessToken = await yahooOAuth.getValidAccessToken();
       
       if (!accessToken) {
@@ -80,6 +80,7 @@ export class YahooDataService {
       }
 
       console.log('🔑 [YAHOO_SERVICE] Access token found, making API request');
+      console.log('🔍 [YAHOO_SERVICE] Token preview:', accessToken.substring(0, 20) + '...');
 
       const response = await fetch(`${this.supabaseUrl}/functions/v1/yahoo-api`, {
         method: 'POST',
@@ -93,6 +94,52 @@ export class YahooDataService {
           method: 'GET'
         }),
       });
+
+      console.log('📡 [YAHOO_SERVICE] API response status:', response.status);
+
+      if (response.status === 401) {
+        console.log('🔄 [YAHOO_SERVICE] 401 error - attempting token refresh');
+        
+        // Try to refresh the token
+        try {
+          await yahooOAuth.refreshAccessToken();
+          const newAccessToken = await yahooOAuth.getValidAccessToken();
+          
+          if (newAccessToken && newAccessToken !== accessToken) {
+            console.log('🔄 [YAHOO_SERVICE] Token refreshed, retrying API call');
+            
+            // Retry with new token
+            const retryResponse = await fetch(`${this.supabaseUrl}/functions/v1/yahoo-api`, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'apikey': this.supabaseAnonKey,
+              },
+              body: JSON.stringify({
+                endpoint: 'users;use_login=1/games;game_keys=nfl/leagues',
+                accessToken: newAccessToken,
+                method: 'GET'
+              }),
+            });
+
+            if (!retryResponse.ok) {
+              throw new Error(`Yahoo API retry failed: ${retryResponse.status} ${retryResponse.statusText}`);
+            }
+            
+            const responseData = await retryResponse.json();
+            console.log('📦 [YAHOO_SERVICE] Raw API response received (after retry)');
+            
+            const leagues = this.parseLeaguesResponse(responseData);
+            console.log(`✅ [YAHOO_SERVICE] Successfully fetched ${leagues.length} leagues (after retry)`);
+            return leagues;
+          }
+        } catch (refreshError) {
+          console.error('❌ [YAHOO_SERVICE] Token refresh failed:', refreshError);
+          throw new Error('REAUTH_REQUIRED');
+        }
+        
+        throw new Error('Yahoo API authentication failed - please reconnect your account');
+      }
 
       if (!response.ok) {
         throw new Error(`Yahoo API request failed: ${response.status} ${response.statusText}`);
