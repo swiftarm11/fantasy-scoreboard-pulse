@@ -37,3 +37,6 @@ port = 54329
 
 [functions.sleeper-api]
 verify_jwt = false
+
+[functions.espn-api]
+verify_jwt = false
