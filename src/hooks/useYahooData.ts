@@ -113,7 +113,6 @@ export const useYahooData = (): UseYahooDataState & UseYahooDataActions => {
       if (error.message === 'REAUTH_REQUIRED') {
         console.log('Yahoo: Re-authentication required');
         setIsAuthenticated(false);
-        yahooOAuth.disconnect();
         setError('Yahoo authentication expired. Please reconnect your account.');
       } else {
         setError(error.message || 'Failed to fetch leagues data');
