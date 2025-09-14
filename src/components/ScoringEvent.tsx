@@ -28,7 +28,7 @@ export const ScoringEvent = ({ event }: ScoringEventProps) => {
         </div>
         <div className="flex justify-between items-center text-xs">
           <span className="text-white/60">
-            {event.timestamp}
+            {typeof event.timestamp === 'string' ? event.timestamp : event.timestamp.toLocaleTimeString()}
           </span>
           <span className={isPositive ? "score-impact-positive" : "score-impact-negative"}>
             {isPositive ? "+" : ""}{event.scoreImpact}
@@ -48,7 +48,7 @@ export const ScoringEvent = ({ event }: ScoringEventProps) => {
               {event.playerName} {event.position}
             </span>
             <span className="text-xs text-white/70">
-              {event.timestamp}
+              {typeof event.timestamp === 'string' ? event.timestamp : event.timestamp.toLocaleTimeString()}
             </span>
           </div>
           <div className="flex items-center justify-between mt-0.5">

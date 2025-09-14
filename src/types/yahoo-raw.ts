@@ -1,3 +1,6 @@
+// Import dependencies
+import { League } from './fantasy';
+
 // Raw Yahoo API response types - INTERNAL USE ONLY
 // These match the exact structure you showed me earlier
 
@@ -14,8 +17,7 @@ export interface YahooAPIResponse {
                 leagues?: {
                   [key: string]: {
                     league: YahooLeagueRaw[];
-                  };
-                  count: number;
+                  } | number;
                 };
               }>;
             };

@@ -1,17 +1,25 @@
-import { ScoringEvent as ScoringEventType } from '../types/fantasy';
+import { ScoringEvent as ScoringEventType, ScoringEventForDisplay } from '../types/fantasy';
 import { User, TrendingUp, TrendingDown, Target } from 'lucide-react';
 
 interface EnhancedScoringEventProps {
-  event: ScoringEventType;
+  event: ScoringEventType | ScoringEventForDisplay;
   isRecent?: boolean;
   compact?: boolean;
 }
 
 export const EnhancedScoringEvent = ({ event, isRecent = false, compact = false }: EnhancedScoringEventProps) => {
+  // Handle both ScoringEvent and ScoringEventForDisplay interfaces
+  const scoreImpact = 'scoreImpact' in event ? event.scoreImpact : event.points || 0;
+  const playerName = 'playerName' in event ? event.playerName : 'Unknown Player';
+  const position = 'position' in event ? event.position : 'N/A';
+  const action = 'action' in event ? event.action : event.description || 'Scoring event';
+  const weeklyPoints = 'weeklyPoints' in event ? event.weeklyPoints : event.points || 0;
+  const timestamp = typeof event.timestamp === 'string' ? event.timestamp : event.timestamp.toLocaleTimeString();
+
   const getImpactBadgeStyle = () => {
-    if (event.scoreImpact > 0) {
+    if (scoreImpact > 0) {
       return 'bg-green-500/20 text-green-400 border border-green-500/30';
-    } else if (event.scoreImpact < 0) {
+    } else if (scoreImpact < 0) {
       return 'bg-red-500/20 text-red-400 border border-red-500/30';
     } else {
       return 'bg-blue-500/20 text-blue-400 border border-blue-500/30';
@@ -19,7 +27,7 @@ export const EnhancedScoringEvent = ({ event, isRecent = false, compact = false 
   };
 
   const getPositionIcon = () => {
-    switch (event.position) {
+    switch (position) {
       case 'QB':
         return <User className="h-3 w-3" />;
       case 'RB':
@@ -54,14 +62,14 @@ export const EnhancedScoringEvent = ({ event, isRecent = false, compact = false 
           <div className="flex-1 min-w-0">
             <div className="flex items-center justify-between">
               <p className="text-xs font-medium text-white truncate">
-                {event.playerName}
+                {playerName}
               </p>
               <span className={`text-xs font-bold px-1.5 py-0.5 rounded-full ${getImpactBadgeStyle()}`}>
-                {event.scoreImpact > 0 ? '+' : ''}{event.scoreImpact}
+                {scoreImpact > 0 ? '+' : ''}{scoreImpact}
               </span>
             </div>
             <p className="text-xs text-white/60 truncate">
-              {event.action}
+              {action}
             </p>
           </div>
         </div>
@@ -85,13 +93,13 @@ export const EnhancedScoringEvent = ({ event, isRecent = false, compact = false 
           <div className="flex items-center justify-between mb-1">
             <div className="flex items-center gap-1">
               <span className={playerNameClasses}>
-                {event.playerName}
+                {playerName}
               </span>
               <span className="text-xs text-white/60 font-medium">
-                {event.position}
+                {position}
               </span>
               <span className={isRecent ? 'text-sm text-white/80' : 'text-xs text-white/70'}>
-                {event.weeklyPoints} pts
+                {weeklyPoints} pts
               </span>
             </div>
           </div>
@@ -99,14 +107,14 @@ export const EnhancedScoringEvent = ({ event, isRecent = false, compact = false 
           {/* Action Line */}
           <div className="flex items-center justify-between">
             <p className={`text-white/70 truncate pr-2 ${isRecent ? 'text-sm' : 'text-xs'}`}>
-              {event.action}
+              {action}
             </p>
             <div className="flex items-center gap-2 flex-shrink-0">
               <span className={isRecent ? 'text-xs text-white/60' : 'text-xs text-white/50'}>
-                {event.timestamp}
+                {timestamp}
               </span>
               <span className={`px-2 py-0.5 rounded-full text-xs font-bold ${getImpactBadgeStyle()}`}>
-                {event.scoreImpact > 0 ? '+' : ''}{event.scoreImpact}
+                {scoreImpact > 0 ? '+' : ''}{scoreImpact}
               </span>
             </div>
           </div>

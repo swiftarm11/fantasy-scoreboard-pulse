@@ -5,7 +5,7 @@ import { nflDataService, NFLScoringEvent } from '../services/NFLDataService';
 import { eventAttributionService, FantasyEventAttribution } from '../services/EventAttributionService';
 import { eventStorageService, ConfigScoringEvent } from '../services/EventStorageService';
 import { LeagueConfig } from '../types/config';
-import { ScoringEvent, LeagueData } from '../types/fantasy';
+import { ScoringEvent, ScoringEventForDisplay, LeagueData } from '../types/fantasy';
 
 export interface LiveEventsState {
   isActive: boolean;

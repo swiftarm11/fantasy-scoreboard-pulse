@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { debugLogger } from '../utils/debugLogger';
 import { LeagueConfig } from '../types/config';
-import { ScoringEvent, LeagueData } from '../types/fantasy';
+import { ScoringEvent, ScoringEventForDisplay, LeagueData } from '../types/fantasy';
 import { nflDataService, NFLScoringEvent } from '../services/NFLDataService';
 import { eventAttributionService, FantasyEventAttribution } from '../services/EventAttributionService';
 import { eventStorageService } from '../services/EventStorageService';
@@ -25,12 +25,12 @@ interface UseLiveEventsManagerOptions {
 
 export interface UseLiveEventsManagerReturn {
   state: LiveEventsManagerState;
-  recentEvents: ScoringEvent[];
+  recentEvents: ScoringEventForDisplay[];
   isReady: boolean;
   startSystem: () => Promise<void>;
   stopSystem: () => void;
   refreshRosters: () => Promise<void>;
-  getLeagueEvents: (leagueId: string) => ScoringEvent[];
+  getLeagueEvents: (leagueId: string) => ScoringEventForDisplay[];
   triggerTestEvent: () => void;
   getCacheStats: () => any;
 }
@@ -51,7 +51,7 @@ export const useLiveEventsManager = ({
     error: null
   });
 
-  const [recentEvents, setRecentEvents] = useState<ScoringEvent[]>([]);
+  const [recentEvents, setRecentEvents] = useState<ScoringEventForDisplay[]>([]);
   const isInitializing = useRef(false);
   const eventCallbackRefs = useRef<(() => void)[]>([]);
 
@@ -200,7 +200,7 @@ export const useLiveEventsManager = ({
 
   // Update recent events from storage
   const updateRecentEvents = useCallback(() => {
-    const allEvents: ScoringEvent[] = [];
+    const allEvents: ScoringEventForDisplay[] = [];
     
     for (const league of leagues.filter(l => l.enabled)) {
       const leagueEvents = eventStorageService.getEvents(league.leagueId);
@@ -226,7 +226,7 @@ export const useLiveEventsManager = ({
   }, [leagues]);
 
   // Get events for a specific league
-  const getLeagueEvents = useCallback((leagueId: string): ScoringEvent[] => {
+  const getLeagueEvents = useCallback((leagueId: string): ScoringEventForDisplay[] => {
     const events = eventStorageService.getEvents(leagueId);
     return events.map(event => ({
       id: event.id,
