@@ -72,7 +72,8 @@ export class YahooDataService {
     try {
       console.log('🚀 [YAHOO_SERVICE] Starting to fetch user leagues');
       
-      const accessToken = yahooOAuth.getAccessToken();
+      // CRITICAL FIX: Use getValidAccessToken() instead of getAccessToken()
+      const accessToken = await yahooOAuth.getValidAccessToken();
       
       if (!accessToken) {
         throw new Error('No Yahoo access token available');
