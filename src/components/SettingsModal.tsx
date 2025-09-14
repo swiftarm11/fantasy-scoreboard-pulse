@@ -23,6 +23,7 @@ import { useConfig } from '../hooks/useConfig';
 import { DraggableLeagueItem } from './DraggableLeagueItem';
 import { generateMockScoringEvent } from '../utils/mockEventGenerator';
 import { TestingTab } from './TestingTab';
+import { ESPNTestPanel } from './ESPNTestPanel';
 import { debugLogger } from '../utils/debugLogger';
 import { DebugConsole } from './DebugConsole';
 import { DataHealthMonitor } from './DataHealthMonitor';
@@ -827,6 +828,8 @@ export const SettingsModal = ({ open, onOpenChange, onMockEvent }: SettingsModal
           </TabsContent>
 
           <TabsContent value="debug" className="space-y-4">
+            <ESPNTestPanel />
+            
             <DataHealthMonitor isVisible={showDataHealth} />
             
             <Card>

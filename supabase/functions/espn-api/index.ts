@@ -34,10 +34,15 @@ serve(async (req) => {
     let apiUrl = "";
     switch (endpoint) {
       case "scoreboard": {
-        const today = new Date().toISOString().slice(0, 10).replace(/-/g, "");
-        const queryDate = dates ?? today;
-        apiUrl =
-          `https://site.api.espn.com/apis/v2/sports/football/nfl/scoreboard?dates=${queryDate}`;
+        // Fix date calculation - ensure we get today's date correctly
+        const today = new Date();
+        const year = today.getFullYear();
+        const month = String(today.getMonth() + 1).padStart(2, '0');
+        const day = String(today.getDate()).padStart(2, '0');
+        const todayFormatted = `${year}${month}${day}`;
+        
+        const queryDate = dates ?? todayFormatted;
+        apiUrl = `https://site.api.espn.com/apis/v2/sports/football/nfl/scoreboard?dates=${queryDate}`;
         break;
       }
       case "game-summary": {
@@ -51,7 +56,7 @@ serve(async (req) => {
         throw new Error(`Unknown ESPN endpoint: ${endpoint}`);
     }
 
-    console.log(`Fetching ESPN API: ${apiUrl}`);
+    console.log(`Fetching ESPN API: ${apiUrl} (Date: ${new Date().toISOString()})`);
 
     /* ----------------------------------------------------------------
        Make upstream request
@@ -74,7 +79,7 @@ serve(async (req) => {
         ...corsHeaders,
         "Content-Type": "application/json",
         Vary: "Accept",
-        "Cache-Control": "public, max-age=30", // Cache for 30 seconds
+        "Cache-Control": "public, max-age=20", // Cache for 20 seconds as requested
       },
     });
   } catch (err) {
