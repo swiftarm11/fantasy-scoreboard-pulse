@@ -66,13 +66,12 @@ export class YahooDataService {
   }
 
   /**
-   * Fetch user leagues from Yahoo API with automatic token refresh
+   * Fetch user leagues from Yahoo API
    */
   static async fetchUserLeagues(): Promise<YahooLeague[]> {
     try {
       console.log('🚀 [YAHOO_SERVICE] Starting to fetch user leagues');
       
-      // Get valid access token (may trigger refresh)
       const accessToken = await yahooOAuth.getValidAccessToken();
       
       if (!accessToken) {
@@ -98,50 +97,13 @@ export class YahooDataService {
       console.log('📡 [YAHOO_SERVICE] API response status:', response.status);
 
       if (response.status === 401) {
-        console.log('🔄 [YAHOO_SERVICE] 401 error - attempting token refresh');
-        
-        // Try to refresh the token
-        try {
-          await yahooOAuth.refreshAccessToken();
-          const newAccessToken = await yahooOAuth.getValidAccessToken();
-          
-          if (newAccessToken && newAccessToken !== accessToken) {
-            console.log('🔄 [YAHOO_SERVICE] Token refreshed, retrying API call');
-            
-            // Retry with new token
-            const retryResponse = await fetch(`${this.supabaseUrl}/functions/v1/yahoo-api`, {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-                'apikey': this.supabaseAnonKey,
-              },
-              body: JSON.stringify({
-                endpoint: 'users;use_login=1/games;game_keys=nfl/leagues',
-                accessToken: newAccessToken,
-                method: 'GET'
-              }),
-            });
-
-            if (!retryResponse.ok) {
-              throw new Error(`Yahoo API retry failed: ${retryResponse.status} ${retryResponse.statusText}`);
-            }
-            
-            const responseData = await retryResponse.json();
-            console.log('📦 [YAHOO_SERVICE] Raw API response received (after retry)');
-            
-            const leagues = this.parseLeaguesResponse(responseData);
-            console.log(`✅ [YAHOO_SERVICE] Successfully fetched ${leagues.length} leagues (after retry)`);
-            return leagues;
-          }
-        } catch (refreshError) {
-          console.error('❌ [YAHOO_SERVICE] Token refresh failed:', refreshError);
-          throw new Error('REAUTH_REQUIRED');
-        }
-        
-        throw new Error('Yahoo API authentication failed - please reconnect your account');
+        console.log('❌ [YAHOO_SERVICE] 401 Unauthorized - token may be expired');
+        throw new Error('REAUTH_REQUIRED');
       }
 
       if (!response.ok) {
+        const errorText = await response.text();
+        console.error('📡 [YAHOO_SERVICE] API Error Response:', errorText);
         throw new Error(`Yahoo API request failed: ${response.status} ${response.statusText}`);
       }
 
