@@ -73,6 +73,8 @@ export const useYahooData = (): UseYahooDataState & UseYahooDataActions => {
     setError(null);
 
     try {
+      console.log('Yahoo: Starting league fetch...');
+      
       // FIXED: Use YahooDataService with correct parsing logic
       const fetchedLeagues = await YahooDataService.fetchUserLeagues();
       
@@ -103,10 +105,10 @@ export const useYahooData = (): UseYahooDataState & UseYahooDataActions => {
       
       setLeagues(leagueDataArray);
       setLastUpdated(new Date().toISOString());
-      console.log(`✅ [USE_YAHOO_DATA] Successfully loaded ${fetchedLeagues.length} leagues`);
+      console.log(`Yahoo: Successfully fetched ${fetchedLeagues.length} leagues:`, fetchedLeagues.map(l => l.name));
       
     } catch (error) {
-      console.error('❌ [USE_YAHOO_DATA] Failed to fetch leagues data', error);
+      console.error('Yahoo: Failed to fetch leagues data', error);
       
       if (error.message === 'REAUTH_REQUIRED') {
         console.log('Yahoo: Re-authentication required');
