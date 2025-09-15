@@ -93,4 +93,10 @@
     "lint-staged": "^15.0.0"
 
   }
+"lint-staged": {
+  "src/**/*.{ts,tsx}": [
+    "npm run build"
+  ]
+}
+
 }
