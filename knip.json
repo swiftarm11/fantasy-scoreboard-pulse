@@ -1,0 +1,14 @@
+{
+  "entry": [
+    "src/main.tsx",
+    "src/App.tsx"
+  ],
+  "project": [
+    "src/**/*.{ts,tsx}"
+  ],
+  "ignore": [
+    "src/**/*.test.{ts,tsx}",
+    "src/**/*.spec.{ts,tsx}",
+    "**/*.d.ts"
+  ]
+}
