@@ -199,5 +199,4 @@ export class SnapshotLoader {
   }
 }
 
-// Export for direct use
-export const yahooSnapshots = SnapshotLoader;
+// Export for direct use (alias removed to fix duplicate exports)

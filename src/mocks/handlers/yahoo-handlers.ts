@@ -1,5 +1,5 @@
 import { http, HttpResponse } from 'msw';
-import { yahooSnapshots, type YahooApiResponse } from '../fixtures/yahoo-snapshots';
+import { SnapshotLoader, type YahooApiResponse } from '../fixtures/yahoo-snapshots';
 import { getSimulationBridge } from '../simulationBridge';
 
 // Get simulation bridge instance
@@ -144,7 +144,7 @@ const yahooApiHandler = http.post('*/functions/v1/yahoo-api', async ({ request }
         // This is the main endpoint your app uses for live data
         console.log(`[YahooHandlers] Loading snapshot ${snapshotNumber} from bridge state`);
         
-        const snapshotData = await yahooSnapshots.getSnapshot(snapshotNumber);
+        const snapshotData = await SnapshotLoader.getSnapshot(snapshotNumber);
         
         if (!snapshotData) {
           console.error(`[YahooHandlers] Failed to load snapshot ${snapshotNumber}`);
