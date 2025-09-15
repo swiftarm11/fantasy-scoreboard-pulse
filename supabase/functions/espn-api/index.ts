@@ -77,6 +77,68 @@ serve(async (req) => {
         apiUrl = `https://site.api.espn.com/apis/v2/sports/football/nfl/summary?event=${gameId}`;
         break;
       }
+      case "plays": {
+        if (!gameId) {
+          throw new Error("gameId is required for plays endpoint");
+        }
+        apiUrl = `https://sports.core.api.espn.com/v2/sports/football/leagues/nfl/events/${gameId}/competitions/${gameId}/plays?limit=300`;
+        break;
+      }
+      case "test-plays": {
+        // Special test endpoint: fetch scoreboard first, find live game, then fetch plays
+        const now = new Date();
+        const utcDate = new Date(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate());
+        const year = utcDate.getFullYear();
+        const month = String(utcDate.getMonth() + 1).padStart(2, '0');
+        const day = String(utcDate.getDate()).padStart(2, '0');
+        const todayFormatted = `${year}${month}${day}`;
+        
+        console.log(`[ESPN-API] TEST-PLAYS: Fetching scoreboard first to find live games`);
+        const scoreboardUrl = `https://site.api.espn.com/apis/v2/sports/football/nfl/scoreboard?dates=${todayFormatted}`;
+        
+        const scoreboardRes = await fetch(scoreboardUrl, {
+          headers: {
+            Accept: "application/json",
+            "User-Agent": "Fantasy-Scoreboard-Pulse/1.0",
+          },
+        });
+        
+        if (!scoreboardRes.ok) {
+          throw new Error(`Failed to fetch scoreboard for live game detection: ${scoreboardRes.status}`);
+        }
+        
+        const scoreboardData = await scoreboardRes.json();
+        console.log(`[ESPN-API] TEST-PLAYS: Found ${scoreboardData.events?.length || 0} games`);
+        
+        // Find a live game (status.type.state === 'in')
+        const liveGame = scoreboardData.events?.find((game: any) => 
+          game.status?.type?.state === 'in' || game.status?.type?.name === 'STATUS_IN_PROGRESS'
+        );
+        
+        if (!liveGame) {
+          console.log(`[ESPN-API] TEST-PLAYS: No live games found. Available games:`, 
+            scoreboardData.events?.map((g: any) => ({
+              id: g.id,
+              name: g.name,
+              status: g.status?.type?.name,
+              state: g.status?.type?.state
+            })) || []
+          );
+          
+          // Use the first available game for testing
+          const testGame = scoreboardData.events?.[0];
+          if (!testGame) {
+            throw new Error("No games found in scoreboard for testing");
+          }
+          
+          console.log(`[ESPN-API] TEST-PLAYS: Using first available game for testing: ${testGame.id} (${testGame.name})`);
+          apiUrl = `https://sports.core.api.espn.com/v2/sports/football/leagues/nfl/events/${testGame.id}/competitions/${testGame.id}/plays?limit=50`;
+        } else {
+          console.log(`[ESPN-API] TEST-PLAYS: Found live game: ${liveGame.id} (${liveGame.name})`);
+          apiUrl = `https://sports.core.api.espn.com/v2/sports/football/leagues/nfl/events/${liveGame.id}/competitions/${liveGame.id}/plays?limit=50`;
+        }
+        break;
+      }
       default:
         throw new Error(`Unknown ESPN endpoint: ${endpoint}`);
     }
