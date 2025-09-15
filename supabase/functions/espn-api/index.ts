@@ -1,12 +1,16 @@
 /**
  * ESPN NFL proxy – Supabase Edge Function
  * Supported endpoints:
- *   • scoreboard      (default)  →  /apis/v2/sports/football/nfl/scoreboard
+ *   • scoreboard      (default)  →  Core API events endpoint
  *   • game-summary    →  /apis/v2/sports/football/nfl/summary
+ *   • plays           →  Core API plays endpoint (requires eventId and competitionId)
+ *   • test-plays      →  Test endpoint for play-by-play validation
  *
  *   Body payload examples:
  *     { "endpoint": "scoreboard", "dates": "20250905" }
  *     { "endpoint": "game-summary", "gameId": "401547439" }
+ *     { "endpoint": "plays", "eventId": "401547439", "competitionId": "401547439" }
+ *     { "endpoint": "test-plays" }
  *
  * If no `dates` is supplied, today's date (UTC) is used.
  */
@@ -34,6 +38,8 @@ serve(async (req) => {
     let endpoint = "scoreboard";
     let dates = null;
     let gameId = null;
+    let eventId = null;
+    let competitionId = null;
 
     if (req.method === "GET") {
       // Handle GET requests with query parameters
@@ -41,12 +47,16 @@ serve(async (req) => {
       endpoint = url.searchParams.get("endpoint") || "scoreboard";
       dates = url.searchParams.get("dates");
       gameId = url.searchParams.get("gameId");
+      eventId = url.searchParams.get("eventId");
+      competitionId = url.searchParams.get("competitionId");
     } else if (req.method === "POST") {
       // Handle POST requests with JSON body
       const body = await req.json();
       endpoint = body.endpoint || "scoreboard";
       dates = body.dates;
       gameId = body.gameId;
+      eventId = body.eventId;
+      competitionId = body.competitionId;
     }
 
     /* ----------------------------------------------------------------
@@ -55,9 +65,8 @@ serve(async (req) => {
     let apiUrl = "";
     switch (endpoint) {
       case "scoreboard": {
-        // Fix date calculation with proper timezone handling
+        // Use Core API for consistent event/competition ID structure
         const now = new Date();
-        // Use UTC to avoid timezone issues
         const utcDate = new Date(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate());
         const year = utcDate.getFullYear();
         const month = String(utcDate.getMonth() + 1).padStart(2, '0');
@@ -65,9 +74,9 @@ serve(async (req) => {
         const todayFormatted = `${year}${month}${day}`;
         
         const queryDate = dates ?? todayFormatted;
-        apiUrl = `https://site.api.espn.com/apis/v2/sports/football/nfl/scoreboard?dates=${queryDate}`;
+        apiUrl = `https://sports.core.api.espn.com/v2/sports/football/leagues/nfl/events?dates=${queryDate}`;
         
-        console.log(`[ESPN-API] Using date: ${queryDate} (today: ${todayFormatted})`);
+        console.log(`[ESPN-API] Using Core API scoreboard with date: ${queryDate} (today: ${todayFormatted})`);
         break;
       }
       case "game-summary": {
@@ -78,14 +87,22 @@ serve(async (req) => {
         break;
       }
       case "plays": {
-        if (!gameId) {
-          throw new Error("gameId is required for plays endpoint");
+        if (!eventId && !gameId) {
+          throw new Error("eventId (or gameId for backwards compatibility) is required for plays endpoint");
         }
-        apiUrl = `https://sports.core.api.espn.com/v2/sports/football/leagues/nfl/events/${gameId}/competitions/${gameId}/plays?limit=300`;
+        if (!competitionId) {
+          throw new Error("competitionId is required for plays endpoint");
+        }
+        
+        // Use eventId if provided, fallback to gameId for backwards compatibility
+        const useEventId = eventId || gameId;
+        apiUrl = `https://sports.core.api.espn.com/v2/sports/football/leagues/nfl/events/${useEventId}/competitions/${competitionId}/plays?limit=300`;
+        
+        console.log(`[ESPN-API] PLAYS: Using eventId=${useEventId}, competitionId=${competitionId}`);
         break;
       }
       case "test-plays": {
-        // Special test endpoint: fetch scoreboard first, find live game, then fetch plays
+        // Special test endpoint: fetch Core API scoreboard first, extract proper IDs, then fetch plays
         const now = new Date();
         const utcDate = new Date(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate());
         const year = utcDate.getFullYear();
@@ -93,8 +110,8 @@ serve(async (req) => {
         const day = String(utcDate.getDate()).padStart(2, '0');
         const todayFormatted = `${year}${month}${day}`;
         
-        console.log(`[ESPN-API] TEST-PLAYS: Fetching scoreboard first to find live games`);
-        const scoreboardUrl = `https://site.api.espn.com/apis/v2/sports/football/nfl/scoreboard?dates=${todayFormatted}`;
+        console.log(`[ESPN-API] TEST-PLAYS: Fetching Core API scoreboard to find live games`);
+        const scoreboardUrl = `https://sports.core.api.espn.com/v2/sports/football/leagues/nfl/events?dates=${todayFormatted}`;
         
         const scoreboardRes = await fetch(scoreboardUrl, {
           headers: {
@@ -104,39 +121,61 @@ serve(async (req) => {
         });
         
         if (!scoreboardRes.ok) {
-          throw new Error(`Failed to fetch scoreboard for live game detection: ${scoreboardRes.status}`);
+          throw new Error(`Failed to fetch Core API scoreboard for live game detection: ${scoreboardRes.status}`);
         }
         
         const scoreboardData = await scoreboardRes.json();
-        console.log(`[ESPN-API] TEST-PLAYS: Found ${scoreboardData.events?.length || 0} games`);
+        const events = scoreboardData.items || [];
+        console.log(`[ESPN-API] TEST-PLAYS: Found ${events.length} events from Core API`);
         
-        // Find a live game (status.type.state === 'in')
-        const liveGame = scoreboardData.events?.find((game: any) => 
-          game.status?.type?.state === 'in' || game.status?.type?.name === 'STATUS_IN_PROGRESS'
-        );
-        
-        if (!liveGame) {
-          console.log(`[ESPN-API] TEST-PLAYS: No live games found. Available games:`, 
-            scoreboardData.events?.map((g: any) => ({
-              id: g.id,
-              name: g.name,
-              status: g.status?.type?.name,
-              state: g.status?.type?.state
-            })) || []
-          );
-          
-          // Use the first available game for testing
-          const testGame = scoreboardData.events?.[0];
-          if (!testGame) {
-            throw new Error("No games found in scoreboard for testing");
-          }
-          
-          console.log(`[ESPN-API] TEST-PLAYS: Using first available game for testing: ${testGame.id} (${testGame.name})`);
-          apiUrl = `https://sports.core.api.espn.com/v2/sports/football/leagues/nfl/events/${testGame.id}/competitions/${testGame.id}/plays?limit=50`;
-        } else {
-          console.log(`[ESPN-API] TEST-PLAYS: Found live game: ${liveGame.id} (${liveGame.name})`);
-          apiUrl = `https://sports.core.api.espn.com/v2/sports/football/leagues/nfl/events/${liveGame.id}/competitions/${liveGame.id}/plays?limit=50`;
+        if (events.length === 0) {
+          throw new Error("No events found in Core API scoreboard");
         }
+        
+        // Find a live game or use the first available game
+        let selectedEvent = null;
+        for (const event of events) {
+          // Check if event has status indicating it's live
+          if (event.status?.type?.state === 'in' || event.status?.type?.name === 'STATUS_IN_PROGRESS') {
+            selectedEvent = event;
+            console.log(`[ESPN-API] TEST-PLAYS: Found live event: ${event.id}`);
+            break;
+          }
+        }
+        
+        if (!selectedEvent) {
+          selectedEvent = events[0];
+          console.log(`[ESPN-API] TEST-PLAYS: No live events found, using first available: ${selectedEvent.id}`);
+          console.log(`[ESPN-API] TEST-PLAYS: Available events:`, 
+            events.map((e: any) => ({
+              id: e.id,
+              name: e.name || e.shortName,
+              status: e.status?.type?.name,
+              state: e.status?.type?.state
+            }))
+          );
+        }
+        
+        // Extract event ID
+        const testEventId = selectedEvent.id;
+        if (!testEventId) {
+          throw new Error("Selected event missing ID");
+        }
+        
+        // Extract competition ID - check competitions array
+        const competitions = selectedEvent.competitions;
+        if (!competitions || competitions.length === 0) {
+          throw new Error(`Event ${testEventId} has no competitions array`);
+        }
+        
+        const competition = competitions[0];
+        const testCompetitionId = competition.id;
+        if (!testCompetitionId) {
+          throw new Error(`Event ${testEventId} competition missing ID`);
+        }
+        
+        console.log(`[ESPN-API] TEST-PLAYS: Extracted IDs - eventId: ${testEventId}, competitionId: ${testCompetitionId}`);
+        apiUrl = `https://sports.core.api.espn.com/v2/sports/football/leagues/nfl/events/${testEventId}/competitions/${testCompetitionId}/plays?limit=50`;
         break;
       }
       default:
