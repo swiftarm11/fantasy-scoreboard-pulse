@@ -92,11 +92,10 @@
     "husky": "^8.0.3",
     "lint-staged": "^15.0.0"
 
+  },
+  "lint-staged": {
+    "src/**/*.{ts,tsx}": [
+      "npm run build"  
+    ]
   }
-"lint-staged": {
-  "src/**/*.{ts,tsx}": [
-    "npm run build"
-  ]
-}
-
 }
