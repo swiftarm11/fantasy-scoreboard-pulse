@@ -93,12 +93,24 @@ class GlobalESPNService {
         body: { endpoint: 'scoreboard' }
       });
 
+      // Log detailed error information for debugging
       if (supabaseError) {
-        throw new Error(`Supabase error: ${supabaseError.message}`);
+        debugLogger.error('ESPN_SERVICE', 'Supabase function error', {
+          message: supabaseError.message,
+          details: supabaseError.details,
+          hint: supabaseError.hint,
+          code: supabaseError.code
+        });
+        throw new Error(`Supabase function failed: ${supabaseError.message} (Code: ${supabaseError.code || 'unknown'})`);
       }
 
       if (!data) {
-        throw new Error('No data returned from ESPN API');
+        throw new Error('No data returned from ESPN API function');
+      }
+
+      // Check if response indicates an error from the edge function
+      if (data.error) {
+        throw new Error(`ESPN API error: ${data.error}${data.details ? ` - ${data.details}` : ''}`);
       }
 
       // Process ESPN API response

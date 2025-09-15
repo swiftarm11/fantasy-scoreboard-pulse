@@ -12,9 +12,11 @@
  */
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
 };
 
 serve(async (req) => {
@@ -53,15 +55,19 @@ serve(async (req) => {
     let apiUrl = "";
     switch (endpoint) {
       case "scoreboard": {
-        // Fix date calculation - ensure we get today's date correctly
-        const today = new Date();
-        const year = today.getFullYear();
-        const month = String(today.getMonth() + 1).padStart(2, '0');
-        const day = String(today.getDate()).padStart(2, '0');
+        // Fix date calculation with proper timezone handling
+        const now = new Date();
+        // Use UTC to avoid timezone issues
+        const utcDate = new Date(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate());
+        const year = utcDate.getFullYear();
+        const month = String(utcDate.getMonth() + 1).padStart(2, '0');
+        const day = String(utcDate.getDate()).padStart(2, '0');
         const todayFormatted = `${year}${month}${day}`;
         
         const queryDate = dates ?? todayFormatted;
         apiUrl = `https://site.api.espn.com/apis/v2/sports/football/nfl/scoreboard?dates=${queryDate}`;
+        
+        console.log(`[ESPN-API] Using date: ${queryDate} (today: ${todayFormatted})`);
         break;
       }
       case "game-summary": {
@@ -75,7 +81,8 @@ serve(async (req) => {
         throw new Error(`Unknown ESPN endpoint: ${endpoint}`);
     }
 
-    console.log(`Fetching ESPN API: ${apiUrl} (Date: ${new Date().toISOString()})`);
+    console.log(`[ESPN-API] Fetching: ${apiUrl}`);
+    console.log(`[ESPN-API] Request timestamp: ${new Date().toISOString()}`);
 
     /* ----------------------------------------------------------------
        Make upstream request
@@ -87,27 +94,57 @@ serve(async (req) => {
       },
     });
 
-    const bodyText = await espnRes.text(); // always JSON, even on errors
+    console.log(`[ESPN-API] Response status: ${espnRes.status}`);
+    console.log(`[ESPN-API] Response headers:`, Object.fromEntries(espnRes.headers.entries()));
+
+    const bodyText = await espnRes.text();
 
     /* ----------------------------------------------------------------
-       Return ESPN response verbatim (status + body)
+       Parse and validate response before returning
     ---------------------------------------------------------------- */
+    let parsedData;
+    try {
+      parsedData = JSON.parse(bodyText);
+    } catch (parseError) {
+      console.error(`[ESPN-API] Failed to parse response as JSON:`, parseError);
+      console.error(`[ESPN-API] Raw response body:`, bodyText.substring(0, 500));
+      
+      return new Response(
+        JSON.stringify({ 
+          error: "Invalid JSON response from ESPN API",
+          details: parseError.message,
+          statusCode: espnRes.status
+        }),
+        {
+          status: 502,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        }
+      );
+    }
+
+    console.log(`[ESPN-API] Success: Returning ${espnRes.status} response with ${bodyText.length} characters`);
+    
     return new Response(bodyText, {
       status: espnRes.status,
       headers: {
         ...corsHeaders,
         "Content-Type": "application/json",
-        Vary: "Accept",
-        "Cache-Control": "public, max-age=20", // Cache for 20 seconds as requested
+        "Cache-Control": "public, max-age=20",
       },
     });
   } catch (err) {
     /* ----------------------------------------------------------------
        Local failure (parsing etc.)
     ---------------------------------------------------------------- */
-    console.error("ESPN API proxy error:", err);
+    console.error("[ESPN-API] Proxy error:", err);
+    console.error("[ESPN-API] Error stack:", err.stack);
+    
     return new Response(
-      JSON.stringify({ error: err.message }),
+      JSON.stringify({ 
+        error: err.message || "Unknown error",
+        timestamp: new Date().toISOString(),
+        endpoint: endpoint || "unknown"
+      }),
       {
         status: 400,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
