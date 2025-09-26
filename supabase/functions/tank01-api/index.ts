@@ -81,7 +81,7 @@ serve(async (req) => {
         break;
 
       case 'plays':
-        // Get box score data (includes play-by-play information)
+        // Get box score data with play-by-play information
         const { gameId } = params;
         if (!gameId) {
           return new Response(
@@ -92,7 +92,7 @@ serve(async (req) => {
             }
           );
         }
-        apiUrl = `${TANK01_BASE_URL}/getNFLBoxScore?gameID=${gameId}`;
+        apiUrl = `${TANK01_BASE_URL}/getNFLBoxScore?gameID=${gameId}&playByPlay=true&fantasyPoints=true`;
         break;
 
       case 'player-stats':

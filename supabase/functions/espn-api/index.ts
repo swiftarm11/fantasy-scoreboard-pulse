@@ -213,7 +213,7 @@ serve(async (req) => {
       return new Response(
         JSON.stringify({ 
           error: "Invalid JSON response from ESPN API",
-          details: parseError.message,
+          details: parseError instanceof Error ? parseError.message : 'Parse error',
           statusCode: espnRes.status
         }),
         {
@@ -238,13 +238,13 @@ serve(async (req) => {
        Local failure (parsing etc.)
     ---------------------------------------------------------------- */
     console.error("[ESPN-API] Proxy error:", err);
-    console.error("[ESPN-API] Error stack:", err.stack);
+    console.error("[ESPN-API] Error stack:", err instanceof Error ? err.stack : undefined);
     
     return new Response(
       JSON.stringify({ 
-        error: err.message || "Unknown error",
+        error: err instanceof Error ? err.message : "Unknown error",
         timestamp: new Date().toISOString(),
-        endpoint: endpoint || "unknown"
+        endpoint: "scoreboard"
       }),
       {
         status: 400,
