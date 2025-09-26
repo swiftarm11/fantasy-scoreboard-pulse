@@ -26,16 +26,22 @@ export function Tank01TestPanel() {
   const [gamesResult, setGamesResult] = useState<TestResult | null>(null);
   const [gamesLoading, setGamesLoading] = useState(false);
 
-  const [error, setError] = useState<string | null>(null);
+  const [playsResult, setPlaysResult] = useState<TestResult | null>(null);
+  const [playsLoading, setPlaysLoading] = useState(false);
 
-  // Test basic API connection
+  const [error, setError] = useState<string | null>(null);
+  const [callCount, setCallCount] = useState(0);
+
+  // Test basic API connection - USER INITIATED ONLY
   const testConnection = async () => {
     setConnectionLoading(true);
     setError(null);
     setConnectionResult(null);
+    setCallCount(prev => prev + 1);
 
     try {
-      console.log('🏈 Testing Tank01 API connection...');
+      console.log(`🏈 [MANUAL TEST ${callCount + 1}] Testing Tank01 API connection...`);
+      console.warn('⚠️ Tank01 API call initiated by user - counting against free tier');
       
       const { data, error } = await supabase.functions.invoke('tank01-api', {
         body: { 
@@ -58,14 +64,16 @@ export function Tank01TestPanel() {
     }
   };
 
-  // Test player data with ID mapping
+  // Test player data with ID mapping - USER INITIATED ONLY
   const testPlayers = async () => {
     setPlayersLoading(true);
     setError(null);
     setPlayersResult(null);
+    setCallCount(prev => prev + 1);
 
     try {
-      console.log('🏈 Testing Tank01 player data...');
+      console.log(`🏈 [MANUAL TEST ${callCount + 1}] Testing Tank01 player data...`);
+      console.warn('⚠️ Tank01 API call initiated by user - counting against free tier');
       
       const { data, error } = await supabase.functions.invoke('tank01-api', {
         body: { 
@@ -90,14 +98,16 @@ export function Tank01TestPanel() {
     }
   };
 
-  // Test current games data
+  // Test current games data - USER INITIATED ONLY
   const testGames = async () => {
     setGamesLoading(true);
     setError(null);
     setGamesResult(null);
+    setCallCount(prev => prev + 1);
 
     try {
-      console.log('🏈 Testing Tank01 games data...');
+      console.log(`🏈 [MANUAL TEST ${callCount + 1}] Testing Tank01 games data...`);
+      console.warn('⚠️ Tank01 API call initiated by user - counting against free tier');
       
       const { data, error } = await supabase.functions.invoke('tank01-api', {
         body: { 
@@ -119,6 +129,45 @@ export function Tank01TestPanel() {
       setError(errorMsg);
     } finally {
       setGamesLoading(false);
+    }
+  };
+
+  // Test play-by-play data - USER INITIATED ONLY
+  const testPlays = async () => {
+    if (!gamesResult?.data?.body?.[0]?.gameID) {
+      setError('No game ID available. Run games test first.');
+      return;
+    }
+
+    setPlaysLoading(true);
+    setError(null);
+    setPlaysResult(null);
+    setCallCount(prev => prev + 1);
+
+    try {
+      const gameId = gamesResult.data.body[0].gameID;
+      console.log(`🏈 [MANUAL TEST ${callCount + 1}] Testing Tank01 plays data for game ${gameId}...`);
+      console.warn('⚠️ Tank01 API call initiated by user - counting against free tier');
+      
+      const { data, error } = await supabase.functions.invoke('tank01-api', {
+        body: { 
+          endpoint: 'plays',
+          gameId: gameId
+        }
+      });
+
+      if (error) {
+        throw new Error(error.message);
+      }
+
+      console.log('✅ Tank01 plays response:', data);
+      setPlaysResult(data);
+    } catch (err) {
+      const errorMsg = err instanceof Error ? err.message : 'Unknown error';
+      console.error('❌ Tank01 plays test failed:', errorMsg);
+      setError(errorMsg);
+    } finally {
+      setPlaysLoading(false);
     }
   };
 
@@ -149,19 +198,24 @@ export function Tank01TestPanel() {
             <Database className="h-5 w-5" />
             Tank01 NFL API Testing
             <Badge variant="outline">Phase 1</Badge>
+            <Badge variant="destructive">Manual Only</Badge>
           </CardTitle>
           <p className="text-sm text-muted-foreground">
-            Testing Tank01 API capabilities for player ID mapping and live data integration
+            Testing Tank01 API capabilities - API calls are user-initiated only to preserve free tier usage
           </p>
+          <div className="flex items-center gap-2 mt-2">
+            <Badge variant="secondary">API Calls Made: {callCount}</Badge>
+            <span className="text-xs text-amber-600">⚠️ Each call counts against free tier</span>
+          </div>
         </CardHeader>
         <CardContent className="space-y-6">
-          {/* Test Controls */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+          {/* Test Controls - Manual Only */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
             <Button 
               onClick={testConnection} 
               variant="outline" 
               size="sm"
-              disabled={connectionLoading}
+              disabled={connectionLoading || playersLoading || gamesLoading || playsLoading}
               className="w-full"
             >
               {connectionLoading ? (
@@ -176,7 +230,7 @@ export function Tank01TestPanel() {
               onClick={testPlayers} 
               variant="outline" 
               size="sm"
-              disabled={playersLoading}
+              disabled={playersLoading || connectionLoading || gamesLoading || playsLoading}
               className="w-full"
             >
               {playersLoading ? (
@@ -184,14 +238,14 @@ export function Tank01TestPanel() {
               ) : (
                 <Users className="h-4 w-4 mr-2" />
               )}
-              Test Player IDs
+              Test Player IDs (KC QBs)
             </Button>
             
             <Button 
               onClick={testGames} 
               variant="outline" 
               size="sm"
-              disabled={gamesLoading}
+              disabled={gamesLoading || connectionLoading || playersLoading || playsLoading}
               className="w-full"
             >
               {gamesLoading ? (
@@ -199,8 +253,36 @@ export function Tank01TestPanel() {
               ) : (
                 <Gamepad2 className="h-4 w-4 mr-2" />
               )}
-              Test Games
+              Test Games (Week 1)
             </Button>
+            
+            <Button 
+              onClick={testPlays} 
+              variant="outline" 
+              size="sm"
+              disabled={playsLoading || connectionLoading || playersLoading || gamesLoading || !gamesResult?.data?.body?.[0]?.gameID}
+              className="w-full"
+            >
+              {playsLoading ? (
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              ) : (
+                <BarChart3 className="h-4 w-4 mr-2" />
+              )}
+              Test Plays Data
+            </Button>
+          </div>
+
+          {/* Usage Warning */}
+          <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg">
+            <h4 className="font-medium text-amber-800 mb-1 flex items-center gap-2">
+              ⚠️ API Usage Limits
+            </h4>
+            <div className="text-sm text-amber-700 space-y-1">
+              <div>• All API calls are manual only - no automatic polling</div>
+              <div>• Each button click makes 1 API call against your free tier</div>
+              <div>• Test systematically to avoid wasting calls</div>
+              <div>• Plays data requires a game ID from the Games test first</div>
+            </div>
           </div>
 
           {/* Error Display */}
@@ -276,8 +358,35 @@ export function Tank01TestPanel() {
                   <div>Games found: {gamesResult.data?.body?.length || 0}</div>
                   <div>Response size: {gamesResult.meta?.responseSize} bytes</div>
                   {gamesResult.data?.body?.length > 0 && (
+                    <>
+                      <div className="mt-2 p-2 bg-gray-100 rounded text-xs">
+                        Sample game: {gamesResult.data.body[0]?.away || 'Unknown'} @ {gamesResult.data.body[0]?.home || 'Unknown'}
+                      </div>
+                      <div className="text-xs text-green-600 mt-1">
+                        ✓ Game ID available for plays test: {gamesResult.data.body[0]?.gameID}
+                      </div>
+                    </>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Plays Test Result */}
+          {playsResult && (
+            <div className="space-y-2">
+              <h4 className="font-medium flex items-center gap-2">
+                <BarChart3 className="h-4 w-4" />
+                Play-by-Play Test Result
+              </h4>
+              <div className="p-3 bg-indigo-50 border border-indigo-200 rounded-lg">
+                <div className="text-sm space-y-1">
+                  <div>✅ Play-by-play data retrieved successfully</div>
+                  <div>Plays found: {Array.isArray(playsResult.data?.body) ? playsResult.data.body.length : 'N/A'}</div>
+                  <div>Response size: {playsResult.meta?.responseSize} bytes</div>
+                  {playsResult.data?.body?.length > 0 && (
                     <div className="mt-2 p-2 bg-gray-100 rounded text-xs">
-                      Sample game: {gamesResult.data.body[0]?.away || 'Unknown'} @ {gamesResult.data.body[0]?.home || 'Unknown'}
+                      Sample play: {JSON.stringify(playsResult.data.body[0], null, 2).substring(0, 150)}...
                     </div>
                   )}
                 </div>
