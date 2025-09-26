@@ -2,8 +2,10 @@ import React, { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Loader2, Zap, Database, Users, Gamepad2, BarChart3 } from 'lucide-react';
+import { Loader2, Zap, Database, Users, Gamepad2, BarChart3, ToggleLeft, ToggleRight } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
+import { tank01NFLDataService } from '@/services/Tank01NFLDataService';
+import { hybridNFLDataService } from '@/services/HybridNFLDataService';
 
 interface TestResult {
   success: boolean;
@@ -31,6 +33,8 @@ export function Tank01TestPanel() {
 
   const [error, setError] = useState<string | null>(null);
   const [callCount, setCallCount] = useState(0);
+  const [serviceStatus, setServiceStatus] = useState<any>(null);
+  const [isT01LiveEnabled, setIsT01LiveEnabled] = useState(false);
 
   // Test basic API connection - USER INITIATED ONLY
   const testConnection = async () => {
@@ -209,6 +213,90 @@ export function Tank01TestPanel() {
           </div>
         </CardHeader>
         <CardContent className="space-y-6">
+          <div className="space-y-4">
+            <div className="text-sm text-muted-foreground">
+              Tank01 API provides both Sleeper and Yahoo player IDs, eliminating the need for fuzzy name matching.
+            </div>
+            
+            <div className="flex items-center gap-4 p-3 bg-muted/30 rounded-lg">
+              <div className="flex items-center gap-2">
+                <Zap className="h-4 w-4 text-blue-500" />
+                <span className="text-sm font-medium">Hybrid NFL Service Status</span>
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setServiceStatus(hybridNFLDataService.getServiceStatus())}
+                disabled={connectionLoading || playersLoading || gamesLoading || playsLoading}
+              >
+                Check Status
+              </Button>
+            </div>
+
+            {serviceStatus && (
+              <div className="p-3 bg-muted/20 rounded-lg text-xs space-y-2">
+                <div className="flex justify-between">
+                  <span>Hybrid Service Active:</span>
+                  <Badge variant={serviceStatus.isPolling ? "default" : "secondary"}>
+                    {serviceStatus.isPolling ? "Active" : "Inactive"}
+                  </Badge>
+                </div>
+                <div className="flex justify-between">
+                  <span>Tank01 Player Mapping:</span>
+                  <Badge variant={serviceStatus.useT01ForPlayerMapping ? "default" : "secondary"}>
+                    {serviceStatus.useT01ForPlayerMapping ? "Enabled" : "Disabled"}
+                  </Badge>
+                </div>
+                <div className="flex justify-between">
+                  <span>Tank01 Live Events:</span>
+                  <Badge variant={serviceStatus.useT01ForLiveEvents ? "default" : "secondary"}>
+                    {serviceStatus.useT01ForLiveEvents ? "Enabled" : "ESPN Fallback"}
+                  </Badge>
+                </div>
+                {serviceStatus.tank01Status && (
+                  <>
+                    <div className="flex justify-between">
+                      <span>Tank01 Players Cached:</span>
+                      <span>{serviceStatus.tank01Status.playersCached}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span>Current NFL Week:</span>
+                      <span>{serviceStatus.tank01Status.currentWeek || 'Unknown'}</span>
+                    </div>
+                  </>
+                )}
+              </div>
+            )}
+
+            <div className="flex items-center gap-4 p-3 bg-amber-50 dark:bg-amber-950/20 rounded-lg">
+              <div className="flex items-center gap-2">
+                {isT01LiveEnabled ? (
+                  <ToggleRight className="h-4 w-4 text-green-500" />
+                ) : (
+                  <ToggleLeft className="h-4 w-4 text-gray-500" />
+                )}
+                <span className="text-sm font-medium">Tank01 Live Events</span>
+              </div>
+              <Button
+                variant={isT01LiveEnabled ? "destructive" : "default"}
+                size="sm"
+                onClick={() => {
+                  if (isT01LiveEnabled) {
+                    hybridNFLDataService.disableTank01LiveEvents();
+                    setIsT01LiveEnabled(false);
+                  } else {
+                    hybridNFLDataService.enableTank01LiveEvents();
+                    setIsT01LiveEnabled(true);
+                  }
+                  // Refresh status
+                  setServiceStatus(hybridNFLDataService.getServiceStatus());
+                }}
+                disabled={connectionLoading || playersLoading || gamesLoading || playsLoading}
+              >
+                {isT01LiveEnabled ? "Disable T01 Live" : "Enable T01 Live"}
+              </Button>
+            </div>
+          </div>
           {/* Test Controls - Manual Only */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
             <Button 

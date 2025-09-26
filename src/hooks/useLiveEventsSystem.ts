@@ -1,7 +1,8 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { debugLogger } from '../utils/debugLogger';
 import { useESPNData } from './useESPNData';
-import { nflDataService, NFLScoringEvent } from '../services/NFLDataService';
+import { NFLScoringEvent } from '../services/NFLDataService';
+import { hybridNFLDataService } from '../services/HybridNFLDataService';
 import { eventAttributionService, FantasyEventAttribution } from '../services/EventAttributionService';
 import { eventStorageService, ConfigScoringEvent } from '../services/EventStorageService';
 import { LeagueConfig } from '../types/config';
@@ -68,8 +69,8 @@ export const useLiveEventsSystem = ({
         await eventAttributionService.loadRosters(enabledLeagues);
       }
 
-      // Set up NFL event callbacks
-      const unsubscribeNFL = nflDataService.onScoringEvent((nflEvent: NFLScoringEvent) => {
+      // Set up NFL scoring event callbacks using hybrid service
+      const unsubscribeNFL = hybridNFLDataService.onScoringEvent((nflEvent: NFLScoringEvent) => {
         debugLogger.info('LIVE_EVENTS', 'Processing NFL scoring event', {
           player: nflEvent.player.name,
           eventType: nflEvent.eventType
@@ -89,7 +90,7 @@ export const useLiveEventsSystem = ({
               description: impact.description,
               fantasyPoints: impact.pointsScored,
               timestamp: attribution.timestamp,
-              week: nflDataService.getCurrentWeek() || 1,
+              week: hybridNFLDataService.getServiceStatus().tank01Status?.currentWeek || 1,
               leagueId: impact.leagueId
             };
             
@@ -116,7 +117,7 @@ export const useLiveEventsSystem = ({
       setLiveState(prev => ({
         ...prev,
         connectedLeagues: cacheStats.rostersCount,
-        nflWeek: nflDataService.getCurrentWeek() || 1
+        nflWeek: hybridNFLDataService.getServiceStatus().tank01Status?.currentWeek || 1
       }));
 
       debugLogger.success('LIVE_EVENTS', 'Live events system initialized', {
@@ -177,10 +178,10 @@ export const useLiveEventsSystem = ({
     }
 
     try {
-      // Start NFL data polling
-      await nflDataService.startPolling(pollingInterval);
+      // Start hybrid NFL data polling (Tank01 + ESPN)
+      await hybridNFLDataService.startPolling(pollingInterval);
       
-      // Start ESPN polling for scoreboard updates
+      // Start ESPN data polling for scoreboard
       startESPNPolling();
 
       setLiveState(prev => ({
@@ -197,7 +198,8 @@ export const useLiveEventsSystem = ({
 
   // Stop live polling
   const stopSystem = useCallback(() => {
-    nflDataService.stopPolling();
+    // Stop hybrid NFL data polling
+    hybridNFLDataService.stopPolling();
     stopESPNPolling();
 
     // Cleanup callbacks
@@ -224,7 +226,7 @@ export const useLiveEventsSystem = ({
       description: 'Test Player 5 yard touchdown run',
       fantasyPoints: 6,
       timestamp: new Date(),
-      week: nflDataService.getCurrentWeek() || 1,
+      week: hybridNFLDataService.getServiceStatus().tank01Status?.currentWeek || 1,
       leagueId: 'test-league'
     };
 
@@ -256,7 +258,7 @@ export const useLiveEventsSystem = ({
     return {
       storage: eventStorageService.getCacheStats(),
       attribution: eventAttributionService.getCacheStats(),
-      nfl: nflDataService.getPollingStats()
+      hybridData: hybridNFLDataService.getServiceStatus()
     };
   }, []);
 

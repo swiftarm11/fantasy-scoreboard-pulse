@@ -2,6 +2,7 @@ import { debugLogger } from '../utils/debugLogger';
 import { safeLower } from '../utils/strings';
 import { playerMappingService, RosterPlayer } from './PlayerMappingService';
 import { NFLScoringEvent } from './NFLDataService';
+import { hybridNFLDataService } from './HybridNFLDataService';
 import { yahooFantasyAPI } from './YahooFantasyAPI';
 import { sleeperAPIEnhanced } from './SleeperAPIEnhanced';
 import { sleeperService } from './SleeperService';
