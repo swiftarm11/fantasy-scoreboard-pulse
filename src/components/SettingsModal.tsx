@@ -396,12 +396,13 @@ export const SettingsModal = ({ open, onOpenChange, onMockEvent }: SettingsModal
         <DataHealthMonitor isVisible={showDataHealth} />
 
         <Tabs defaultValue="leagues" className="w-full">
-          <TabsList className="grid w-full grid-cols-7">
+          <TabsList className="grid w-full grid-cols-8">
             <TabsTrigger value="leagues">Leagues</TabsTrigger>
             <TabsTrigger value="polling">Polling</TabsTrigger>
             <TabsTrigger value="display">Display</TabsTrigger>
             <TabsTrigger value="performance">Performance</TabsTrigger>
             <TabsTrigger value="notifications">Notifications</TabsTrigger>
+            <TabsTrigger value="testing">Testing</TabsTrigger>
             <TabsTrigger value="debug">Debug</TabsTrigger>
             <TabsTrigger value="data">Data</TabsTrigger>
           </TabsList>
@@ -825,6 +826,19 @@ export const SettingsModal = ({ open, onOpenChange, onMockEvent }: SettingsModal
                 </div>
               </CardContent>
             </Card>
+          </TabsContent>
+
+          <TabsContent value="testing" className="space-y-4">
+            <TestingTab 
+              leagues={localConfig.leagues} 
+              onMockEvent={(leagueId, event) => {
+                console.log('Mock event triggered for league:', leagueId, event);
+                toast({
+                  title: 'Mock Event Generated',
+                  description: `${event.playerName} scored ${event.points} points`,
+                });
+              }} 
+            />
           </TabsContent>
 
           <TabsContent value="debug" className="space-y-4">
