@@ -28,6 +28,8 @@ import { debugLogger } from '../utils/debugLogger';
 import { DebugConsole } from './DebugConsole';
 import { DataHealthMonitor } from './DataHealthMonitor';
 import { LiveDebugPanel } from './LiveDebugPanel';
+import { PlayerMappingDebugPanel } from './PlayerMappingDebugPanel';
+import { EnhancedDebugDashboard } from './EnhancedDebugDashboard';
 import { useSimulationContext } from '../contexts/SimulationContext';
 import {
   DndContext,
@@ -396,7 +398,7 @@ export const SettingsModal = ({ open, onOpenChange, onMockEvent }: SettingsModal
         <DataHealthMonitor isVisible={showDataHealth} />
 
         <Tabs defaultValue="leagues" className="w-full">
-          <TabsList className="grid w-full grid-cols-8">
+          <TabsList className="grid w-full grid-cols-9">
             <TabsTrigger value="leagues">Leagues</TabsTrigger>
             <TabsTrigger value="polling">Polling</TabsTrigger>
             <TabsTrigger value="display">Display</TabsTrigger>
@@ -404,6 +406,7 @@ export const SettingsModal = ({ open, onOpenChange, onMockEvent }: SettingsModal
             <TabsTrigger value="notifications">Notifications</TabsTrigger>
             <TabsTrigger value="testing">Testing</TabsTrigger>
             <TabsTrigger value="debug">Debug</TabsTrigger>
+            <TabsTrigger value="players">Player Database</TabsTrigger>
             <TabsTrigger value="data">Data</TabsTrigger>
           </TabsList>
 
@@ -840,6 +843,21 @@ export const SettingsModal = ({ open, onOpenChange, onMockEvent }: SettingsModal
           </TabsContent>
 
           <TabsContent value="debug" className="space-y-4">
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <RefreshCw className="h-5 w-5" />
+                  Enhanced Debug Dashboard
+                </CardTitle>
+                <CardDescription>
+                  Comprehensive monitoring of all live events services and data flow
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <EnhancedDebugDashboard />
+              </CardContent>
+            </Card>
+
             <ESPNTestPanel />
             
             <DataHealthMonitor isVisible={showDataHealth} />
@@ -1039,6 +1057,20 @@ export const SettingsModal = ({ open, onOpenChange, onMockEvent }: SettingsModal
                 <div className="text-sm text-muted-foreground">
                   <p><strong>Note:</strong> The demo league appears as the first league in your dashboard when enabled. It's clearly marked with a 🎮 icon to distinguish it from real leagues.</p>
                 </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          <TabsContent value="players" className="space-y-4">
+            <Card>
+              <CardHeader>
+                <CardTitle>Player Database Management</CardTitle>
+                <CardDescription>
+                  Monitor and manage the Tank01 player mapping database for event attribution
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <PlayerMappingDebugPanel />
               </CardContent>
             </Card>
           </TabsContent>

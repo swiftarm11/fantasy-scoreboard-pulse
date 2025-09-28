@@ -55,6 +55,7 @@ serve(async (req) => {
         requestPath = `/getNFLGamesForWeek?week=${week}&season=${season}`
         break
       case 'playByPlay':
+      case 'plays':
         requestPath = `/getNFLBoxScore?gameID=${gameId}&playByPlay=true`
         break
       case 'players':
