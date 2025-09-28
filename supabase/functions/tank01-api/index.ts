@@ -83,21 +83,41 @@ serve(async (req) => {
           const now = new Date();
           const currentYear = now.getFullYear();
           
-          // NFL season typically starts the second Tuesday after Labor Day (first Monday in September)
-          // For simplicity, assume season starts September 8th each year
-          const seasonStart = new Date(currentYear, 8, 8); // September 8th (month is 0-indexed)
+          // NFL season typically starts the first Thursday after Labor Day
+          // Labor Day is first Monday in September, so first Thursday after is usually Sept 5-11
+          const laborDay = new Date(currentYear, 8, 1); // Sept 1st
+          while (laborDay.getDay() !== 1) { // Find first Monday
+            laborDay.setDate(laborDay.getDate() + 1);
+          }
           
-          // If we're before the season starts, use previous year's week 18 or current year week 1
+          // First Thursday after Labor Day
+          const seasonStart = new Date(laborDay);
+          seasonStart.setDate(laborDay.getDate() + 3); // Add 3 days to get to Thursday
+          
+          console.log(`[TANK01-API] Calculated NFL season start: ${seasonStart.toISOString()}`);
+          
           if (now < seasonStart) {
             currentWeek = '1';
           } else {
             // Calculate weeks since season start
-            const daysSinceStart = Math.floor((now.getTime() - seasonStart.getTime()) / (1000 * 60 * 60 * 24));
-            const calculatedWeek = Math.min(Math.floor(daysSinceStart / 7) + 1, 18);
+            // NFL weeks run Tuesday to Monday, so adjust calculation
+            const adjustedSeasonStart = new Date(seasonStart);
+            adjustedSeasonStart.setDate(seasonStart.getDate() - 2); // Back to Tuesday
+            
+            const daysSinceStart = Math.floor((now.getTime() - adjustedSeasonStart.getTime()) / (1000 * 60 * 60 * 24));
+            let calculatedWeek = Math.floor(daysSinceStart / 7) + 1;
+            
+            // Add 1 to account for current week being the "next" week during weekdays
+            if (now.getDay() >= 1 && now.getDay() <= 5) { // Monday-Friday
+              calculatedWeek += 1;
+            }
+            
+            // Cap at week 18 (regular season) or extend to 22 for playoffs
+            calculatedWeek = Math.min(calculatedWeek, 22);
             currentWeek = calculatedWeek.toString();
           }
           
-          console.log(`[TANK01-API] Auto-calculated current NFL week: ${currentWeek} for season ${currentSeason}`);
+          console.log(`[TANK01-API] Auto-calculated current NFL week: ${currentWeek} for season ${currentSeason} (date: ${now.toISOString()})`);
         }
         
         apiUrl = `${TANK01_BASE_URL}/getNFLGamesForWeek?week=${currentWeek}&season=${currentSeason}`;
