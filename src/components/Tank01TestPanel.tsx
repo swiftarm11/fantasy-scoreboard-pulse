@@ -357,18 +357,52 @@ export function Tank01TestPanel() {
                 Games Data Test Result
               </h4>
               <div className="p-3 bg-purple-50 border border-purple-200 rounded-lg">
-                <div className="text-sm space-y-1">
+                <div className="text-sm space-y-2">
                   <div>✅ Games data retrieved successfully</div>
                   <div>Games found: {gamesResult.data?.body?.length || 0}</div>
                   <div>Response size: {gamesResult.meta?.responseSize} bytes</div>
-                  {gamesResult.data?.body?.length > 0 && <>
-                      <div className="mt-2 p-2 bg-gray-100 rounded text-xs">
-                        Sample game: {gamesResult.data.body[0]?.away || 'Unknown'} @ {gamesResult.data.body[0]?.home || 'Unknown'}
+                  
+                  {gamesResult.data?.body?.length > 0 && (
+                    <div className="mt-3 space-y-2">
+                      <div className="font-medium text-purple-800">All Games:</div>
+                      <div className="max-h-64 overflow-y-auto space-y-2">
+                        {gamesResult.data.body.map((game: any, index: number) => (
+                          <div key={index} className="p-2 bg-white rounded border border-purple-200">
+                            <div className="flex justify-between items-center">
+                              <div className="font-medium">
+                                {game.away || 'Away'} @ {game.home || 'Home'}
+                              </div>
+                              <Badge variant={game.gameStatus === 'Completed' ? 'secondary' : game.gameStatus === 'InProgress' ? 'default' : 'outline'}>
+                                {game.gameStatus || 'Scheduled'}
+                              </Badge>
+                            </div>
+                            
+                            <div className="text-xs text-gray-600 mt-1 space-y-1">
+                              <div className="flex justify-between">
+                                <span>Game ID: {game.gameID}</span>
+                                {game.gameTime && <span>Time: {game.gameTime}</span>}
+                              </div>
+                              
+                              {(game.awayResult || game.homeResult) && (
+                                <div className="flex justify-between font-medium text-gray-800">
+                                  <span>{game.away}: {game.awayResult || 0}</span>
+                                  <span>{game.home}: {game.homeResult || 0}</span>
+                                </div>
+                              )}
+                              
+                              {game.gameWeek && (
+                                <div>Week {game.gameWeek} • {game.seasonType || 'Regular'}</div>
+                              )}
+                            </div>
+                          </div>
+                        ))}
                       </div>
-                      <div className="text-xs text-green-600 mt-1">
-                        ✓ Game ID available for plays test: {gamesResult.data.body[0]?.gameID}
+                      
+                      <div className="text-xs text-green-600 mt-2 p-2 bg-green-50 rounded">
+                        ✓ First game ID available for plays test: {gamesResult.data.body[0]?.gameID}
                       </div>
-                    </>}
+                    </div>
+                  )}
                 </div>
               </div>
             </div>}
