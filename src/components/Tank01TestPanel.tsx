@@ -6,7 +6,6 @@ import { Loader2, Zap, Database, Users, Gamepad2, BarChart3, ToggleLeft, ToggleR
 import { supabase } from '@/integrations/supabase/client';
 import { tank01NFLDataService } from '@/services/Tank01NFLDataService';
 import { hybridNFLDataService } from '@/services/HybridNFLDataService';
-
 interface TestResult {
   success: boolean;
   endpoint: string;
@@ -17,20 +16,15 @@ interface TestResult {
   };
   error?: string;
 }
-
 export function Tank01TestPanel() {
   const [connectionResult, setConnectionResult] = useState<TestResult | null>(null);
   const [connectionLoading, setConnectionLoading] = useState(false);
-  
   const [playersResult, setPlayersResult] = useState<TestResult | null>(null);
   const [playersLoading, setPlayersLoading] = useState(false);
-  
   const [gamesResult, setGamesResult] = useState<TestResult | null>(null);
   const [gamesLoading, setGamesLoading] = useState(false);
-
   const [playsResult, setPlaysResult] = useState<TestResult | null>(null);
   const [playsLoading, setPlaysLoading] = useState(false);
-
   const [error, setError] = useState<string | null>(null);
   const [callCount, setCallCount] = useState(0);
   const [serviceStatus, setServiceStatus] = useState<any>(null);
@@ -42,21 +36,20 @@ export function Tank01TestPanel() {
     setError(null);
     setConnectionResult(null);
     setCallCount(prev => prev + 1);
-
     try {
       console.log(`🏈 [MANUAL TEST ${callCount + 1}] Testing Tank01 API connection...`);
       console.warn('⚠️ Tank01 API call initiated by user - counting against free tier');
-      
-      const { data, error } = await supabase.functions.invoke('tank01-api', {
-        body: { 
+      const {
+        data,
+        error
+      } = await supabase.functions.invoke('tank01-api', {
+        body: {
           endpoint: 'test-connection'
         }
       });
-
       if (error) {
         throw new Error(error.message);
       }
-
       console.log('✅ Tank01 connection test response:', data);
       setConnectionResult(data);
     } catch (err) {
@@ -74,23 +67,23 @@ export function Tank01TestPanel() {
     setError(null);
     setPlayersResult(null);
     setCallCount(prev => prev + 1);
-
     try {
       console.log(`🏈 [MANUAL TEST ${callCount + 1}] Testing Tank01 player data...`);
       console.warn('⚠️ Tank01 API call initiated by user - counting against free tier');
-      
-      const { data, error } = await supabase.functions.invoke('tank01-api', {
-        body: { 
+      const {
+        data,
+        error
+      } = await supabase.functions.invoke('tank01-api', {
+        body: {
           endpoint: 'players',
-          team: 'KC', // Test with Chiefs as example
+          team: 'KC',
+          // Test with Chiefs as example
           position: 'QB'
         }
       });
-
       if (error) {
         throw new Error(error.message);
       }
-
       console.log('✅ Tank01 players response:', data);
       setPlayersResult(data);
     } catch (err) {
@@ -108,23 +101,22 @@ export function Tank01TestPanel() {
     setError(null);
     setGamesResult(null);
     setCallCount(prev => prev + 1);
-
     try {
       console.log(`🏈 [MANUAL TEST ${callCount + 1}] Testing Tank01 games data...`);
       console.warn('⚠️ Tank01 API call initiated by user - counting against free tier');
-      
-      const { data, error } = await supabase.functions.invoke('tank01-api', {
-        body: { 
+      const {
+        data,
+        error
+      } = await supabase.functions.invoke('tank01-api', {
+        body: {
           endpoint: 'games',
           week: '1',
           season: '2025'
         }
       });
-
       if (error) {
         throw new Error(error.message);
       }
-
       console.log('✅ Tank01 games response:', data);
       setGamesResult(data);
     } catch (err) {
@@ -142,28 +134,26 @@ export function Tank01TestPanel() {
       setError('No game ID available. Run games test first.');
       return;
     }
-
     setPlaysLoading(true);
     setError(null);
     setPlaysResult(null);
     setCallCount(prev => prev + 1);
-
     try {
       const gameId = gamesResult.data.body[0].gameID;
       console.log(`🏈 [MANUAL TEST ${callCount + 1}] Testing Tank01 plays data for game ${gameId}...`);
       console.warn('⚠️ Tank01 API call initiated by user - counting against free tier');
-      
-      const { data, error } = await supabase.functions.invoke('tank01-api', {
-        body: { 
+      const {
+        data,
+        error
+      } = await supabase.functions.invoke('tank01-api', {
+        body: {
           endpoint: 'plays',
           gameId: gameId
         }
       });
-
       if (error) {
         throw new Error(error.message);
       }
-
       console.log('✅ Tank01 plays response:', data);
       setPlaysResult(data);
     } catch (err) {
@@ -174,15 +164,11 @@ export function Tank01TestPanel() {
       setPlaysLoading(false);
     }
   };
-
   const getPlayerIdSummary = (playerData: any) => {
     if (!playerData?.data?.body) return 'No player data';
-    
     const players = Array.isArray(playerData.data.body) ? playerData.data.body : [playerData.data.body];
     const samplePlayer = players[0];
-    
     if (!samplePlayer) return 'No players found';
-    
     return {
       total: players.length,
       sample: {
@@ -193,9 +179,7 @@ export function Tank01TestPanel() {
       }
     };
   };
-
-  return (
-    <div className="space-y-4">
+  return <div className="space-y-4">
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
@@ -223,18 +207,12 @@ export function Tank01TestPanel() {
                 <Zap className="h-4 w-4 text-blue-500" />
                 <span className="text-sm font-medium">Hybrid NFL Service Status</span>
               </div>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setServiceStatus(hybridNFLDataService.getServiceStatus())}
-                disabled={connectionLoading || playersLoading || gamesLoading || playsLoading}
-              >
+              <Button variant="outline" size="sm" onClick={() => setServiceStatus(hybridNFLDataService.getServiceStatus())} disabled={connectionLoading || playersLoading || gamesLoading || playsLoading}>
                 Check Status
               </Button>
             </div>
 
-            {serviceStatus && (
-              <div className="p-3 bg-muted/20 rounded-lg text-xs space-y-2">
+            {serviceStatus && <div className="p-3 bg-muted/20 rounded-lg text-xs space-y-2">
                 <div className="flex justify-between">
                   <span>Hybrid Service Active:</span>
                   <Badge variant={serviceStatus.isPolling ? "default" : "secondary"}>
@@ -253,8 +231,7 @@ export function Tank01TestPanel() {
                     {serviceStatus.useT01ForLiveEvents ? "Enabled" : "ESPN Fallback"}
                   </Badge>
                 </div>
-                {serviceStatus.tank01Status && (
-                  <>
+                {serviceStatus.tank01Status && <>
                     <div className="flex justify-between">
                       <span>Tank01 Players Cached:</span>
                       <span>{serviceStatus.tank01Status.playersCached}</span>
@@ -263,105 +240,54 @@ export function Tank01TestPanel() {
                       <span>Current NFL Week:</span>
                       <span>{serviceStatus.tank01Status.currentWeek || 'Unknown'}</span>
                     </div>
-                  </>
-                )}
-              </div>
-            )}
+                  </>}
+              </div>}
 
-            <div className="flex items-center gap-4 p-3 bg-amber-50 dark:bg-amber-950/20 rounded-lg">
+            <div className="flex items-center gap-4 p-3 rounded-lg bg-slate-800">
               <div className="flex items-center gap-2">
-                {isT01LiveEnabled ? (
-                  <ToggleRight className="h-4 w-4 text-green-500" />
-                ) : (
-                  <ToggleLeft className="h-4 w-4 text-gray-500" />
-                )}
+                {isT01LiveEnabled ? <ToggleRight className="h-4 w-4 text-green-500" /> : <ToggleLeft className="h-4 w-4 text-gray-500" />}
                 <span className="text-sm font-medium">Tank01 Live Events</span>
               </div>
-              <Button
-                variant={isT01LiveEnabled ? "destructive" : "default"}
-                size="sm"
-                onClick={() => {
-                  if (isT01LiveEnabled) {
-                    hybridNFLDataService.disableTank01LiveEvents();
-                    setIsT01LiveEnabled(false);
-                  } else {
-                    hybridNFLDataService.enableTank01LiveEvents();
-                    setIsT01LiveEnabled(true);
-                  }
-                  // Refresh status
-                  setServiceStatus(hybridNFLDataService.getServiceStatus());
-                }}
-                disabled={connectionLoading || playersLoading || gamesLoading || playsLoading}
-              >
+              <Button variant={isT01LiveEnabled ? "destructive" : "default"} size="sm" onClick={() => {
+              if (isT01LiveEnabled) {
+                hybridNFLDataService.disableTank01LiveEvents();
+                setIsT01LiveEnabled(false);
+              } else {
+                hybridNFLDataService.enableTank01LiveEvents();
+                setIsT01LiveEnabled(true);
+              }
+              // Refresh status
+              setServiceStatus(hybridNFLDataService.getServiceStatus());
+            }} disabled={connectionLoading || playersLoading || gamesLoading || playsLoading}>
                 {isT01LiveEnabled ? "Disable T01 Live" : "Enable T01 Live"}
               </Button>
             </div>
           </div>
           {/* Test Controls - Manual Only */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-            <Button 
-              onClick={testConnection} 
-              variant="outline" 
-              size="sm"
-              disabled={connectionLoading || playersLoading || gamesLoading || playsLoading}
-              className="w-full"
-            >
-              {connectionLoading ? (
-                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-              ) : (
-                <Zap className="h-4 w-4 mr-2" />
-              )}
+            <Button onClick={testConnection} variant="outline" size="sm" disabled={connectionLoading || playersLoading || gamesLoading || playsLoading} className="w-full">
+              {connectionLoading ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Zap className="h-4 w-4 mr-2" />}
               Test Connection
             </Button>
             
-            <Button 
-              onClick={testPlayers} 
-              variant="outline" 
-              size="sm"
-              disabled={playersLoading || connectionLoading || gamesLoading || playsLoading}
-              className="w-full"
-            >
-              {playersLoading ? (
-                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-              ) : (
-                <Users className="h-4 w-4 mr-2" />
-              )}
+            <Button onClick={testPlayers} variant="outline" size="sm" disabled={playersLoading || connectionLoading || gamesLoading || playsLoading} className="w-full">
+              {playersLoading ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Users className="h-4 w-4 mr-2" />}
               Test Player IDs (KC QBs)
             </Button>
             
-            <Button 
-              onClick={testGames} 
-              variant="outline" 
-              size="sm"
-              disabled={gamesLoading || connectionLoading || playersLoading || playsLoading}
-              className="w-full"
-            >
-              {gamesLoading ? (
-                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-              ) : (
-                <Gamepad2 className="h-4 w-4 mr-2" />
-              )}
+            <Button onClick={testGames} variant="outline" size="sm" disabled={gamesLoading || connectionLoading || playersLoading || playsLoading} className="w-full">
+              {gamesLoading ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Gamepad2 className="h-4 w-4 mr-2" />}
               Test Games (Week 1)
             </Button>
             
-            <Button 
-              onClick={testPlays} 
-              variant="outline" 
-              size="sm"
-              disabled={playsLoading || connectionLoading || playersLoading || gamesLoading || !gamesResult?.data?.body?.[0]?.gameID}
-              className="w-full"
-            >
-              {playsLoading ? (
-                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-              ) : (
-                <BarChart3 className="h-4 w-4 mr-2" />
-              )}
+            <Button onClick={testPlays} variant="outline" size="sm" disabled={playsLoading || connectionLoading || playersLoading || gamesLoading || !gamesResult?.data?.body?.[0]?.gameID} className="w-full">
+              {playsLoading ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <BarChart3 className="h-4 w-4 mr-2" />}
               Test Plays Data
             </Button>
           </div>
 
           {/* Usage Warning */}
-          <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg">
+          <div className="p-3 border border-amber-200 rounded-lg bg-slate-800">
             <h4 className="font-medium text-amber-800 mb-1 flex items-center gap-2">
               ⚠️ API Usage Limits
             </h4>
@@ -374,16 +300,13 @@ export function Tank01TestPanel() {
           </div>
 
           {/* Error Display */}
-          {error && (
-            <div className="p-3 bg-red-50 border border-red-200 rounded-lg">
+          {error && <div className="p-3 bg-red-50 border border-red-200 rounded-lg">
               <h4 className="font-medium text-red-800 mb-1">Error:</h4>
               <div className="text-sm text-red-700">{error}</div>
-            </div>
-          )}
+            </div>}
 
           {/* Connection Test Result */}
-          {connectionResult && (
-            <div className="space-y-2">
+          {connectionResult && <div className="space-y-2">
               <h4 className="font-medium flex items-center gap-2">
                 <Zap className="h-4 w-4" />
                 Connection Test Result
@@ -396,12 +319,10 @@ export function Tank01TestPanel() {
                   <div>Timestamp: {connectionResult.meta?.timestamp}</div>
                 </div>
               </div>
-            </div>
-          )}
+            </div>}
 
           {/* Players Test Result */}
-          {playersResult && (
-            <div className="space-y-2">
+          {playersResult && <div className="space-y-2">
               <h4 className="font-medium flex items-center gap-2">
                 <Users className="h-4 w-4" />
                 Player ID Mapping Test Result
@@ -410,11 +331,9 @@ export function Tank01TestPanel() {
                 <div className="text-sm space-y-2">
                   <div>✅ Player data retrieved successfully</div>
                   {(() => {
-                    const summary = getPlayerIdSummary(playersResult);
-                    if (typeof summary === 'string') return <div>{summary}</div>;
-                    
-                    return (
-                      <>
+                const summary = getPlayerIdSummary(playersResult);
+                if (typeof summary === 'string') return <div>{summary}</div>;
+                return <>
                         <div>Total players: {summary.total}</div>
                         <div className="space-y-1">
                           <div className="font-medium">Sample player mapping:</div>
@@ -425,17 +344,14 @@ export function Tank01TestPanel() {
                             <div>ESPN ID: {summary.sample.espnID}</div>
                           </div>
                         </div>
-                      </>
-                    );
-                  })()}
+                      </>;
+              })()}
                 </div>
               </div>
-            </div>
-          )}
+            </div>}
 
           {/* Games Test Result */}
-          {gamesResult && (
-            <div className="space-y-2">
+          {gamesResult && <div className="space-y-2">
               <h4 className="font-medium flex items-center gap-2">
                 <Gamepad2 className="h-4 w-4" />
                 Games Data Test Result
@@ -445,24 +361,20 @@ export function Tank01TestPanel() {
                   <div>✅ Games data retrieved successfully</div>
                   <div>Games found: {gamesResult.data?.body?.length || 0}</div>
                   <div>Response size: {gamesResult.meta?.responseSize} bytes</div>
-                  {gamesResult.data?.body?.length > 0 && (
-                    <>
+                  {gamesResult.data?.body?.length > 0 && <>
                       <div className="mt-2 p-2 bg-gray-100 rounded text-xs">
                         Sample game: {gamesResult.data.body[0]?.away || 'Unknown'} @ {gamesResult.data.body[0]?.home || 'Unknown'}
                       </div>
                       <div className="text-xs text-green-600 mt-1">
                         ✓ Game ID available for plays test: {gamesResult.data.body[0]?.gameID}
                       </div>
-                    </>
-                  )}
+                    </>}
                 </div>
               </div>
-            </div>
-          )}
+            </div>}
 
           {/* Plays Test Result */}
-          {playsResult && (
-            <div className="space-y-2">
+          {playsResult && <div className="space-y-2">
               <h4 className="font-medium flex items-center gap-2">
                 <BarChart3 className="h-4 w-4" />
                 Play-by-Play Test Result
@@ -472,18 +384,15 @@ export function Tank01TestPanel() {
                   <div>✅ Play-by-play data retrieved successfully</div>
                   <div>Plays found: {Array.isArray(playsResult.data?.body) ? playsResult.data.body.length : 'N/A'}</div>
                   <div>Response size: {playsResult.meta?.responseSize} bytes</div>
-                  {playsResult.data?.body?.length > 0 && (
-                    <div className="mt-2 p-2 bg-gray-100 rounded text-xs">
+                  {playsResult.data?.body?.length > 0 && <div className="mt-2 p-2 bg-gray-100 rounded text-xs">
                       Sample play: {JSON.stringify(playsResult.data.body[0], null, 2).substring(0, 150)}...
-                    </div>
-                  )}
+                    </div>}
                 </div>
               </div>
-            </div>
-          )}
+            </div>}
 
           {/* API Evaluation Summary */}
-          <div className="p-4 bg-gray-50 border border-gray-200 rounded-lg">
+          <div className="p-4 border border-gray-200 rounded-lg bg-slate-800">
             <h4 className="font-medium mb-2 flex items-center gap-2">
               <BarChart3 className="h-4 w-4" />
               Evaluation Criteria
@@ -509,6 +418,5 @@ export function Tank01TestPanel() {
           </div>
         </CardContent>
       </Card>
-    </div>
-  );
+    </div>;
 }
