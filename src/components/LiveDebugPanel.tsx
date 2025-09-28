@@ -473,12 +473,75 @@ export const LiveDebugPanel = ({ open, onOpenChange }: LiveDebugPanelProps) => {
           <TabsContent value="espn" className="space-y-4">
             <Card>
               <CardHeader>
-                <CardTitle className="text-base">ESPN NFL Data Flow</CardTitle>
+                <CardTitle className="text-base">Live Events System Status</CardTitle>
                 <CardDescription>
-                  Monitor live NFL game data and scoring events from ESPN
+                  Monitor Tank01 + ESPN hybrid data flow and live event processing
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
+                {/* Service Status Overview */}
+                <div className="grid grid-cols-3 gap-4">
+                  <div className="p-3 rounded-lg bg-muted/50 border">
+                    <div className="text-sm font-medium">Live Events Manager</div>
+                    <div className="text-xs text-muted-foreground mt-1">
+                      Status: {(window as any).liveEventsManager ? 
+                        <Badge variant="secondary">Ready</Badge> : 
+                        <Badge variant="destructive">Not Initialized</Badge>
+                      }
+                    </div>
+                  </div>
+                  <div className="p-3 rounded-lg bg-muted/50 border">
+                    <div className="text-sm font-medium">Hybrid NFL Service</div>
+                    <div className="text-xs text-muted-foreground mt-1">
+                      Status: {(window as any).hybridNFLDataService ? 
+                        <Badge variant="secondary">Ready</Badge> : 
+                        <Badge variant="destructive">Not Initialized</Badge>
+                      }
+                    </div>
+                  </div>
+                  <div className="p-3 rounded-lg bg-muted/50 border">
+                    <div className="text-sm font-medium">Event Attribution</div>
+                    <div className="text-xs text-muted-foreground mt-1">
+                      Status: {(window as any).eventAttributionService ? 
+                        <Badge variant="secondary">Ready</Badge> : 
+                        <Badge variant="destructive">Not Initialized</Badge>
+                      }
+                    </div>
+                  </div>
+                </div>
+
+                {/* Controls */}
+                <div className="flex gap-2">
+                  <Button 
+                    onClick={() => {
+                      if ((window as any).hybridNFLDataService?.manualPoll) {
+                        (window as any).hybridNFLDataService.manualPoll();
+                        toast({ title: 'Manual Poll Triggered', description: 'Fetching latest NFL data...' });
+                      } else {
+                        toast({ title: 'Service Not Ready', description: 'Hybrid service not initialized', variant: 'destructive' });
+                      }
+                    }}
+                    variant="outline"
+                  >
+                    <Zap className="w-4 h-4 mr-2" />
+                    Manual Poll Now
+                  </Button>
+                  <Button 
+                    onClick={() => {
+                      if ((window as any).liveEventsManager?.triggerTestEvent) {
+                        (window as any).liveEventsManager.triggerTestEvent();
+                        toast({ title: 'Test Event Triggered', description: 'Check console for attribution results' });
+                      } else {
+                        toast({ title: 'Service Not Ready', description: 'Live events manager not initialized', variant: 'destructive' });
+                      }
+                    }}
+                    variant="outline"
+                  >
+                    <TestTube className="w-4 h-4 mr-2" />
+                    Trigger Test Event
+                  </Button>
+                </div>
+
                 <div className="grid grid-cols-2 gap-4">
                   <div className="p-3 rounded-lg bg-muted/50 border">
                     <h4 className="font-medium text-sm mb-2">Polling Status</h4>

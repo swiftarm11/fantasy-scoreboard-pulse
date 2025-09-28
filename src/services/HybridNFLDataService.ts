@@ -12,8 +12,8 @@ export class HybridNFLDataService {
   private tank01Service: Tank01NFLDataService;
   private eventCallbacks: ((event: NFLScoringEvent) => void)[] = [];
   private isPolling = false;
-  private useT01ForPlayerMapping = true; // Feature flag
-  private useT01ForLiveEvents = true; // Enable Tank01 for live events - more accurate than ESPN
+  private useT01ForPlayerMapping = true; // Always use Tank01 for player mapping
+  private useT01ForLiveEvents = true; // Default to Tank01 for live events - more accurate than ESPN
   
   private constructor() {
     this.nflDataService = NFLDataService.getInstance();
@@ -21,6 +21,10 @@ export class HybridNFLDataService {
     
     // Set up event forwarding from both services
     this.setupEventForwarding();
+
+    // 🌐 [HYBRID_NFL] Expose service to window for debugging
+    (window as any).hybridNFLDataService = this;
+    debugLogger.info('HYBRID_NFL', 'HybridNFLDataService exposed to window for debugging');
   }
 
   public static getInstance(): HybridNFLDataService {
@@ -31,39 +35,67 @@ export class HybridNFLDataService {
   }
 
   /**
-   * Start hybrid polling - Tank01 for player mapping, ESPN for live events initially
+   * Start hybrid polling - Tank01 primary with 30-second intervals for live games
    */
-  public async startPolling(intervalMs: number = 25000): Promise<void> {
+  public async startPolling(intervalMs: number = 30000): Promise<void> {
     if (this.isPolling) {
-      debugLogger.warning('HYBRID_NFL', 'Polling already active');
+      debugLogger.warning('HYBRID_NFL', 'Polling already active', {
+        currentInterval: intervalMs,
+        useT01ForLiveEvents: this.useT01ForLiveEvents
+      });
       return;
     }
 
     this.isPolling = true;
-    debugLogger.info('HYBRID_NFL', 'Starting hybrid NFL data polling', {
+    debugLogger.info('HYBRID_NFL', '🎮 Starting hybrid NFL data polling (Tank01 primary)', {
       tank01PlayerMapping: this.useT01ForPlayerMapping,
       tank01LiveEvents: this.useT01ForLiveEvents,
-      interval: intervalMs
+      interval: intervalMs,
+      strategy: 'Tank01 primary for live games (30s), ESPN fallback'
     });
 
     try {
-      // Always start Tank01 for player mappings
-      if (this.useT01ForPlayerMapping) {
-        await this.tank01Service.startPolling(intervalMs + 5000); // Slightly offset
-      }
+      // Always start Tank01 - now primary for both player mapping AND live events
+      debugLogger.info('HYBRID_NFL', '🏈 Starting Tank01 service for live NFL data');
+      await this.tank01Service.startPolling(intervalMs); // Use exact interval for live games
 
-      // Start ESPN for live events (conservative approach)
-      if (!this.useT01ForLiveEvents) {
-        await this.nflDataService.startPolling(intervalMs);
-      } else {
-        // If using Tank01 for live events, ensure ESPN is available as fallback
-        await this.nflDataService.startPolling(intervalMs + 10000); // Backup polling
-      }
+      // Start ESPN as backup with longer interval to reduce API usage
+      debugLogger.info('HYBRID_NFL', '📡 Starting ESPN service as backup');
+      await this.nflDataService.startPolling(intervalMs + 15000); // 45 second backup polling
 
-      debugLogger.success('HYBRID_NFL', 'Hybrid polling started successfully');
+      debugLogger.success('HYBRID_NFL', '✅ Hybrid polling started successfully', {
+        tank01Interval: intervalMs,
+        espnInterval: intervalMs + 15000,
+        primarySource: 'Tank01',
+        backupSource: 'ESPN'
+      });
+
     } catch (error) {
       this.isPolling = false;
-      debugLogger.error('HYBRID_NFL', 'Failed to start hybrid polling', error);
+      debugLogger.error('HYBRID_NFL', '❌ Failed to start hybrid polling', {
+        error: error instanceof Error ? error.message : 'Unknown error',
+        stack: error instanceof Error ? error.stack : undefined
+      });
+      throw error;
+    }
+  }
+
+  /**
+   * Manual poll trigger for immediate data refresh
+   */
+  public async manualPoll(): Promise<void> {
+    debugLogger.info('HYBRID_NFL', '⚡ Manual poll triggered');
+    
+    try {
+      // Trigger immediate polls from both services
+      await Promise.allSettled([
+        this.tank01Service.manualPoll?.() || Promise.resolve(),
+        this.nflDataService.pollActiveGames?.() || Promise.resolve()
+      ]);
+
+      debugLogger.success('HYBRID_NFL', '✅ Manual poll completed');
+    } catch (error) {
+      debugLogger.error('HYBRID_NFL', '❌ Manual poll failed', error);
       throw error;
     }
   }
@@ -169,21 +201,34 @@ export class HybridNFLDataService {
   }
 
   /**
-   * Forward events to subscribers with deduplication
+   * Forward events to subscribers with detailed tracking
    */
   private forwardEvent(event: NFLScoringEvent & { source: string }): void {
-    debugLogger.info('HYBRID_NFL', 'Forwarding scoring event', {
+    debugLogger.info('HYBRID_NFL', '📡 Forwarding NFL scoring event to live events system', {
       eventId: event.id,
       player: event.player.name,
+      position: event.player.position,
+      team: event.player.team,
       source: event.source,
-      eventType: event.eventType
+      eventType: event.eventType,
+      gameId: event.gameId,
+      timestamp: event.timestamp,
+      callbackCount: this.eventCallbacks.length
     });
 
-    this.eventCallbacks.forEach(callback => {
+    if (this.eventCallbacks.length === 0) {
+      debugLogger.warning('HYBRID_NFL', '⚠️ No event callbacks registered - event will be lost');
+    }
+
+    this.eventCallbacks.forEach((callback, index) => {
       try {
+        debugLogger.info('HYBRID_NFL', `🔗 Executing callback ${index + 1}/${this.eventCallbacks.length}`);
         callback(event);
       } catch (error) {
-        debugLogger.error('HYBRID_NFL', 'Error in hybrid event callback', error);
+        debugLogger.error('HYBRID_NFL', `❌ Error in hybrid event callback ${index + 1}`, {
+          error: error instanceof Error ? error.message : 'Unknown error',
+          eventId: event.id
+        });
       }
     });
   }

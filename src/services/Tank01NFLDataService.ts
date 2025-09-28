@@ -171,6 +171,21 @@ export class Tank01NFLDataService {
   }
 
   /**
+   * Manual poll trigger for immediate data refresh
+   */
+  public async manualPoll(): Promise<void> {
+    debugLogger.info('TANK01_DATA', '⚡ Manual poll triggered for Tank01');
+    
+    try {
+      await this.pollActiveGames();
+      debugLogger.success('TANK01_DATA', '✅ Manual poll completed successfully');
+    } catch (error) {
+      debugLogger.error('TANK01_DATA', '❌ Manual poll failed', error);
+      throw error;
+    }
+  }
+
+  /**
    * Stop polling for games
    */
   public stopPolling(): void {

@@ -17,14 +17,14 @@ const queryClient = new QueryClient();
 const App = () => {
   // Expose Yahoo OAuth service and env vars globally
   useEffect(() => {
-    window.yahooOAuth = yahooOAuth;
-    window.appEnv = {
+    (window as any).yahooOAuth = yahooOAuth;
+    (window as any).appEnv = {
       YAHOO_CLIENT_ID: import.meta.env.VITE_YAHOO_CLIENT_ID,
       YAHOO_REDIRECT_URI: import.meta.env.VITE_YAHOO_REDIRECT_URI,
       YAHOO_SIMULATION: import.meta.env.VITE_YAHOO_SIMULATION
     };
     console.log('✅ Yahoo OAuth service exposed to window in App.tsx');
-    console.log('App env:', window.appEnv);
+    console.log('App env:', (window as any).appEnv);
     
     // Log simulation status
     const isSimulationEnabled = 

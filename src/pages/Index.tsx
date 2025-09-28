@@ -10,7 +10,7 @@ const Index = () => {
     console.log('yahooOAuth type:', typeof yahooOAuth);
     
     try {
-      window.yahooOAuth = yahooOAuth;
+      (window as any).yahooOAuth = yahooOAuth;
       console.log('✅ Yahoo OAuth service exposed to window');
       console.log('Yahoo OAuth configured:', yahooOAuth.isConfigured());
       console.log('Yahoo OAuth connected:', yahooOAuth.isConnected());
@@ -23,7 +23,7 @@ const Index = () => {
       console.log('getConfigurationStatus:', yahooOAuth.getConfigurationStatus());
       
       // Expose env vars for console debugging
-      window.appEnv = {
+      (window as any).appEnv = {
         YAHOO_CLIENT_ID: import.meta.env.VITE_YAHOO_CLIENT_ID,
         YAHOO_REDIRECT_URI: import.meta.env.VITE_YAHOO_REDIRECT_URI,
         YAHOO_SIMULATION: import.meta.env.VITE_YAHOO_SIMULATION

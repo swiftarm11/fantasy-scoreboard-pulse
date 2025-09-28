@@ -34,12 +34,14 @@ export interface UseLiveEventsManagerReturn {
   getLeagueEvents: (leagueId: string) => ScoringEventForDisplay[];
   triggerTestEvent: () => void;
   getCacheStats: () => any;
+  getState: () => LiveEventsManagerState;
+  getRecentEvents: () => ScoringEventForDisplay[];
 }
 
 export const useLiveEventsManager = ({
   enabled,
   leagues,
-  pollingInterval = 25000
+  pollingInterval = 30000 // Default to 30 seconds for live games
 }: UseLiveEventsManagerOptions): UseLiveEventsManagerReturn => {
   const [state, setState] = useState<LiveEventsManagerState>({
     isActive: false,
@@ -56,9 +58,21 @@ export const useLiveEventsManager = ({
   const isInitializing = useRef(false);
   const eventCallbackRefs = useRef<(() => void)[]>([]);
 
+  // Expose this hook's state and methods for easy debugging
+  const getState = useCallback(() => state, [state]);
+  const getRecentEvents = useCallback(() => recentEvents, [recentEvents]);
+
+  // 🔍 [LIVE_EVENTS] Expose services to window for debugging (later in useEffect)
+
   // Initialize the system when enabled
   const initializeSystem = useCallback(async () => {
     if (isInitializing.current || !enabled || leagues.length === 0) {
+      debugLogger.info('LIVE_EVENTS', 'Skipping initialization', {
+        isInitializing: isInitializing.current,
+        enabled,
+        leaguesCount: leagues.length,
+        reason: !enabled ? 'disabled' : leagues.length === 0 ? 'no leagues' : 'already initializing'
+      });
       return;
     }
 
@@ -66,17 +80,26 @@ export const useLiveEventsManager = ({
     setState(prev => ({ ...prev, pollingStatus: 'starting', error: null }));
 
     try {
-      debugLogger.info('LIVE_EVENTS', 'Initializing live events system', {
+      debugLogger.info('LIVE_EVENTS', '🚀 Step 1: Starting live events system initialization', {
         enabledLeagues: leagues.filter(l => l.enabled).length,
-        totalLeagues: leagues.length
+        totalLeagues: leagues.length,
+        timestamp: new Date().toISOString()
       });
 
-      // Load rosters for all enabled leagues
+      // Step 1: Load rosters for all enabled leagues
+      debugLogger.info('LIVE_EVENTS', '📋 Step 2: Loading rosters for enabled leagues');
       await eventAttributionService.loadRosters(leagues.filter(l => l.enabled));
 
-      // Get initial stats
+      // Step 2: Get initial stats and verify system readiness
+      debugLogger.info('LIVE_EVENTS', '📊 Step 3: Verifying system readiness');
       const cacheStats = eventAttributionService.getCacheStats();
       
+      debugLogger.info('LIVE_EVENTS', '🔍 Step 4: Cache statistics retrieved', {
+        rostersCount: cacheStats.rostersCount,
+        playersCount: cacheStats.playersCount,
+        cacheDetails: cacheStats
+      });
+
       setState(prev => ({
         ...prev,
         isInitialized: true,
@@ -84,13 +107,18 @@ export const useLiveEventsManager = ({
         pollingStatus: 'stopped'
       }));
 
-      debugLogger.success('LIVE_EVENTS', 'System initialized successfully', {
+      debugLogger.success('LIVE_EVENTS', '✅ System initialized successfully - ready for live events', {
         rostersLoaded: cacheStats.rostersCount,
-        playersCount: cacheStats.playersCount
+        playersCount: cacheStats.playersCount,
+        nextStep: 'System ready for startSystem() call'
       });
 
     } catch (error) {
-      debugLogger.error('LIVE_EVENTS', 'Failed to initialize system', error);
+      debugLogger.error('LIVE_EVENTS', '❌ Failed to initialize system', {
+        error: error instanceof Error ? error.message : 'Unknown error',
+        stack: error instanceof Error ? error.stack : undefined,
+        step: 'initialization'
+      });
       setState(prev => ({
         ...prev,
         pollingStatus: 'error',
@@ -104,26 +132,53 @@ export const useLiveEventsManager = ({
   // Start the live events system
   const startSystem = useCallback(async () => {
     if (!state.isInitialized || state.isActive) {
+      debugLogger.warning('LIVE_EVENTS', 'Cannot start system - prerequisites not met', {
+        isInitialized: state.isInitialized,
+        isActive: state.isActive,
+        reason: !state.isInitialized ? 'not initialized' : 'already active'
+      });
       return;
     }
 
     try {
+      debugLogger.info('LIVE_EVENTS', '🚀 Step 1: Starting live events polling system', {
+        pollingInterval,
+        leagues: leagues.length,
+        timestamp: new Date().toISOString()
+      });
+
       setState(prev => ({ ...prev, pollingStatus: 'starting' }));
 
-      // Set up hybrid NFL event callbacks (Tank01 + ESPN)
+      // Step 1: Set up hybrid NFL event callbacks (Tank01 primary + ESPN fallback)
+      debugLogger.info('LIVE_EVENTS', '🔗 Step 2: Setting up NFL scoring event callbacks');
       const unsubscribeNFL = hybridNFLDataService.onScoringEvent((event: NFLScoringEvent) => {
-        debugLogger.info('LIVE_EVENTS', 'Received NFL scoring event from hybrid service', {
+        debugLogger.info('LIVE_EVENTS', '🏈 Received NFL scoring event from hybrid service', {
           player: event.player.name,
           eventType: event.eventType,
           gameId: event.gameId,
-          source: (event as any).source || 'unknown'
+          source: (event as any).source || 'unknown',
+          timestamp: event.timestamp
         });
 
-        // Attribute event to fantasy teams using our scoring calculator
+        // Step 2: Attribute event to fantasy teams using our scoring calculator
+        debugLogger.info('LIVE_EVENTS', '🎯 Attempting event attribution');
         const attribution = eventAttributionService.attributeEvent(event);
+        
         if (attribution) {
-          // Store events for each affected league
+          debugLogger.success('LIVE_EVENTS', '✅ Event attribution successful', {
+            fantasyEventsCount: attribution.fantasyEvents.length,
+            affectedLeagues: attribution.fantasyEvents.map(fe => fe.leagueId)
+          });
+
+          // Step 3: Store events for each affected league
           for (const impact of attribution.fantasyEvents) {
+            debugLogger.info('LIVE_EVENTS', '💾 Storing fantasy event', {
+              leagueId: impact.leagueId,
+              player: impact.player.name,
+              points: impact.pointsScored,
+              eventType: impact.eventType
+            });
+
             eventStorageService.addEvent(impact.leagueId, {
               id: `${event.id}-${impact.leagueId}`,
               playerId: impact.player.platformPlayerId,
@@ -138,15 +193,27 @@ export const useLiveEventsManager = ({
             });
           }
 
-          // Update recent events display
+          // Step 4: Update recent events display
           updateRecentEvents();
+        } else {
+          debugLogger.warning('LIVE_EVENTS', '⚠️ No fantasy attribution for NFL event', {
+            player: event.player.name,
+            eventType: event.eventType,
+            reason: 'Player not found in any roster or no leagues configured'
+          });
         }
       });
 
       eventCallbackRefs.current.push(unsubscribeNFL);
 
-      // Set up attribution callbacks for UI updates
+      // Step 2: Set up attribution callbacks for UI updates
+      debugLogger.info('LIVE_EVENTS', '📈 Step 3: Setting up attribution event callbacks');
       const unsubscribeAttribution = eventAttributionService.onEventAttribution((attribution: FantasyEventAttribution) => {
+        debugLogger.info('LIVE_EVENTS', '📊 Attribution event received for UI update', {
+          fantasyEventsCount: attribution.fantasyEvents.length,
+          timestamp: attribution.timestamp
+        });
+
         setState(prev => ({
           ...prev,
           totalEvents: prev.totalEvents + attribution.fantasyEvents.length,
@@ -156,7 +223,13 @@ export const useLiveEventsManager = ({
 
       eventCallbackRefs.current.push(unsubscribeAttribution);
 
-      // Start hybrid NFL data polling (Tank01 + ESPN)
+      // Step 3: Start hybrid NFL data polling (Tank01 primary + ESPN fallback)
+      debugLogger.info('LIVE_EVENTS', '🎮 Step 4: Starting hybrid NFL data polling (Tank01 + ESPN)', {
+        pollingInterval,
+        primarySource: 'Tank01',
+        fallbackSource: 'ESPN'
+      });
+      
       await hybridNFLDataService.startPolling(pollingInterval);
 
       setState(prev => ({
@@ -166,17 +239,24 @@ export const useLiveEventsManager = ({
         nflWeek: new Date().getMonth() < 8 ? new Date().getFullYear() - 1 : new Date().getFullYear() // Rough NFL week calculation
       }));
 
-      debugLogger.success('LIVE_EVENTS', 'Live events system started successfully');
+      debugLogger.success('LIVE_EVENTS', '🎉 Live events system started successfully - now monitoring NFL games', {
+        pollingInterval,
+        connectedLeagues: state.connectedLeagues,
+        status: 'ACTIVE'
+      });
 
     } catch (error) {
-      debugLogger.error('LIVE_EVENTS', 'Failed to start live events system', error);
+      debugLogger.error('LIVE_EVENTS', '❌ Failed to start live events system', {
+        error: error instanceof Error ? error.message : 'Unknown error',
+        stack: error instanceof Error ? error.stack : undefined
+      });
       setState(prev => ({
         ...prev,
         pollingStatus: 'error',
         error: error instanceof Error ? error.message : 'Unknown error'
       }));
     }
-  }, [state.isInitialized, state.isActive, pollingInterval]);
+  }, [state.isInitialized, state.isActive, pollingInterval, leagues]);
 
   // Stop the live events system
   const stopSystem = useCallback(() => {
@@ -320,6 +400,34 @@ export const useLiveEventsManager = ({
     }
   }, [state.isActive, updateRecentEvents]);
 
+  // 🔍 [LIVE_EVENTS] Expose services to window for debugging
+  useEffect(() => {
+    (window as any).liveEventsManager = {
+      getState,
+      getRecentEvents,
+      startSystem,
+      stopSystem,
+      refreshRosters,
+      getLeagueEvents,
+      triggerTestEvent,
+      getCacheStats,
+      state,
+      recentEvents,
+      isReady: state.isInitialized && state.connectedLeagues > 0
+    };
+
+    debugLogger.info('LIVE_EVENTS', 'Live Events Manager exposed to window for debugging', {
+      enabled,
+      leagues: leagues.length,
+      initialized: state.isInitialized,
+      active: state.isActive
+    });
+
+    return () => {
+      delete (window as any).liveEventsManager;
+    };
+  }, [state, recentEvents, getState, getRecentEvents, startSystem, stopSystem, refreshRosters, getLeagueEvents, triggerTestEvent, getCacheStats]);
+
   const isReady = state.isInitialized && state.connectedLeagues > 0;
 
   return {
@@ -331,6 +439,8 @@ export const useLiveEventsManager = ({
     refreshRosters,
     getLeagueEvents,
     triggerTestEvent,
-    getCacheStats
+    getCacheStats,
+    getState,
+    getRecentEvents
   };
 };

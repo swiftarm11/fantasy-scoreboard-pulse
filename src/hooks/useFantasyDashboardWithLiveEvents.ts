@@ -3,6 +3,7 @@ import { useYahooData } from './useYahooData';
 import { useSleeperData } from './useSleeperData';
 import { useLiveEventsManager } from './useLiveEventsManager';
 import { useConfig } from './useConfig';
+import { useWindowServiceExposure } from './useWindowServiceExposure';
 import { LeagueData } from '../types/fantasy';
 import { LeagueConfig } from '../types/config';
 import { debugLogger } from '../utils/debugLogger';
@@ -28,6 +29,9 @@ export const useFantasyDashboardWithLiveEvents = (): UseFantasyDashboardReturn =
 
   // Get configuration
   const { config } = useConfig();
+
+  // Expose debugging services to window
+  useWindowServiceExposure();
 
   // Yahoo data hook
   const {
@@ -94,7 +98,7 @@ export const useFantasyDashboardWithLiveEvents = (): UseFantasyDashboardReturn =
     total: allLeagueConfigs.length
   });
 
-  // Live events system
+  // Live events system with Tank01 primary polling every 30 seconds
   const {
     state: liveEventsState,
     recentEvents,
@@ -106,7 +110,7 @@ export const useFantasyDashboardWithLiveEvents = (): UseFantasyDashboardReturn =
   } = useLiveEventsManager({
     enabled: allLeagueConfigs.length > 0,
     leagues: allLeagueConfigs,
-    pollingInterval: 25000 // 25 seconds
+    pollingInterval: 30000 // 30 seconds for live games
   });
 
   // Combine leagues with live events
