@@ -413,13 +413,76 @@ export function Tank01TestPanel() {
                 Play-by-Play Test Result
               </h4>
               <div className="p-3 bg-indigo-50 border border-indigo-200 rounded-lg">
-                <div className="text-sm space-y-1">
+                <div className="text-sm space-y-2">
                   <div>✅ Play-by-play data retrieved successfully</div>
-                  <div>Plays found: {Array.isArray(playsResult.data?.body) ? playsResult.data.body.length : 'N/A'}</div>
                   <div>Response size: {playsResult.meta?.responseSize} bytes</div>
-                  {playsResult.data?.body?.length > 0 && <div className="mt-2 p-2 bg-gray-100 rounded text-xs">
-                      Sample play: {JSON.stringify(playsResult.data.body[0], null, 2).substring(0, 150)}...
-                    </div>}
+                  
+                  {(() => {
+                    // Handle different possible data structures from Tank01 API
+                    let plays = [];
+                    const data = playsResult.data;
+                    
+                    if (data?.body?.plays) {
+                      plays = data.body.plays;
+                    } else if (data?.body?.gameData?.plays) {
+                      plays = data.body.gameData.plays;
+                    } else if (Array.isArray(data?.body)) {
+                      plays = data.body;
+                    } else if (data?.plays) {
+                      plays = data.plays;
+                    }
+                    
+                    if (!plays || plays.length === 0) {
+                      return (
+                        <div className="text-amber-600">
+                          No plays found in response structure. Raw data keys: {Object.keys(data?.body || {}).join(', ')}
+                        </div>
+                      );
+                    }
+                    
+                    // Get the 5 most recent plays
+                    const recentPlays = plays.slice(-5).reverse();
+                    
+                    return (
+                      <div className="space-y-3">
+                        <div>Plays found: {plays.length}</div>
+                        <div>
+                          <div className="font-medium text-indigo-800 mb-2">5 Most Recent Plays:</div>
+                          <div className="space-y-2 max-h-64 overflow-y-auto">
+                            {recentPlays.map((play: any, index: number) => (
+                              <div key={index} className="p-3 bg-white rounded border border-indigo-200">
+                                <div className="flex justify-between items-start mb-2">
+                                  <div className="font-medium text-sm">
+                                    {play.quarter ? `Q${play.quarter}` : ''} {play.clock || play.gameTime || ''}
+                                  </div>
+                                  <div className="text-xs text-gray-600">
+                                    {play.down && play.distance ? `${play.down} & ${play.distance}` : ''}
+                                  </div>
+                                </div>
+                                
+                                <div className="text-sm text-gray-800 mb-2">
+                                  {play.description || play.playDescription || play.text || 'No description available'}
+                                </div>
+                                
+                                <div className="flex justify-between text-xs text-gray-600">
+                                  <span>{play.team || play.possessionTeam || ''}</span>
+                                  {(play.yards || play.yardGain) && (
+                                    <span>{play.yards > 0 ? '+' : ''}{play.yards || play.yardGain} yards</span>
+                                  )}
+                                </div>
+                                
+                                {play.scoringPlay && (
+                                  <div className="mt-2 p-1 bg-green-100 rounded text-xs text-green-800 font-medium">
+                                    🏈 Scoring Play
+                                  </div>
+                                )}
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })()}
                 </div>
               </div>
             </div>}
