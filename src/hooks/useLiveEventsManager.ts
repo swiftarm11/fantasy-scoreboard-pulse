@@ -400,6 +400,8 @@ export const useLiveEventsManager = ({
     }
   }, [state.isActive, updateRecentEvents]);
 
+  const isReady = state.isInitialized && state.connectedLeagues > 0;
+
   // 🔍 [LIVE_EVENTS] Expose services to window for debugging
   useEffect(() => {
     (window as any).liveEventsManager = {
@@ -413,7 +415,7 @@ export const useLiveEventsManager = ({
       getCacheStats,
       state,
       recentEvents,
-      isReady: state.isInitialized && state.connectedLeagues > 0
+      isReady
     };
 
     debugLogger.info('LIVE_EVENTS', 'Live Events Manager exposed to window for debugging', {
@@ -426,9 +428,7 @@ export const useLiveEventsManager = ({
     return () => {
       delete (window as any).liveEventsManager;
     };
-  }, [state, recentEvents, getState, getRecentEvents, startSystem, stopSystem, refreshRosters, getLeagueEvents, triggerTestEvent, getCacheStats]);
-
-  const isReady = state.isInitialized && state.connectedLeagues > 0;
+  }, [state, recentEvents, getState, getRecentEvents, startSystem, stopSystem, refreshRosters, getLeagueEvents, triggerTestEvent, getCacheStats, isReady]);
 
   return {
     state,
