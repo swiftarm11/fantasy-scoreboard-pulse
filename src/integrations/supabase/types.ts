@@ -132,6 +132,14 @@ export type Database = {
         Args: Record<PropertyKey, never>
         Returns: undefined
       }
+      secure_player_sync: {
+        Args: { players_data: Json }
+        Returns: {
+          players_synced: number
+          success: boolean
+          sync_id: string
+        }[]
+      }
     }
     Enums: {
       [_ in never]: never

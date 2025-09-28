@@ -98,55 +98,59 @@ export class DatabasePlayerMappingService {
       throw new Error('Sync not needed - last sync was within 24 hours');
     }
 
-    // Create sync metadata record
-    const syncMetadata = await this.createSyncRecord('full_player_sync');
-    
+    // Create sync metadata record (this will now happen in the edge function)
     try {
-      // Fetch all players from Tank01 API
-      const players = await this.fetchAllPlayersFromTank01();
+
+      // Batch insert players to database using secure edge function
+      const syncResponse = await fetch(`https://doyquitecogdnvbyiszt.supabase.co/functions/v1/player-sync`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          action: 'sync_players',
+          forceSync: forceUpdate
+        })
+      });
+
+      if (!syncResponse.ok) {
+        throw new Error(`Player sync request failed: ${syncResponse.status}`);
+      }
+
+      const syncResult = await syncResponse.json();
       
-      debugLogger.info('DB_PLAYER_MAPPING', 'Fetched players from Tank01', {
-        totalPlayers: players.length,
-        syncId: syncMetadata.id
-      });
-
-      // Filter to active players only (reduce database size)
-      const activePlayers = this.filterActivePlayers(players);
-      
-      debugLogger.info('DB_PLAYER_MAPPING', 'Filtered to active players', {
-        totalPlayers: players.length,
-        activePlayers: activePlayers.length,
-        syncId: syncMetadata.id
-      });
-
-      // Batch insert players to database
-      await this.batchInsertPlayers(activePlayers, syncMetadata.id);
-
-      // Update sync metadata as completed
-      const finalSyncMetadata = await this.completeSyncRecord(syncMetadata.id, {
-        total_players: players.length,
-        active_players: activePlayers.length,
-        api_requests_used: 1 // Tank01 returns all players in one request
-      });
+      if (!syncResult.success) {
+        throw new Error(syncResult.error || 'Player sync failed');
+      }
 
       // Refresh cache
       await this.loadPlayerCache();
       this.lastSyncTime = new Date();
 
       debugLogger.info('DB_PLAYER_MAPPING', 'Player sync completed successfully', {
-        syncId: syncMetadata.id,
-        activePlayers: activePlayers.length
+        totalPlayers: syncResult.totalPlayers,
+        activePlayers: syncResult.activePlayers,
+        playersSynced: syncResult.playersSynced
       });
 
-      return { ...syncMetadata, status: 'completed', ...finalSyncMetadata };
+      return {
+        id: syncResult.syncIds?.[0] || '',
+        sync_type: 'full_player_sync',
+        started_at: new Date().toISOString(),
+        completed_at: new Date().toISOString(),
+        status: 'completed',
+        total_players: syncResult.totalPlayers,
+        active_players: syncResult.activePlayers,
+        api_requests_used: 1,
+        error_message: null,
+        metadata: syncResult
+      };
 
     } catch (error) {
       debugLogger.error('DB_PLAYER_MAPPING', 'Player sync failed', {
-        error,
-        syncId: syncMetadata.id
+        error
       });
 
-      await this.failSyncRecord(syncMetadata.id, error instanceof Error ? error.message : 'Unknown error');
       throw error;
     }
   }

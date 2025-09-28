@@ -43,3 +43,6 @@ verify_jwt = false
 
 [functions.tank01-api]
 verify_jwt = false
+
+[functions.player-sync]
+verify_jwt = false
