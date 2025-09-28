@@ -226,7 +226,7 @@ export class DatabasePlayerMappingService {
 
     // Query database
     try {
-      const { data, error } = await supabase
+      const { data, error } = await this.supabase
         .from('player_mappings')
         .select('*')
         .eq('tank01_id', tank01Id)
@@ -268,17 +268,17 @@ export class DatabasePlayerMappingService {
   }> {
     try {
       // Get player counts
-      const { count: totalCount } = await supabase
+      const { count: totalCount } = await this.supabase
         .from('player_mappings')
         .select('*', { count: 'exact', head: true });
 
-      const { count: activeCount } = await supabase
+      const { count: activeCount } = await this.supabase
         .from('player_mappings')
         .select('*', { count: 'exact', head: true })
         .eq('is_active', true);
 
       // Get recent sync history
-      const { data: syncHistory } = await supabase
+      const { data: syncHistory } = await this.supabase
         .from('sync_metadata')
         .select('*')
         .eq('sync_type', 'full_player_sync')
@@ -316,7 +316,7 @@ export class DatabasePlayerMappingService {
       const thirtyDaysAgo = new Date();
       thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
 
-      const { count } = await supabase
+      const { count } = await this.supabase
         .from('player_mappings')
         .delete({ count: 'exact' })
         .eq('is_active', false)
@@ -334,7 +334,7 @@ export class DatabasePlayerMappingService {
 
   private async loadLastSyncStatus(): Promise<void> {
     try {
-      const { data } = await supabase
+      const { data } = await this.supabase
         .from('sync_metadata')
         .select('completed_at')
         .eq('sync_type', 'full_player_sync')
@@ -354,7 +354,7 @@ export class DatabasePlayerMappingService {
   private async loadPlayerCache(): Promise<void> {
     try {
       // Load recently accessed players into cache (limit to 1000 for memory)
-      const { data } = await supabase
+      const { data } = await this.supabase
         .from('player_mappings')
         .select('*')
         .eq('is_active', true)
@@ -446,7 +446,7 @@ export class DatabasePlayerMappingService {
       });
 
       // Use upsert to handle duplicates
-      const { error } = await supabase
+      const { error } = await this.supabase
         .from('player_mappings')
         .upsert(mappings, { 
           onConflict: 'tank01_id',
@@ -477,7 +477,7 @@ export class DatabasePlayerMappingService {
   }
 
   private async createSyncRecord(syncType: string): Promise<SyncMetadata> {
-    const { data, error } = await supabase
+    const { data, error } = await this.supabase
       .from('sync_metadata')
       .insert({
         sync_type: syncType,
@@ -496,7 +496,7 @@ export class DatabasePlayerMappingService {
   }
 
   private async completeSyncRecord(id: string, updates: Partial<SyncMetadata>): Promise<SyncMetadata> {
-    const { data, error } = await supabase
+    const { data, error } = await this.supabase
       .from('sync_metadata')
       .update({
         ...updates,
@@ -515,7 +515,7 @@ export class DatabasePlayerMappingService {
   }
 
   private async failSyncRecord(id: string, errorMessage: string): Promise<void> {
-    const { error } = await supabase
+    const { error } = await this.supabase
       .from('sync_metadata')
       .update({
         status: 'failed',

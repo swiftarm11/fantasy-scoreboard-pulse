@@ -109,6 +109,25 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      get_player_by_platform: {
+        Args: { platform_column: string; player_id: string }
+        Returns: {
+          alternate_names: Json
+          created_at: string
+          espn_id: string
+          id: string
+          is_active: boolean
+          last_game_played: string
+          last_updated: string
+          name: string
+          pos: string
+          sleeper_id: string
+          tank01_id: string
+          tank01_primary_id: string
+          team: string
+          yahoo_id: string
+        }[]
+      }
       handle_tank01_player_list: {
         Args: Record<PropertyKey, never>
         Returns: undefined
