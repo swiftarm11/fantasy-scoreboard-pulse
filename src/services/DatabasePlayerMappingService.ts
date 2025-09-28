@@ -160,7 +160,6 @@ export class DatabasePlayerMappingService {
     }
 
     // First check cache
-    const cacheKey = `${platform}:${playerId}`;
     for (const [_, player] of this.playerCache) {
       if (
         (platform === 'espn' && player.espn_id === playerId) ||
@@ -171,7 +170,7 @@ export class DatabasePlayerMappingService {
       }
     }
 
-    // Fallback to database query
+    // Fallback to database query using RPC to avoid TypeScript issues
     let column: string;
     switch (platform) {
       case 'espn': column = 'espn_id'; break;
@@ -180,7 +179,6 @@ export class DatabasePlayerMappingService {
     }
 
     try {
-      // Use direct SQL to avoid TypeScript inference issues
       const { data, error } = await this.supabase
         .rpc('get_player_by_platform', { 
           platform_column: column, 
@@ -192,19 +190,23 @@ export class DatabasePlayerMappingService {
         return null;
       }
 
-      if (data) {
+      if (data && data.length > 0) {
+        const player = data[0];
         // Parse alternate_names if it's a JSON string
-        const parsedData = {
-          ...data,
-          alternate_names: Array.isArray(data.alternate_names) 
-            ? data.alternate_names 
-            : (typeof data.alternate_names === 'string' ? JSON.parse(data.alternate_names) : [])
+        const parsedPlayer = {
+          ...player,
+          position: player.pos, // Map 'pos' to 'position'
+          alternate_names: Array.isArray(player.alternate_names) 
+            ? player.alternate_names 
+            : (typeof player.alternate_names === 'string' ? JSON.parse(player.alternate_names) : [])
         } as DatabasePlayerMapping;
         
         // Add to cache
-        this.playerCache.set(parsedData.tank01_id, parsedData);
-        return parsedData;
+        this.playerCache.set(parsedPlayer.tank01_id, parsedPlayer);
+        return parsedPlayer;
       }
+
+      return null;
     } catch (error) {
       debugLogger.error('DB_PLAYER_MAPPING', 'Exception during player lookup', { error, platform, playerId });
       return null;
@@ -231,25 +233,27 @@ export class DatabasePlayerMappingService {
         .select('*')
         .eq('tank01_id', tank01Id)
         .eq('is_active', true)
-        .maybeSingle();
+        .limit(1);
 
       if (error) {
         debugLogger.error('DB_PLAYER_MAPPING', 'Database query failed', { error, tank01Id });
         return null;
       }
 
-      if (data) {
+      if (data && data.length > 0) {
         // Parse alternate_names if it's a JSON string
         const parsedData = {
-          ...data,
-          alternate_names: Array.isArray(data.alternate_names) 
-            ? data.alternate_names 
-            : (typeof data.alternate_names === 'string' ? JSON.parse(data.alternate_names) : [])
+          ...data[0],
+          alternate_names: Array.isArray(data[0].alternate_names) 
+            ? data[0].alternate_names 
+            : (typeof data[0].alternate_names === 'string' ? JSON.parse(data[0].alternate_names) : [])
         } as DatabasePlayerMapping;
         
         this.playerCache.set(parsedData.tank01_id, parsedData);
         return parsedData;
       }
+
+      return null;
     } catch (error) {
       debugLogger.error('DB_PLAYER_MAPPING', 'Exception during Tank01 lookup', { error, tank01Id });
       return null;
@@ -340,11 +344,10 @@ export class DatabasePlayerMappingService {
         .eq('sync_type', 'full_player_sync')
         .eq('status', 'completed')
         .order('completed_at', { ascending: false })
-        .limit(1)
-        .maybeSingle();
+        .limit(1);
 
-      if (data?.completed_at) {
-        this.lastSyncTime = new Date(data.completed_at);
+      if (data && data.length > 0 && data[0].completed_at) {
+        this.lastSyncTime = new Date(data[0].completed_at);
       }
     } catch (error) {
       debugLogger.info('DB_PLAYER_MAPPING', 'Could not load last sync status', { error });
