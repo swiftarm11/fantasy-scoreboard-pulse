@@ -15,20 +15,20 @@ export interface Tank01Player {
   lastGamePlayed?: string;
 }
 
-// Database player mapping structure
+// Database player mapping structure (matching Supabase types)
 export interface DatabasePlayerMapping {
   id: string;
   tank01_id: string;
-  tank01_primary_id?: string;
-  sleeper_id?: string;
-  yahoo_id?: string;
-  espn_id?: string;
+  tank01_primary_id?: string | null;
+  sleeper_id?: string | null;
+  yahoo_id?: string | null;
+  espn_id?: string | null;
   name: string;
   team: string;
   position: string;
   alternate_names: string[];
   is_active: boolean;
-  last_game_played?: string;
+  last_game_played?: string | null;
   last_updated: string;
   created_at: string;
 }
@@ -38,13 +38,13 @@ export interface SyncMetadata {
   id: string;
   sync_type: string;
   started_at: string;
-  completed_at?: string;
-  status: 'in_progress' | 'completed' | 'failed';
-  total_players?: number;
-  active_players?: number;
+  completed_at?: string | null;
+  status: string;
+  total_players?: number | null;
+  active_players?: number | null;
   api_requests_used: number;
-  error_message?: string;
-  metadata: Record<string, any>;
+  error_message?: string | null;
+  metadata: any; // Use any for JSON compatibility
 }
 
 export class DatabasePlayerMappingService {
@@ -119,7 +119,7 @@ export class DatabasePlayerMappingService {
       await this.batchInsertPlayers(activePlayers, syncMetadata.id);
 
       // Update sync metadata as completed
-      await this.completeSyncRecord(syncMetadata.id, {
+      const finalSyncMetadata = await this.completeSyncRecord(syncMetadata.id, {
         total_players: players.length,
         active_players: activePlayers.length,
         api_requests_used: 1 // Tank01 returns all players in one request
@@ -134,7 +134,7 @@ export class DatabasePlayerMappingService {
         activePlayers: activePlayers.length
       });
 
-      return { ...syncMetadata, status: 'completed' as const };
+      return { ...syncMetadata, status: 'completed', ...finalSyncMetadata };
 
     } catch (error) {
       debugLogger.error('DB_PLAYER_MAPPING', 'Player sync failed', {
@@ -181,7 +181,7 @@ export class DatabasePlayerMappingService {
         .select('*')
         .eq(column, playerId)
         .eq('is_active', true)
-        .maybeSingle();
+        .maybeSingle() as { data: any | null; error: any };
 
       if (error) {
         debugLogger.error('DB_PLAYER_MAPPING', 'Database query failed', { error, platform, playerId });
@@ -189,11 +189,18 @@ export class DatabasePlayerMappingService {
       }
 
       if (data) {
+        // Parse alternate_names if it's a JSON string
+        const parsedData = {
+          ...data,
+          alternate_names: Array.isArray(data.alternate_names) 
+            ? data.alternate_names 
+            : (typeof data.alternate_names === 'string' ? JSON.parse(data.alternate_names) : [])
+        } as DatabasePlayerMapping;
+        
         // Add to cache
-        this.playerCache.set(data.tank01_id, data);
+        this.playerCache.set(parsedData.tank01_id, parsedData);
+        return parsedData;
       }
-
-      return data;
     } catch (error) {
       debugLogger.error('DB_PLAYER_MAPPING', 'Exception during player lookup', { error, platform, playerId });
       return null;
@@ -228,10 +235,17 @@ export class DatabasePlayerMappingService {
       }
 
       if (data) {
-        this.playerCache.set(data.tank01_id, data);
+        // Parse alternate_names if it's a JSON string
+        const parsedData = {
+          ...data,
+          alternate_names: Array.isArray(data.alternate_names) 
+            ? data.alternate_names 
+            : (typeof data.alternate_names === 'string' ? JSON.parse(data.alternate_names) : [])
+        } as DatabasePlayerMapping;
+        
+        this.playerCache.set(parsedData.tank01_id, parsedData);
+        return parsedData;
       }
-
-      return data;
     } catch (error) {
       debugLogger.error('DB_PLAYER_MAPPING', 'Exception during Tank01 lookup', { error, tank01Id });
       return null;
@@ -271,7 +285,11 @@ export class DatabasePlayerMappingService {
         lastSync: this.lastSyncTime,
         totalPlayers: totalCount || 0,
         activePlayers: activeCount || 0,
-        syncHistory: syncHistory || [],
+        syncHistory: (syncHistory || []).map(sync => ({
+          ...sync,
+          status: sync.status as 'in_progress' | 'completed' | 'failed',
+          metadata: sync.metadata || {}
+        })) as SyncMetadata[],
         needsSync: this.shouldSync()
       };
     } catch (error) {
@@ -325,7 +343,7 @@ export class DatabasePlayerMappingService {
         this.lastSyncTime = new Date(data.completed_at);
       }
     } catch (error) {
-      debugLogger.warn('DB_PLAYER_MAPPING', 'Could not load last sync status', { error });
+      debugLogger.info('DB_PLAYER_MAPPING', 'Could not load last sync status', { error });
     }
   }
 
@@ -341,12 +359,20 @@ export class DatabasePlayerMappingService {
 
       if (data) {
         this.playerCache.clear();
-        data.forEach(player => {
+        data.forEach(row => {
+          // Parse alternate_names if it's a JSON string
+          const player = {
+            ...row,
+            alternate_names: Array.isArray(row.alternate_names) 
+              ? row.alternate_names 
+              : (typeof row.alternate_names === 'string' ? JSON.parse(row.alternate_names) : [])
+          } as DatabasePlayerMapping;
+          
           this.playerCache.set(player.tank01_id, player);
         });
       }
     } catch (error) {
-      debugLogger.warn('DB_PLAYER_MAPPING', 'Could not load player cache', { error });
+      debugLogger.info('DB_PLAYER_MAPPING', 'Could not load player cache', { error });
     }
   }
 
@@ -462,22 +488,26 @@ export class DatabasePlayerMappingService {
       throw error;
     }
 
-    return data;
+    return data as SyncMetadata;
   }
 
-  private async completeSyncRecord(id: string, updates: Partial<SyncMetadata>): Promise<void> {
-    const { error } = await supabase
+  private async completeSyncRecord(id: string, updates: Partial<SyncMetadata>): Promise<SyncMetadata> {
+    const { data, error } = await supabase
       .from('sync_metadata')
       .update({
         ...updates,
         status: 'completed',
         completed_at: new Date().toISOString()
       })
-      .eq('id', id);
+      .eq('id', id)
+      .select()
+      .single();
 
     if (error) {
       throw error;
     }
+
+    return data as SyncMetadata;
   }
 
   private async failSyncRecord(id: string, errorMessage: string): Promise<void> {

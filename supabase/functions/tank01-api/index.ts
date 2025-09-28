@@ -1,248 +1,136 @@
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-import { corsHeaders } from "../_shared/cors.ts";
+import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
+import { corsHeaders } from "../_shared/cors.ts"
 
-const RAPIDAPI_KEY = Deno.env.get('RAPIDAPI_KEY');
-const TANK01_BASE_URL = 'https://tank01-nfl-live-in-game-real-time-statistics-nfl.p.rapidapi.com';
-
-console.log(`[TANK01-API] Starting function with key: ${RAPIDAPI_KEY ? 'SET' : 'NOT SET'}`);
+const TANK01_BASE_URL = "https://tank01-nfl-live-in-game-real-time-statistics-nfl.p.rapidapi.com"
 
 serve(async (req) => {
-  console.log(`[TANK01-API] Request method: ${req.method}`);
-  console.log(`[TANK01-API] Request timestamp: ${new Date().toISOString()}`);
-
   // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
-    return new Response(null, { headers: corsHeaders });
+    return new Response(null, { 
+      status: 200, 
+      headers: corsHeaders 
+    })
   }
 
   try {
-    // Parse request
-    const params = req.method === 'GET' 
-      ? Object.fromEntries(new URL(req.url).searchParams)
-      : await req.json().catch(() => ({}));
+    console.log(`[TANK01-API] Request method: ${req.method}`)
+    console.log(`[TANK01-API] Request timestamp: ${new Date().toISOString()}`)
 
-    console.log(`[TANK01-API] Parsed parameters:`, params);
-
-    const { endpoint } = params;
-
-    if (!endpoint) {
+    // Check for RapidAPI key
+    const rapidApiKey = Deno.env.get('RAPIDAPI_KEY')
+    if (!rapidApiKey) {
+      console.error('[TANK01-API] Missing RAPIDAPI_KEY environment variable')
       return new Response(
-        JSON.stringify({ 
-          error: 'Missing endpoint parameter',
-          availableEndpoints: ['players', 'games', 'plays', 'test-connection']
-        }),
+        JSON.stringify({ error: 'API key not configured' }),
         { 
-          status: 400,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+          status: 500, 
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
         }
-      );
+      )
+    } else {
+      console.log('[TANK01-API] Starting function with key: SET')
     }
 
-    if (!RAPIDAPI_KEY) {
+    if (req.method !== 'POST') {
       return new Response(
-        JSON.stringify({ 
-          error: 'RAPIDAPI_KEY not configured in Supabase secrets'
-        }),
+        JSON.stringify({ error: 'Method not allowed' }),
         { 
-          status: 500,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+          status: 405, 
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
         }
-      );
+      )
     }
 
-    let apiUrl: string;
-    const headers = {
-      'X-RapidAPI-Key': RAPIDAPI_KEY,
-      'X-RapidAPI-Host': 'tank01-nfl-live-in-game-real-time-statistics-nfl.p.rapidapi.com',
-      'Accept': 'application/json'
-    };
+    const body = await req.json()
+    const { endpoint, action, week, season, gameId } = body
 
-    // Route to appropriate Tank01 endpoint
+    console.log(`[TANK01-API] Parsed parameters:`, { endpoint, action, week, season, gameId })
+
+    let apiUrl: string
+    let requestPath: string
+
+    // Route different endpoints
     switch (endpoint) {
-      case 'test-connection':
-        // Test basic connectivity with a simple endpoint
-        apiUrl = `${TANK01_BASE_URL}/getNFLTeams?getNFLTeams=true`;
-        break;
-
-      case 'players':
-        // Get player data with IDs
-        const { team, position } = params;
-        apiUrl = `${TANK01_BASE_URL}/getNFLPlayerList`;
-        if (team) apiUrl += `?teamAbv=${team}`;
-        if (position) apiUrl += `${team ? '&' : '?'}pos=${position}`;
-        break;
-
       case 'games':
-        // Get current week's games
-        const { week, season } = params;
-        const currentSeason = season || new Date().getFullYear().toString();
-        
-        // Calculate current NFL week if not provided
-        let currentWeek = week;
-        if (!currentWeek) {
-          const now = new Date();
-          const currentYear = now.getFullYear();
-          
-          // NFL season typically starts the first Thursday after Labor Day
-          // Labor Day is first Monday in September, so first Thursday after is usually Sept 5-11
-          const laborDay = new Date(currentYear, 8, 1); // Sept 1st
-          while (laborDay.getDay() !== 1) { // Find first Monday
-            laborDay.setDate(laborDay.getDate() + 1);
-          }
-          
-          // First Thursday after Labor Day
-          const seasonStart = new Date(laborDay);
-          seasonStart.setDate(laborDay.getDate() + 3); // Add 3 days to get to Thursday
-          
-          console.log(`[TANK01-API] Calculated NFL season start: ${seasonStart.toISOString()}`);
-          
-          if (now < seasonStart) {
-            currentWeek = '1';
-          } else {
-            // Calculate weeks since season start
-            // NFL weeks run Tuesday to Monday, so adjust calculation
-            const adjustedSeasonStart = new Date(seasonStart);
-            adjustedSeasonStart.setDate(seasonStart.getDate() - 2); // Back to Tuesday
-            
-            const daysSinceStart = Math.floor((now.getTime() - adjustedSeasonStart.getTime()) / (1000 * 60 * 60 * 24));
-            let calculatedWeek = Math.floor(daysSinceStart / 7) + 1;
-            
-            // Add 1 to account for current week being the "next" week during weekdays
-            if (now.getDay() >= 1 && now.getDay() <= 5) { // Monday-Friday
-              calculatedWeek += 1;
-            }
-            
-            // Cap at week 18 (regular season) or extend to 22 for playoffs
-            calculatedWeek = Math.min(calculatedWeek, 22);
-            currentWeek = calculatedWeek.toString();
-          }
-          
-          console.log(`[TANK01-API] Auto-calculated current NFL week: ${currentWeek} for season ${currentSeason} (date: ${now.toISOString()})`);
+        requestPath = `/getNFLGamesForWeek?week=${week}&season=${season}`
+        break
+      case 'playByPlay':
+        requestPath = `/getNFLBoxScore?gameID=${gameId}&playByPlay=true`
+        break
+      case 'players':
+        // New endpoint for player list
+        if (action === 'getNFLPlayerList') {
+          requestPath = '/getNFLPlayerList'
+        } else {
+          requestPath = `/getNFLPlayerList` // Default to player list
         }
-        
-        apiUrl = `${TANK01_BASE_URL}/getNFLGamesForWeek?week=${currentWeek}&season=${currentSeason}`;
-        break;
-
-      case 'plays':
-        // Get box score data with play-by-play information
-        const { gameId } = params;
-        if (!gameId) {
-          return new Response(
-            JSON.stringify({ error: 'gameId parameter required for plays endpoint' }),
-            { 
-              status: 400,
-              headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-            }
-          );
-        }
-        apiUrl = `${TANK01_BASE_URL}/getNFLBoxScore?gameID=${gameId}&playByPlay=true&fantasyPoints=true`;
-        break;
-
-      case 'player-stats':
-        // Get player statistics
-        const { playerId, gameID } = params;
-        if (!playerId) {
-          return new Response(
-            JSON.stringify({ error: 'playerId parameter required for player-stats endpoint' }),
-            { 
-              status: 400,
-              headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-            }
-          );
-        }
-        apiUrl = `${TANK01_BASE_URL}/getNFLPlayerStats?playerID=${playerId}`;
-        if (gameID) apiUrl += `&gameID=${gameID}`;
-        break;
-
+        break
+      case 'scoreboard':
+        requestPath = `/getNFLScoreboard?week=${week}&season=${season}`
+        break
       default:
         return new Response(
-          JSON.stringify({ 
-            error: `Unknown endpoint: ${endpoint}`,
-            availableEndpoints: ['players', 'games', 'plays', 'player-stats', 'test-connection']
-          }),
+          JSON.stringify({ error: `Unknown endpoint: ${endpoint}` }),
           { 
-            status: 400,
-            headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+            status: 400, 
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
           }
-        );
+        )
     }
 
-    console.log(`[TANK01-API] Fetching: ${apiUrl}`);
+    apiUrl = `${TANK01_BASE_URL}${requestPath}`
+    console.log(`[TANK01-API] Fetching: ${apiUrl}`)
 
-    // Make request to Tank01 API
     const response = await fetch(apiUrl, {
       method: 'GET',
-      headers: headers
-    });
+      headers: {
+        'X-RapidAPI-Host': 'tank01-nfl-live-in-game-real-time-statistics-nfl.p.rapidapi.com',
+        'X-RapidAPI-Key': rapidApiKey,
+      },
+    })
 
-    console.log(`[TANK01-API] Response status: ${response.status}`);
-    console.log(`[TANK01-API] Response headers:`, Object.fromEntries(response.headers.entries()));
-
-    const responseText = await response.text();
-    
-    let responseData;
-    try {
-      responseData = JSON.parse(responseText);
-    } catch (parseError) {
-      console.error(`[TANK01-API] JSON parse error:`, parseError);
-      return new Response(
-        JSON.stringify({ 
-          error: 'Invalid JSON response from Tank01 API',
-          rawResponse: responseText.substring(0, 500),
-          parseError: parseError instanceof Error ? parseError.message : 'Parse error'
-        }),
-        { 
-          status: 500,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-        }
-      );
-    }
+    console.log(`[TANK01-API] Response status: ${response.status}`)
+    console.log(`[TANK01-API] Response headers:`, Object.fromEntries(response.headers.entries()))
 
     if (!response.ok) {
-      console.error(`[TANK01-API] API Error:`, responseData);
+      console.error(`[TANK01-API] API request failed with status ${response.status}`)
+      const errorText = await response.text()
+      console.error(`[TANK01-API] Error response: ${errorText}`)
+      
       return new Response(
         JSON.stringify({ 
-          error: `Tank01 API error: ${response.status}`,
-          details: responseData,
-          endpoint: endpoint,
-          url: apiUrl
+          error: `Tank01 API request failed: ${response.status}`,
+          details: errorText
         }),
         { 
-          status: response.status,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+          status: response.status, 
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
         }
-      );
+      )
     }
 
-    console.log(`[TANK01-API] Success: Returning ${response.status} response with ${JSON.stringify(responseData).length} characters`);
+    const data = await response.text()
+    console.log(`[TANK01-API] Success: Returning ${response.status} response with ${data.length} characters`)
 
-    // Return successful response
-    return new Response(JSON.stringify({
-      success: true,
-      endpoint: endpoint,
-      url: apiUrl,
-      data: responseData,
-      meta: {
-        timestamp: new Date().toISOString(),
-        responseSize: JSON.stringify(responseData).length
-      }
-    }), {
-      status: 200,
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-    });
+    return new Response(data, {
+      status: response.status,
+      headers: {
+        ...corsHeaders,
+        'Content-Type': 'application/json',
+      },
+    })
 
   } catch (error) {
-    console.error(`[TANK01-API] Function error:`, error);
+    console.error('[TANK01-API] Function error:', error)
     return new Response(
       JSON.stringify({ 
-        error: error instanceof Error ? error.message : 'Unknown error',
-        stack: error instanceof Error ? error.stack : undefined,
-        timestamp: new Date().toISOString()
+        error: 'Internal server error', 
+        details: error instanceof Error ? error.message : 'Unknown error'
       }),
       { 
-        status: 500,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        status: 500, 
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
       }
-    );
+    )
   }
-});
+})

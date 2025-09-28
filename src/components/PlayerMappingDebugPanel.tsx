@@ -7,7 +7,7 @@ import { Progress } from '@/components/ui/progress';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { databasePlayerMappingService, DatabasePlayerMapping, SyncMetadata } from '@/services/DatabasePlayerMappingService';
-import { Loader2, Database, Search, Sync, AlertCircle, CheckCircle, Clock, RefreshCw } from 'lucide-react';
+import { Loader2, Database, Search, RefreshCw, AlertCircle, CheckCircle, Clock } from 'lucide-react';
 import { toast } from 'sonner';
 
 interface SyncStats {
@@ -160,7 +160,7 @@ export const PlayerMappingDebugPanel: React.FC = () => {
                   disabled={syncing || !stats.needsSync}
                   className="flex items-center gap-2"
                 >
-                  {syncing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sync className="h-4 w-4" />}
+                  {syncing ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
                   {syncing ? 'Syncing...' : 'Sync Players'}
                 </Button>
                 
