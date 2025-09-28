@@ -418,11 +418,23 @@ export function Tank01TestPanel() {
                   <div>Response size: {playsResult.meta?.responseSize} bytes</div>
                   
                   {(() => {
-                    // Handle different possible data structures from Tank01 API
+                    // Handle Tank01 API specific data structure
                     let plays = [];
+                    let scoringPlays = [];
+                    let gameData = null;
                     const data = playsResult.data;
                     
-                    if (data?.body?.plays) {
+                    // Tank01 API structure: data.body.allPlayByPlay
+                    if (data?.body?.allPlayByPlay) {
+                      plays = data.body.allPlayByPlay;
+                      scoringPlays = data.body.scoringPlays || [];
+                      gameData = {
+                        home: data.body.home,
+                        away: data.body.away,
+                        teamIDHome: data.body.teamIDHome,
+                        teamIDAway: data.body.teamIDAway
+                      };
+                    } else if (data?.body?.plays) {
                       plays = data.body.plays;
                     } else if (data?.body?.gameData?.plays) {
                       plays = data.body.gameData.plays;
@@ -435,10 +447,71 @@ export function Tank01TestPanel() {
                     if (!plays || plays.length === 0) {
                       return (
                         <div className="text-amber-600">
-                          No plays found in response structure. Raw data keys: {Object.keys(data?.body || {}).join(', ')}
+                          No plays found. Available keys: {Object.keys(data?.body || {}).join(', ')}
                         </div>
                       );
                     }
+                    
+                    // Helper function to resolve team name from teamID
+                    const getTeamName = (teamID: string) => {
+                      if (!gameData) return teamID;
+                      if (teamID === gameData.teamIDHome) return gameData.home;
+                      if (teamID === gameData.teamIDAway) return gameData.away;
+                      return teamID;
+                    };
+                    
+                    // Helper function to check if play is a scoring play
+                    const isScoringPlay = (play: any) => {
+                      if (!scoringPlays?.length) return false;
+                      return scoringPlays.some((scoringPlay: any) => 
+                        scoringPlay.scoreTime === play.playClock &&
+                        scoringPlay.scorePeriod === play.playPeriod
+                      );
+                    };
+                    
+                    // Helper function to extract raw stats from Tank01 playerStats
+                    const extractRawStats = (play: any) => {
+                      const stats: any = {};
+                      if (!play.playerStats) return stats;
+                      
+                      Object.entries(play.playerStats).forEach(([playerId, playerData]: [string, any]) => {
+                        if (playerData.Passing) {
+                          stats[playerId] = {
+                            ...stats[playerId],
+                            passingYards: parseInt(playerData.Passing.passYds || '0'),
+                            passingTDs: parseInt(playerData.Passing.passTD || '0'),
+                            passingAttempts: parseInt(playerData.Passing.passAttempts || '0'),
+                            passingCompletions: parseInt(playerData.Passing.passCompletions || '0')
+                          };
+                        }
+                        if (playerData.Rushing) {
+                          stats[playerId] = {
+                            ...stats[playerId],
+                            rushingYards: parseInt(playerData.Rushing.rushYds || '0'),
+                            rushingTDs: parseInt(playerData.Rushing.rushTD || '0'),
+                            carries: parseInt(playerData.Rushing.carries || '0')
+                          };
+                        }
+                        if (playerData.Receiving) {
+                          stats[playerId] = {
+                            ...stats[playerId],
+                            receivingYards: parseInt(playerData.Receiving.recYds || '0'),
+                            receivingTDs: parseInt(playerData.Receiving.recTD || '0'),
+                            receptions: parseInt(playerData.Receiving.receptions || '0'),
+                            targets: parseInt(playerData.Receiving.targets || '0')
+                          };
+                        }
+                        if (playerData.Kicking) {
+                          stats[playerId] = {
+                            ...stats[playerId],
+                            fieldGoalsMade: parseInt(playerData.Kicking.fgMade || '0'),
+                            extraPointsMade: parseInt(playerData.Kicking.xpMade || '0'),
+                            kickingYards: parseInt(playerData.Kicking.fgYds || playerData.Kicking.kickYards || '0')
+                          };
+                        }
+                      });
+                      return stats;
+                    };
                     
                     // Get the 5 most recent plays
                     const recentPlays = plays.slice(-5).reverse();
@@ -449,36 +522,66 @@ export function Tank01TestPanel() {
                         <div>
                           <div className="font-medium text-indigo-800 mb-2">5 Most Recent Plays:</div>
                           <div className="space-y-2 max-h-64 overflow-y-auto">
-                            {recentPlays.map((play: any, index: number) => (
-                              <div key={index} className="p-3 bg-white rounded border border-indigo-200">
-                                <div className="flex justify-between items-start mb-2">
-                                  <div className="font-medium text-sm">
-                                    {play.quarter ? `Q${play.quarter}` : ''} {play.clock || play.gameTime || ''}
+                            {recentPlays.map((play: any, index: number) => {
+                              const isScoring = isScoringPlay(play);
+                              const rawStats = extractRawStats(play);
+                              const teamName = getTeamName(play.teamID);
+                              
+                              // Parse down and distance from Tank01 format
+                              const downAndDistance = play.downAndDistance || '';
+                              const downMatch = downAndDistance.match(/(\d+)(st|nd|rd|th)\s*&\s*(\d+)/);
+                              const down = downMatch ? downMatch[1] : '';
+                              const distance = downMatch ? downMatch[3] : '';
+                              
+                              return (
+                                <div key={index} className="p-3 bg-white rounded border border-indigo-200">
+                                  <div className="flex justify-between items-start mb-2">
+                                    <div className="font-medium text-sm">
+                                      {play.playPeriod} {play.playClock}
+                                    </div>
+                                    <div className="text-xs text-gray-600">
+                                      {down && distance ? `${down} & ${distance}` : downAndDistance}
+                                    </div>
                                   </div>
-                                  <div className="text-xs text-gray-600">
-                                    {play.down && play.distance ? `${play.down} & ${play.distance}` : ''}
+                                  
+                                  <div className="text-sm text-gray-800 mb-2">
+                                    {play.play || 'No description available'}
                                   </div>
-                                </div>
-                                
-                                <div className="text-sm text-gray-800 mb-2">
-                                  {play.description || play.playDescription || play.text || 'No description available'}
-                                </div>
-                                
-                                <div className="flex justify-between text-xs text-gray-600">
-                                  <span>{play.team || play.possessionTeam || ''}</span>
-                                  {(play.yards || play.yardGain) && (
-                                    <span>{play.yards > 0 ? '+' : ''}{play.yards || play.yardGain} yards</span>
+                                  
+                                  <div className="flex justify-between text-xs text-gray-600">
+                                    <span>{teamName}</span>
+                                  </div>
+                                  
+                                  {Object.keys(rawStats).length > 0 && (
+                                    <div className="mt-2 p-2 bg-gray-50 rounded text-xs">
+                                      <div className="font-medium text-gray-700 mb-1">Raw NFL Stats (for fantasy calculation):</div>
+                                      {Object.entries(rawStats).map(([playerId, stats]: [string, any]) => (
+                                        <div key={playerId} className="text-gray-600">
+                                          Player {playerId}: {Object.entries(stats)
+                                            .filter(([_, value]) => typeof value === 'number' && value > 0)
+                                            .map(([key, value]) => `${key}: ${value}`)
+                                            .join(', ')}
+                                        </div>
+                                      ))}
+                                    </div>
+                                  )}
+                                  
+                                  {isScoring && (
+                                    <div className="mt-2 p-1 bg-green-100 rounded text-xs text-green-800 font-medium">
+                                      🏈 Scoring Play
+                                    </div>
                                   )}
                                 </div>
-                                
-                                {play.scoringPlay && (
-                                  <div className="mt-2 p-1 bg-green-100 rounded text-xs text-green-800 font-medium">
-                                    🏈 Scoring Play
-                                  </div>
-                                )}
-                              </div>
-                            ))}
+                              );
+                            })}
                           </div>
+                        </div>
+                        
+                        <div className="mt-3 p-2 bg-blue-50 rounded text-xs text-blue-700">
+                          <div className="font-medium mb-1">Fantasy Integration Ready:</div>
+                          <div>• Raw NFL stats extracted from Tank01 playerStats</div>
+                          <div>• Fantasy points calculated using league-specific scoring rules</div>
+                          <div>• Tank01's fantasy points ignored (league scoring varies)</div>
                         </div>
                       </div>
                     );
