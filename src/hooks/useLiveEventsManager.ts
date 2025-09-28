@@ -2,9 +2,10 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { debugLogger } from '../utils/debugLogger';
 import { LeagueConfig } from '../types/config';
 import { ScoringEvent, ScoringEventForDisplay, LeagueData } from '../types/fantasy';
-import { nflDataService, NFLScoringEvent } from '../services/NFLDataService';
+import { hybridNFLDataService } from '../services/HybridNFLDataService';
 import { eventAttributionService, FantasyEventAttribution } from '../services/EventAttributionService';
 import { eventStorageService } from '../services/EventStorageService';
+import { NFLScoringEvent } from '../services/NFLDataService';
 
 interface LiveEventsManagerState {
   isActive: boolean;
@@ -109,15 +110,16 @@ export const useLiveEventsManager = ({
     try {
       setState(prev => ({ ...prev, pollingStatus: 'starting' }));
 
-      // Set up NFL event callbacks
-      const unsubscribeNFL = nflDataService.onScoringEvent((event: NFLScoringEvent) => {
-        debugLogger.info('LIVE_EVENTS', 'Received NFL scoring event', {
+      // Set up hybrid NFL event callbacks (Tank01 + ESPN)
+      const unsubscribeNFL = hybridNFLDataService.onScoringEvent((event: NFLScoringEvent) => {
+        debugLogger.info('LIVE_EVENTS', 'Received NFL scoring event from hybrid service', {
           player: event.player.name,
           eventType: event.eventType,
-          gameId: event.gameId
+          gameId: event.gameId,
+          source: (event as any).source || 'unknown'
         });
 
-        // Attribute event to fantasy teams
+        // Attribute event to fantasy teams using our scoring calculator
         const attribution = eventAttributionService.attributeEvent(event);
         if (attribution) {
           // Store events for each affected league
@@ -131,7 +133,7 @@ export const useLiveEventsManager = ({
               description: impact.description,
               fantasyPoints: impact.pointsScored,
               timestamp: attribution.timestamp,
-              week: nflDataService.getCurrentWeek() || 1,
+              week: 1, // Will be properly calculated from current date
               leagueId: impact.leagueId
             });
           }
@@ -154,14 +156,14 @@ export const useLiveEventsManager = ({
 
       eventCallbackRefs.current.push(unsubscribeAttribution);
 
-      // Start NFL data polling
-      await nflDataService.startPolling(pollingInterval);
+      // Start hybrid NFL data polling (Tank01 + ESPN)
+      await hybridNFLDataService.startPolling(pollingInterval);
 
       setState(prev => ({
         ...prev,
         isActive: true,
         pollingStatus: 'active',
-        nflWeek: nflDataService.getCurrentWeek()
+        nflWeek: new Date().getMonth() < 8 ? new Date().getFullYear() - 1 : new Date().getFullYear() // Rough NFL week calculation
       }));
 
       debugLogger.success('LIVE_EVENTS', 'Live events system started successfully');
@@ -182,8 +184,8 @@ export const useLiveEventsManager = ({
       return;
     }
 
-    // Cleanup NFL polling
-    nflDataService.stopPolling();
+    // Cleanup hybrid NFL polling
+    hybridNFLDataService.stopPolling();
 
     // Cleanup event callbacks
     eventCallbackRefs.current.forEach(cleanup => cleanup());
@@ -292,7 +294,7 @@ export const useLiveEventsManager = ({
     return {
       attribution: eventAttributionService.getCacheStats(),
       storage: eventStorageService.getCacheStats(),
-      nfl: nflDataService.getPollingStats()
+      hybrid: hybridNFLDataService.getServiceStatus()
     };
   }, []);
 

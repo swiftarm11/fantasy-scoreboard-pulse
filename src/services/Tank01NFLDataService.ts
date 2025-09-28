@@ -393,7 +393,7 @@ export class Tank01NFLDataService {
   }
 
   /**
-   * Create NFLScoringEvent from Tank01 play data
+   * Create NFLScoringEvent from Tank01 play data with proper stats extraction
    */
   private createScoringEvent(play: Tank01Play, gameId: string): NFLScoringEvent | null {
     const player = this.playerCache.get(play.playerID);
@@ -407,14 +407,9 @@ export class Tank01NFLDataService {
       return null;
     }
 
+    // Extract comprehensive stats from Tank01 play data
     const yards = parseInt(play.yards) || 0;
-    const stats: { [key: string]: number | undefined } = {
-      yards: yards
-    };
-
-    if (play.isScoringPlay) {
-      stats.touchdowns = 1;
-    }
+    const stats = this.extractPlayerStats(play, eventType);
 
     return {
       id: `tank01-${play.playID}`,
@@ -434,6 +429,83 @@ export class Tank01NFLDataService {
       clock: play.gameClock,
       scoringPlay: play.isScoringPlay
     };
+  }
+
+  /**
+   * Extract detailed player statistics from Tank01 play data
+   */
+  private extractPlayerStats(play: Tank01Play, eventType: string): { [key: string]: number | undefined } {
+    const yards = parseInt(play.yards) || 0;
+    const stats: { [key: string]: number | undefined } = {};
+
+    // Base stats for all plays
+    if (yards > 0) {
+      stats.yards = yards;
+    }
+
+    // Map stats based on event type for fantasy point calculation
+    switch (eventType) {
+      case 'passing_td':
+        stats.passingYards = yards;
+        stats.passingTouchdowns = 1;
+        stats.passingCompletions = 1;
+        stats.passingAttempts = 1;
+        break;
+      
+      case 'passing_yards':
+        stats.passingYards = yards;
+        stats.passingCompletions = 1;
+        stats.passingAttempts = 1;
+        break;
+      
+      case 'rushing_td':
+        stats.rushingYards = yards;
+        stats.rushingTouchdowns = 1;
+        stats.rushingAttempts = 1;
+        break;
+      
+      case 'rushing_yards':
+        stats.rushingYards = yards;
+        stats.rushingAttempts = 1;
+        break;
+      
+      case 'receiving_td':
+        stats.receivingYards = yards;
+        stats.receivingTouchdowns = 1;
+        stats.receptions = 1;
+        stats.targets = 1;
+        break;
+      
+      case 'receiving_yards':
+        stats.receivingYards = yards;
+        stats.receptions = 1;
+        stats.targets = 1;
+        break;
+      
+      case 'field_goal':
+        stats.fieldGoalsMade = 1;
+        stats.fieldGoalsAttempted = 1;
+        // Estimate distance based on yardline if available
+        if (play.yardLine) {
+          const yardLine = parseInt(play.yardLine) || 35;
+          stats.fieldGoalDistance = yardLine + 17; // Add end zone + goalpost
+        }
+        break;
+      
+      case 'interception':
+        stats.interceptions = 1;
+        break;
+      
+      case 'fumble':
+        stats.fumbles = 1;
+        break;
+      
+      case 'safety':
+        stats.safeties = 1;
+        break;
+    }
+
+    return stats;
   }
 
   /**

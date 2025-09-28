@@ -13,7 +13,7 @@ export class HybridNFLDataService {
   private eventCallbacks: ((event: NFLScoringEvent) => void)[] = [];
   private isPolling = false;
   private useT01ForPlayerMapping = true; // Feature flag
-  private useT01ForLiveEvents = false; // Conservative start - ESPN fallback initially
+  private useT01ForLiveEvents = true; // Enable Tank01 for live events - more accurate than ESPN
   
   private constructor() {
     this.nflDataService = NFLDataService.getInstance();
