@@ -14,7 +14,96 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      player_mappings: {
+        Row: {
+          alternate_names: Json | null
+          created_at: string
+          espn_id: string | null
+          id: string
+          is_active: boolean | null
+          last_game_played: string | null
+          last_updated: string
+          name: string
+          position: string
+          sleeper_id: string | null
+          tank01_id: string
+          tank01_primary_id: string | null
+          team: string
+          yahoo_id: string | null
+        }
+        Insert: {
+          alternate_names?: Json | null
+          created_at?: string
+          espn_id?: string | null
+          id?: string
+          is_active?: boolean | null
+          last_game_played?: string | null
+          last_updated?: string
+          name: string
+          position: string
+          sleeper_id?: string | null
+          tank01_id: string
+          tank01_primary_id?: string | null
+          team: string
+          yahoo_id?: string | null
+        }
+        Update: {
+          alternate_names?: Json | null
+          created_at?: string
+          espn_id?: string | null
+          id?: string
+          is_active?: boolean | null
+          last_game_played?: string | null
+          last_updated?: string
+          name?: string
+          position?: string
+          sleeper_id?: string | null
+          tank01_id?: string
+          tank01_primary_id?: string | null
+          team?: string
+          yahoo_id?: string | null
+        }
+        Relationships: []
+      }
+      sync_metadata: {
+        Row: {
+          active_players: number | null
+          api_requests_used: number | null
+          completed_at: string | null
+          error_message: string | null
+          id: string
+          metadata: Json | null
+          started_at: string
+          status: string
+          sync_type: string
+          total_players: number | null
+        }
+        Insert: {
+          active_players?: number | null
+          api_requests_used?: number | null
+          completed_at?: string | null
+          error_message?: string | null
+          id?: string
+          metadata?: Json | null
+          started_at?: string
+          status?: string
+          sync_type: string
+          total_players?: number | null
+        }
+        Update: {
+          active_players?: number | null
+          api_requests_used?: number | null
+          completed_at?: string | null
+          error_message?: string | null
+          id?: string
+          metadata?: Json | null
+          started_at?: string
+          status?: string
+          sync_type?: string
+          total_players?: number | null
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
