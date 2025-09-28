@@ -1,4 +1,4 @@
-import { supabase } from '@/integrations/supabase/client';
+import { createClient } from '@supabase/supabase-js';
 import { debugLogger } from '@/utils/debugLogger';
 
 // Tank01 API Player data structure
@@ -52,6 +52,10 @@ export class DatabasePlayerMappingService {
   private lastSyncTime: Date | null = null;
   private isInitialized = false;
   private playerCache = new Map<string, DatabasePlayerMapping>();
+  private supabase = createClient(
+    'https://doyquitecogdnvbyiszt.supabase.co',
+    'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRveXF1aXRlY29nZG52Ynlpc3p0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTU2ODg0OTMsImV4cCI6MjA3MTI2NDQ5M30.63TmTlCTK_jVJnG_4vuZWUwS--UcyNgOSem5tI7q_1w'
+  );
 
   private constructor() {}
 
@@ -176,12 +180,12 @@ export class DatabasePlayerMappingService {
     }
 
     try {
-      const { data, error } = await supabase
-        .from('player_mappings')
-        .select('*')
-        .eq(column, playerId)
-        .eq('is_active', true)
-        .maybeSingle() as { data: any | null; error: any };
+      // Use direct SQL to avoid TypeScript inference issues
+      const { data, error } = await this.supabase
+        .rpc('get_player_by_platform', { 
+          platform_column: column, 
+          player_id: playerId 
+        });
 
       if (error) {
         debugLogger.error('DB_PLAYER_MAPPING', 'Database query failed', { error, platform, playerId });
