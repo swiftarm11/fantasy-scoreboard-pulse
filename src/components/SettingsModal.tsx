@@ -70,7 +70,7 @@ export const SettingsModal = ({ open, onOpenChange, onMockEvent }: SettingsModal
   const [validatingLeague, setValidatingLeague] = useState<string | null>(null);
   const [newLeagueId, setNewLeagueId] = useState('');
   const [newLeaguePlatform, setNewLeaguePlatform] = useState<Platform>('Sleeper');
-  const [newSleeperUsername, setNewSleeperUsername] = useState('');
+  const [globalSleeperUsername, setGlobalSleeperUsername] = useState('swiftarm');
   const [isValidLeague, setIsValidLeague] = useState(false);
   const [showDataHealth, setShowDataHealth] = useState(false);
   const [showLiveDebug, setShowLiveDebug] = useState(false);
@@ -145,7 +145,7 @@ export const SettingsModal = ({ open, onOpenChange, onMockEvent }: SettingsModal
           platform: newLeaguePlatform,
           enabled: true,
           customTeamName: league.name,
-          sleeperUsername: newSleeperUsername.trim() || undefined,
+          sleeperUsername: globalSleeperUsername.trim() || undefined,
         };
 
         setLocalConfig(prev => ({
@@ -154,7 +154,7 @@ export const SettingsModal = ({ open, onOpenChange, onMockEvent }: SettingsModal
         }));
 
         setNewLeagueId('');
-        setNewSleeperUsername('');
+        setIsValidLeague(false);
         setIsValidLeague(false);
         
         toast({
@@ -204,7 +204,7 @@ export const SettingsModal = ({ open, onOpenChange, onMockEvent }: SettingsModal
         updateConfig(updatedConfig);
 
         setNewLeagueId('');
-        setNewSleeperUsername('');
+        setIsValidLeague(false);
         setIsValidLeague(false);
         
         console.log('League added and saved:', newLeague);
@@ -531,20 +531,18 @@ export const SettingsModal = ({ open, onOpenChange, onMockEvent }: SettingsModal
                     </div>
                   </div>
 
-                  {newLeaguePlatform === 'Sleeper' && (
-                    <div>
-                      <Label htmlFor="sleeperUsername">Sleeper Username (Optional)</Label>
-                      <Input
-                        id="sleeperUsername"
-                        value={newSleeperUsername}
-                        onChange={(e) => setNewSleeperUsername(e.target.value)}
-                        placeholder="Your Sleeper username to identify your team"
-                      />
-                      <p className="text-xs text-muted-foreground mt-1">
-                        Enter your Sleeper username to automatically identify your team. If not provided, we'll use the first team in the league.
-                      </p>
-                    </div>
-                  )}
+                  <div>
+                    <Label htmlFor="globalSleeperUsername">Sleeper Username</Label>
+                    <Input
+                      id="globalSleeperUsername"
+                      value={globalSleeperUsername}
+                      onChange={(e) => setGlobalSleeperUsername(e.target.value)}
+                      placeholder="Your Sleeper username"
+                    />
+                    <p className="text-xs text-muted-foreground mt-1">
+                      This username will be applied to all Sleeper leagues you add to automatically identify your team.
+                    </p>
+                  </div>
                 </div>
               </CardContent>
             </Card>
