@@ -102,16 +102,15 @@ export function Tank01TestPanel() {
     setGamesResult(null);
     setCallCount(prev => prev + 1);
     try {
-      console.log(`🏈 [MANUAL TEST ${callCount + 1}] Testing Tank01 games data...`);
+      console.log(`🏈 [MANUAL TEST ${callCount + 1}] Testing Tank01 games data for current week...`);
       console.warn('⚠️ Tank01 API call initiated by user - counting against free tier');
       const {
         data,
         error
       } = await supabase.functions.invoke('tank01-api', {
         body: {
-          endpoint: 'games',
-          week: '1',
-          season: '2025'
+          endpoint: 'games'
+          // No week/season specified - let API auto-calculate current week
         }
       });
       if (error) {
@@ -277,7 +276,7 @@ export function Tank01TestPanel() {
             
             <Button onClick={testGames} variant="outline" size="sm" disabled={gamesLoading || connectionLoading || playersLoading || playsLoading} className="w-full">
               {gamesLoading ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Gamepad2 className="h-4 w-4 mr-2" />}
-              Test Games (Week 1)
+              Test Games (Current Week)
             </Button>
             
             <Button onClick={testPlays} variant="outline" size="sm" disabled={playsLoading || connectionLoading || playersLoading || gamesLoading || !gamesResult?.data?.body?.[0]?.gameID} className="w-full">

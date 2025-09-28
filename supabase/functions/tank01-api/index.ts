@@ -76,7 +76,30 @@ serve(async (req) => {
         // Get current week's games
         const { week, season } = params;
         const currentSeason = season || new Date().getFullYear().toString();
-        const currentWeek = week || '1';
+        
+        // Calculate current NFL week if not provided
+        let currentWeek = week;
+        if (!currentWeek) {
+          const now = new Date();
+          const currentYear = now.getFullYear();
+          
+          // NFL season typically starts the second Tuesday after Labor Day (first Monday in September)
+          // For simplicity, assume season starts September 8th each year
+          const seasonStart = new Date(currentYear, 8, 8); // September 8th (month is 0-indexed)
+          
+          // If we're before the season starts, use previous year's week 18 or current year week 1
+          if (now < seasonStart) {
+            currentWeek = '1';
+          } else {
+            // Calculate weeks since season start
+            const daysSinceStart = Math.floor((now.getTime() - seasonStart.getTime()) / (1000 * 60 * 60 * 24));
+            const calculatedWeek = Math.min(Math.floor(daysSinceStart / 7) + 1, 18);
+            currentWeek = calculatedWeek.toString();
+          }
+          
+          console.log(`[TANK01-API] Auto-calculated current NFL week: ${currentWeek} for season ${currentSeason}`);
+        }
+        
         apiUrl = `${TANK01_BASE_URL}/getNFLGamesForWeek?week=${currentWeek}&season=${currentSeason}`;
         break;
 
