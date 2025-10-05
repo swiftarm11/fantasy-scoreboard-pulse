@@ -35,9 +35,9 @@ export class HybridNFLDataService {
   }
 
   /**
-   * Start hybrid polling - Tank01 primary with 30-second intervals for live games
+   * Start hybrid polling - Tank01 primary with 90-second intervals for Pro plan quota management
    */
-  public async startPolling(intervalMs: number = 30000): Promise<void> {
+  public async startPolling(intervalMs: number = 90000): Promise<void> {
     if (this.isPolling) {
       debugLogger.warning('HYBRID_NFL', 'Polling already active', {
         currentInterval: intervalMs,
@@ -51,17 +51,17 @@ export class HybridNFLDataService {
       tank01PlayerMapping: this.useT01ForPlayerMapping,
       tank01LiveEvents: this.useT01ForLiveEvents,
       interval: intervalMs,
-      strategy: 'Tank01 primary for live games (30s), ESPN fallback'
+      strategy: 'Tank01 primary with 90s polling (Pro plan quota management), ESPN fallback'
     });
 
     try {
       // Always start Tank01 - now primary for both player mapping AND live events
       debugLogger.info('HYBRID_NFL', '🏈 Starting Tank01 service for live NFL data');
-      await this.tank01Service.startPolling(intervalMs); // Use exact interval for live games
+      await this.tank01Service.startPolling(intervalMs); // 90-second polling for Pro plan
 
       // Start ESPN as backup with longer interval to reduce API usage
       debugLogger.info('HYBRID_NFL', '📡 Starting ESPN service as backup');
-      await this.nflDataService.startPolling(intervalMs + 15000); // 45 second backup polling
+      await this.nflDataService.startPolling(intervalMs + 30000); // 120 second backup polling
 
       debugLogger.success('HYBRID_NFL', '✅ Hybrid polling started successfully', {
         tank01Interval: intervalMs,

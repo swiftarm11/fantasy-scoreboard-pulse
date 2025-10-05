@@ -67,6 +67,12 @@ interface RequestMetrics {
   lastMinuteReset: Date;
 }
 
+interface DailyQuotaTracker {
+  date: string; // YYYY-MM-DD format
+  requestCount: number;
+  lastReset: Date;
+}
+
 export class Tank01NFLDataService {
   private static instance: Tank01NFLDataService;
   private pollingInterval: NodeJS.Timeout | null = null;
@@ -96,9 +102,19 @@ export class Tank01NFLDataService {
     lastMinuteReset: new Date()
   };
   
+  // Daily quota tracking for Pro plan
+  private dailyQuota: DailyQuotaTracker = {
+    date: new Date().toISOString().split('T')[0],
+    requestCount: 0,
+    lastReset: new Date()
+  };
+  
   private readonly CIRCUIT_BREAKER_THRESHOLD = 3; // Lower threshold for paid API
   private readonly CIRCUIT_BREAKER_TIMEOUT = 120000; // 2 minutes
-  private readonly MAX_REQUESTS_PER_MINUTE = 6; // Conservative for free tier
+  private readonly MAX_REQUESTS_PER_MINUTE = 16; // Pro plan: 1000/day ≈ 16/min safe
+  private readonly MAX_DAILY_REQUESTS = 1000; // Pro plan limit
+  private readonly DAILY_QUOTA_WARNING_THRESHOLD = 0.8; // Warn at 80% (800 requests)
+  private readonly DAILY_QUOTA_CIRCUIT_BREAKER = 0.9; // Stop at 90% (900 requests)
 
   private constructor() {}
 
@@ -112,7 +128,7 @@ export class Tank01NFLDataService {
   /**
    * Start polling for active NFL games using Tank01
    */
-  public async startPolling(intervalMs: number = 30000): Promise<void> {
+  public async startPolling(intervalMs: number = 90000): Promise<void> {
     if (this.isPolling) {
       debugLogger.warning('TANK01_DATA', 'Polling already active, skipping start request');
       return;
@@ -135,7 +151,7 @@ export class Tank01NFLDataService {
       }
     }
 
-    this.pollingIntervalMs = Math.max(intervalMs, 30000); // Minimum 30 seconds
+    this.pollingIntervalMs = Math.max(intervalMs, 90000); // Minimum 90 seconds for Pro plan
     this.isPolling = true;
     
     debugLogger.info('TANK01_DATA', 'Starting Tank01 NFL game polling', { 
@@ -219,9 +235,40 @@ export class Tank01NFLDataService {
   }
 
   /**
-   * Load player mappings from Tank01 API
+   * Load player mappings from Tank01 API (with 24-hour localStorage cache)
    */
   private async loadPlayerMappings(): Promise<void> {
+    // Check if we already have cached players from this session
+    if (this.playerCache.size > 0) {
+      debugLogger.info('TANK01_DATA', 'Using existing player cache', { 
+        cachedPlayers: this.playerCache.size 
+      });
+      return;
+    }
+
+    // Try to load from localStorage (24hr cache)
+    try {
+      const cached = localStorage.getItem('tank01_players_cache');
+      if (cached) {
+        const { players, timestamp } = JSON.parse(cached);
+        const age = Date.now() - timestamp;
+        const MAX_AGE = 24 * 60 * 60 * 1000; // 24 hours
+
+        if (age < MAX_AGE) {
+          for (const player of players) {
+            this.playerCache.set(player.playerID, player);
+          }
+          debugLogger.success('TANK01_DATA', `Loaded ${players.length} players from localStorage cache`, {
+            ageHours: Math.round(age / (60 * 60 * 1000))
+          });
+          return;
+        }
+      }
+    } catch (error) {
+      debugLogger.warning('TANK01_DATA', 'Failed to load player cache from localStorage', error);
+    }
+
+    // Fetch fresh data if no valid cache
     if (!this.canMakeRequest()) {
       debugLogger.warning('TANK01_DATA', 'Skipping player mapping load due to rate limit');
       return;
@@ -229,13 +276,32 @@ export class Tank01NFLDataService {
 
     try {
       this.recordRequestStart();
-      debugLogger.info('TANK01_DATA', 'Loading Tank01 player mappings');
+      debugLogger.info('TANK01_DATA', 'Loading Tank01 player mappings from API');
 
       const response = await supabase.functions.invoke('tank01-api', {
         body: { 
           endpoint: 'players'
         }
       });
+
+      // Detect 429 (Too Many Requests) - Tank01 quota exceeded
+      if (response.error && (
+        response.error.message?.includes('429') || 
+        response.error.message?.toLowerCase().includes('rate limit') ||
+        response.error.message?.toLowerCase().includes('too many requests')
+      )) {
+        debugLogger.error('TANK01_DATA', '🚨 Tank01 API QUOTA EXCEEDED (429)', {
+          error: response.error.message,
+          dailyRequests: this.dailyQuota.requestCount
+        });
+        
+        // Trip circuit breaker for 1 hour
+        this.circuitBreaker.isOpen = true;
+        this.circuitBreaker.failureCount = 999; // Force circuit breaker
+        this.circuitBreaker.nextRetryTime = new Date(Date.now() + 60 * 60 * 1000);
+        
+        throw new Error('Tank01 API quota exceeded (429). Service disabled for 1 hour.');
+      }
 
       if (response.error) {
         throw new Error(`Tank01 API error: ${response.error.message}`);
@@ -248,8 +314,18 @@ export class Tank01NFLDataService {
         this.playerCache.set(player.playerID, player);
       }
 
+      // Save to localStorage for future sessions
+      try {
+        localStorage.setItem('tank01_players_cache', JSON.stringify({
+          players,
+          timestamp: Date.now()
+        }));
+      } catch (error) {
+        debugLogger.warning('TANK01_DATA', 'Failed to cache players to localStorage', error);
+      }
+
       this.recordRequestSuccess();
-      debugLogger.success('TANK01_DATA', `Loaded ${players.length} player mappings from Tank01`);
+      debugLogger.success('TANK01_DATA', `Loaded ${players.length} player mappings from Tank01 API`);
 
     } catch (error) {
       this.recordRequestFailure();
@@ -291,6 +367,25 @@ export class Tank01NFLDataService {
           season: currentSeason.toString()
         }
       });
+
+      // Detect 429 (Too Many Requests) - Tank01 quota exceeded
+      if (response.error && (
+        response.error.message?.includes('429') || 
+        response.error.message?.toLowerCase().includes('rate limit') ||
+        response.error.message?.toLowerCase().includes('too many requests')
+      )) {
+        debugLogger.error('TANK01_DATA', '🚨 Tank01 API QUOTA EXCEEDED (429)', {
+          error: response.error.message,
+          dailyRequests: this.dailyQuota.requestCount
+        });
+        
+        // Trip circuit breaker for 1 hour
+        this.circuitBreaker.isOpen = true;
+        this.circuitBreaker.failureCount = 999;
+        this.circuitBreaker.nextRetryTime = new Date(Date.now() + 60 * 60 * 1000);
+        
+        throw new Error('Tank01 API quota exceeded (429). Service disabled for 1 hour.');
+      }
 
       if (response.error) {
         throw new Error(`Tank01 API error: ${response.error.message}`);
@@ -345,6 +440,25 @@ export class Tank01NFLDataService {
           gameId: gameId
         }
       });
+      
+      // Detect 429 (Too Many Requests) - Tank01 quota exceeded
+      if (response.error && (
+        response.error.message?.includes('429') || 
+        response.error.message?.toLowerCase().includes('rate limit') ||
+        response.error.message?.toLowerCase().includes('too many requests')
+      )) {
+        debugLogger.error('TANK01_DATA', '🚨 Tank01 API QUOTA EXCEEDED (429)', {
+          error: response.error.message,
+          dailyRequests: this.dailyQuota.requestCount
+        });
+        
+        // Trip circuit breaker for 1 hour
+        this.circuitBreaker.isOpen = true;
+        this.circuitBreaker.failureCount = 999;
+        this.circuitBreaker.nextRetryTime = new Date(Date.now() + 60 * 60 * 1000);
+        
+        throw new Error('Tank01 API quota exceeded (429). Service disabled for 1 hour.');
+      }
       
       if (response.error) {
         throw new Error(`Tank01 API error: ${response.error.message}`);
@@ -633,9 +747,26 @@ export class Tank01NFLDataService {
   }
 
   private recordRequestStart(): void {
-    this.requestMetrics.totalRequests++;
+    // Check daily quota first
+    if (!this.checkDailyQuota()) {
+      throw new Error('Daily quota limit reached (900/1000 requests used). Service paused until tomorrow.');
+    }
+
+    // Check per-minute rate limit
+    const now = new Date();
+    const timeSinceLastReset = now.getTime() - this.requestMetrics.lastMinuteReset.getTime();
+    
+    if (timeSinceLastReset >= 60000) {
+      this.requestMetrics.requestsThisMinute = 0;
+      this.requestMetrics.lastMinuteReset = now;
+    }
+
     this.requestMetrics.requestsThisMinute++;
-    this.requestMetrics.lastRequestTime = new Date();
+    this.requestMetrics.totalRequests++;
+    this.requestMetrics.lastRequestTime = now;
+    
+    // Increment daily counter
+    this.incrementDailyQuota();
   }
 
   private recordRequestSuccess(): void {
@@ -669,16 +800,125 @@ export class Tank01NFLDataService {
   }
 
   /**
+   * Check and update daily quota tracker
+   */
+  private checkDailyQuota(): boolean {
+    const today = new Date().toISOString().split('T')[0];
+    
+    // Reset counter if new day
+    if (this.dailyQuota.date !== today) {
+      debugLogger.info('TANK01_DATA', '📅 Daily quota reset', {
+        previousDate: this.dailyQuota.date,
+        previousCount: this.dailyQuota.requestCount,
+        newDate: today
+      });
+      
+      this.dailyQuota = {
+        date: today,
+        requestCount: 0,
+        lastReset: new Date()
+      };
+      
+      // Persist to localStorage
+      try {
+        localStorage.setItem('tank01_daily_quota', JSON.stringify(this.dailyQuota));
+      } catch (error) {
+        debugLogger.warning('TANK01_DATA', 'Failed to persist quota to localStorage', error);
+      }
+    }
+
+    // Load from localStorage if available (handles page refreshes)
+    try {
+      const stored = localStorage.getItem('tank01_daily_quota');
+      if (stored) {
+        const storedQuota = JSON.parse(stored);
+        if (storedQuota.date === today && storedQuota.requestCount > this.dailyQuota.requestCount) {
+          this.dailyQuota = storedQuota;
+        }
+      }
+    } catch (error) {
+      // Ignore localStorage errors
+    }
+
+    const percentUsed = this.dailyQuota.requestCount / this.MAX_DAILY_REQUESTS;
+
+    // Circuit breaker at 90%
+    if (percentUsed >= this.DAILY_QUOTA_CIRCUIT_BREAKER) {
+      debugLogger.error('TANK01_DATA', '🚨 DAILY QUOTA CIRCUIT BREAKER TRIGGERED', {
+        requestCount: this.dailyQuota.requestCount,
+        limit: this.MAX_DAILY_REQUESTS,
+        percentUsed: `${(percentUsed * 100).toFixed(1)}%`
+      });
+      this.circuitBreaker.isOpen = true;
+      this.circuitBreaker.nextRetryTime = new Date(Date.now() + 60 * 60 * 1000); // Retry in 1 hour
+      return false;
+    }
+
+    // Warning at 80%
+    if (percentUsed >= this.DAILY_QUOTA_WARNING_THRESHOLD && percentUsed < this.DAILY_QUOTA_CIRCUIT_BREAKER) {
+      debugLogger.warning('TANK01_DATA', '⚠️ Daily quota warning', {
+        requestCount: this.dailyQuota.requestCount,
+        limit: this.MAX_DAILY_REQUESTS,
+        percentUsed: `${(percentUsed * 100).toFixed(1)}%`,
+        remaining: this.MAX_DAILY_REQUESTS - this.dailyQuota.requestCount
+      });
+    }
+
+    return true;
+  }
+
+  /**
+   * Increment daily quota counter
+   */
+  private incrementDailyQuota(): void {
+    this.dailyQuota.requestCount++;
+    
+    // Persist to localStorage every 10 requests
+    if (this.dailyQuota.requestCount % 10 === 0) {
+      try {
+        localStorage.setItem('tank01_daily_quota', JSON.stringify(this.dailyQuota));
+      } catch (error) {
+        // Ignore localStorage errors
+      }
+    }
+  }
+
+  /**
    * Get service status and metrics
    */
   public getServiceStatus() {
+    const percentUsed = this.dailyQuota.requestCount / this.MAX_DAILY_REQUESTS;
+    
     return {
       isPolling: this.isPolling,
-      emergencyStop: this.emergencyStop,
-      circuitBreaker: this.circuitBreaker,
-      requestMetrics: this.requestMetrics,
+      pollingInterval: this.pollingIntervalMs,
       activeGames: this.gameStates.size,
-      playersCached: this.playerCache.size,
+      emergencyStop: this.emergencyStop,
+      circuitBreaker: {
+        isOpen: this.circuitBreaker.isOpen,
+        failureCount: this.circuitBreaker.failureCount,
+        nextRetryTime: this.circuitBreaker.nextRetryTime?.toISOString()
+      },
+      requestMetrics: {
+        totalRequests: this.requestMetrics.totalRequests,
+        successfulRequests: this.requestMetrics.successfulRequests,
+        failedRequests: this.requestMetrics.failedRequests,
+        requestsThisMinute: this.requestMetrics.requestsThisMinute,
+        lastRequestTime: this.requestMetrics.lastRequestTime?.toISOString()
+      },
+      dailyQuota: {
+        date: this.dailyQuota.date,
+        used: this.dailyQuota.requestCount,
+        limit: this.MAX_DAILY_REQUESTS,
+        remaining: this.MAX_DAILY_REQUESTS - this.dailyQuota.requestCount,
+        percentUsed: `${(percentUsed * 100).toFixed(1)}%`,
+        warningThreshold: Math.floor(this.MAX_DAILY_REQUESTS * this.DAILY_QUOTA_WARNING_THRESHOLD),
+        circuitBreakerThreshold: Math.floor(this.MAX_DAILY_REQUESTS * this.DAILY_QUOTA_CIRCUIT_BREAKER)
+      },
+      playerCache: {
+        size: this.playerCache.size,
+        hasCachedPlayers: this.playerCache.size > 0
+      },
       currentWeek: this.currentWeek
     };
   }
