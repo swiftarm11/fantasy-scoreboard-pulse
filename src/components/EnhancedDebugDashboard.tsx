@@ -90,7 +90,8 @@ export const EnhancedDebugDashboard = () => {
             status: serviceStatus.liveManager?.status || 'Not initialized'
           },
           tank01API: {
-            status: serviceStatus.hybridNFL?.tank01Status || 'unknown',
+            status: serviceStatus.hybridNFL?.tank01Status?.isPolling ? 'connected' : 
+                   serviceStatus.hybridNFL?.tank01Status?.emergencyStop ? 'error' : 'unknown',
             lastCall: serviceStatus.hybridNFL?.lastCall || null,
             errorMessage: serviceStatus.hybridNFL?.lastError
           }
