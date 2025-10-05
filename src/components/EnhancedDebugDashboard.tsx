@@ -270,6 +270,99 @@ export const EnhancedDebugDashboard = () => {
           </div>
         </TabsContent>
 
+        <TabsContent value="attribution" className="space-y-4">
+          <Card>
+            <CardHeader>
+              <CardTitle>Event Attribution Details</CardTitle>
+              <CardDescription>Cache statistics for event-to-player attribution</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="space-y-2">
+                <div className="flex justify-between items-center">
+                  <span className="text-sm font-medium">Roster Cache Size:</span>
+                  <Badge>{stats.eventAttribution.rosterCacheSize} rosters</Badge>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-sm font-medium">Scoring Rules Cached:</span>
+                  <Badge>{stats.eventAttribution.scoringCacheSize} leagues</Badge>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-sm font-medium">Player Mappings:</span>
+                  <Badge>{stats.eventAttribution.playerMappingCacheSize} players</Badge>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-sm font-medium">Attribution Active:</span>
+                  {getStatusBadge(stats.eventAttribution.isActive)}
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="pipeline" className="space-y-4">
+          <Card>
+            <CardHeader>
+              <CardTitle>Data Pipeline Status</CardTitle>
+              <CardDescription>End-to-end data flow monitoring</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="space-y-3">
+                <div>
+                  <div className="text-sm font-medium mb-2">1. Player Database</div>
+                  <div className="ml-4 space-y-1">
+                    <div className="flex justify-between text-sm">
+                      <span>Mappings:</span>
+                      <Badge variant="outline">{stats.playerMapping.totalMappings}</Badge>
+                    </div>
+                    <div className="flex justify-between text-sm">
+                      <span>Cache:</span>
+                      {getStatusBadge(stats.playerMapping.activeCache)}
+                    </div>
+                  </div>
+                </div>
+
+                <div>
+                  <div className="text-sm font-medium mb-2">2. NFL Data Source</div>
+                  <div className="ml-4 space-y-1">
+                    <div className="flex justify-between text-sm">
+                      <span>API Status:</span>
+                      {getStatusBadge(stats.tank01API.status, stats.tank01API.status === 'error' ? 'error' : 'success')}
+                    </div>
+                    <div className="flex justify-between text-sm">
+                      <span>Polling:</span>
+                      {getStatusBadge(stats.liveEvents.isPolling)}
+                    </div>
+                  </div>
+                </div>
+
+                <div>
+                  <div className="text-sm font-medium mb-2">3. Event Attribution</div>
+                  <div className="ml-4 space-y-1">
+                    <div className="flex justify-between text-sm">
+                      <span>Active:</span>
+                      {getStatusBadge(stats.eventAttribution.isActive)}
+                    </div>
+                    <div className="flex justify-between text-sm">
+                      <span>Recent Events:</span>
+                      <Badge variant="outline">{stats.liveEvents.recentEventsCount}</Badge>
+                    </div>
+                  </div>
+                </div>
+
+                <div>
+                  <div className="text-sm font-medium mb-2">4. Dashboard Display</div>
+                  <div className="ml-4 space-y-1">
+                    <div className="flex justify-between text-sm">
+                      <span>Status:</span>
+                      {getStatusBadge(stats.liveEvents.status, 'warning')}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
         <TabsContent value="actions" className="space-y-4">
           <Card>
             <CardHeader>
