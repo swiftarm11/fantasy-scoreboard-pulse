@@ -350,7 +350,7 @@ export class Tank01NFLDataService {
         throw new Error(`Tank01 API error: ${response.error.message}`);
       }
 
-      const plays = response.data?.body || [];
+      const plays = response.data?.body?.playByPlay || [];
 
       this.recordRequestSuccess();
       debugLogger.success('TANK01_DATA', `Parsed ${plays.length} plays for game ${gameId}`);
@@ -367,6 +367,12 @@ export class Tank01NFLDataService {
    * Detect scoring events from Tank01 play data
    */
   public detectScoringEvents(plays: Tank01Play[], gameId: string): NFLScoringEvent[] {
+    // Safety check: ensure plays is an array
+    if (!Array.isArray(plays)) {
+      debugLogger.warning('TANK01_DATA', 'detectScoringEvents received non-array plays', { plays, gameId });
+      return [];
+    }
+
     const events: NFLScoringEvent[] = [];
     const gameState = this.gameStates.get(gameId);
 

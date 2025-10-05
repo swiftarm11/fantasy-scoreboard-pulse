@@ -507,9 +507,12 @@ export class EventAttributionService {
       const fantasyPlayers: FantasyPlayer[] = [];
       const rosterPlayerIds = [...(userRoster.players || []), ...(userRoster.starters || [])];
 
+      // Batch fetch all player names to avoid cache thrashing
+      const playerNames = await sleeperAPIEnhanced.getPlayerNames(rosterPlayerIds);
+
       for (const playerId of rosterPlayerIds) {
         try {
-          const playerName = await sleeperAPIEnhanced.getPlayerName(playerId);
+          const playerName = playerNames[playerId] || `Player ${playerId}`;
           
           const fantasyPlayer: FantasyPlayer = {
             id: `${leagueConfig.leagueId}-${playerId}`,
