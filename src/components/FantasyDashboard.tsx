@@ -47,11 +47,11 @@ const DashboardContent = () => {
     refreshRosters,
   } = useFantasyDashboardWithLiveEvents();
 
-  // Network status and demo league hooks
+  // Network status and demo league hooks with safe config access
   const isOnline = useNetworkStatus();
   const { demoLeague, triggerManualEvent } = useDemoLeague({
-    enabled: config.demoMode.enabled,
-    updateInterval: config.demoMode.updateInterval,
+    enabled: config?.demoMode?.enabled ?? false, // Safe access with fallback
+    updateInterval: config?.demoMode?.updateInterval ?? 15, // Safe access with fallback
   });
 
   // UI State
@@ -299,7 +299,7 @@ const DashboardContent = () => {
         )}
 
         {/* Performance Dashboard (Debug Mode) */}
-        {config.debug.enabled && (
+        {config?.debug?.enabled && (
           <div className="mt-4 p-4 bg-muted rounded-lg">
             <p className="text-sm text-muted-foreground">Debug Mode Active</p>
           </div>
