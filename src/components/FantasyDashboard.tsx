@@ -50,8 +50,8 @@ const DashboardContent = () => {
   // Network status and demo league hooks with safe config access
   const isOnline = useNetworkStatus();
   const { demoLeague, triggerManualEvent } = useDemoLeague({
-    enabled: config?.demoMode?.enabled ?? false, // Safe access with fallback
-    updateInterval: config?.demoMode?.updateInterval ?? 15, // Safe access with fallback
+    enabled: config?.demoMode?.enabled ?? false,
+    updateInterval: config?.demoMode?.updateInterval ?? 15,
   });
 
   // UI State
@@ -84,9 +84,18 @@ const DashboardContent = () => {
   const isLoading = dashboardLoading;
   const error = dashboardError;
 
-  // **NEW: Auto-start live events system when leagues are loaded**
+  // **FIXED: Auto-start live events system with runaway loop prevention**
+  const hasAttemptedStart = useRef(false);
+
   useEffect(() => {
+    // Only attempt once per mount
+    if (hasAttemptedStart.current) {
+      return;
+    }
+
     if (enhancedLeagues.length > 0 && !liveEventsState.isActive && isLiveSystemReady) {
+      hasAttemptedStart.current = true;
+      
       debugLogger.info('DASHBOARD', 'Auto-starting live events system', {
         leagueCount: enhancedLeagues.length,
         isReady: isLiveSystemReady
@@ -94,11 +103,18 @@ const DashboardContent = () => {
       
       startLiveEvents().catch((error) => {
         debugLogger.error('DASHBOARD', 'Failed to auto-start live events', error);
+        // Don't retry automatically - user can manually refresh
       });
     }
-  }, [enhancedLeagues.length, liveEventsState.isActive, isLiveSystemReady, startLiveEvents]);
+  // REMOVED startLiveEvents from dependencies to prevent retry loop
+  }, [enhancedLeagues.length, liveEventsState.isActive, isLiveSystemReady]);
 
-  // **NEW: Cleanup - stop live events on unmount**
+  // Reset attempt flag when leagues change significantly
+  useEffect(() => {
+    hasAttemptedStart.current = false;
+  }, [enhancedLeagues.length]);
+
+  // **FIXED: Cleanup - stop live events on unmount**
   useEffect(() => {
     return () => {
       if (liveEventsState.isActive) {
