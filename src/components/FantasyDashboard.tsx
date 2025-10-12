@@ -28,8 +28,8 @@ import { MobileLeagueCard } from "./MobileLeagueCard";
 import { MobileSettingsModal } from "./MobileSettingsModal";
 import { LeagueData } from "../types/fantasy";
 import { debugLogger } from "../utils/debugLogger";
+import { FEATURE_FLAGS } from "../config/features";
 
-const DISABLE_AUTO_START = true;
 const DashboardContent = () => {
   const config = useConfig();
   const location = useLocation();
@@ -85,45 +85,8 @@ const DashboardContent = () => {
   const isLoading = dashboardLoading;
   const error = dashboardError;
 
-  // **FIXED: Auto-start live events system with runaway loop prevention**
-  const hasAttemptedStart = useRef(false);
-
-  useEffect(() => {
-    // Only attempt once per mount
-    if (hasAttemptedStart.current) {
-      return;
-    }
-
-    if (enhancedLeagues.length > 0 && !liveEventsState.isActive && isLiveSystemReady) {
-      hasAttemptedStart.current = true;
-      
-      debugLogger.info('DASHBOARD', 'Auto-starting live events system', {
-        leagueCount: enhancedLeagues.length,
-        isReady: isLiveSystemReady
-      });
-      
-      startLiveEvents().catch((error) => {
-        debugLogger.error('DASHBOARD', 'Failed to auto-start live events', error);
-        // Don't retry automatically - user can manually refresh
-      });
-    }
-  // REMOVED startLiveEvents from dependencies to prevent retry loop
-  }, [enhancedLeagues.length, liveEventsState.isActive, isLiveSystemReady]);
-
-  // Reset attempt flag when leagues change significantly
-  useEffect(() => {
-    hasAttemptedStart.current = false;
-  }, [enhancedLeagues.length]);
-
-  // **FIXED: Cleanup - stop live events on unmount**
-  useEffect(() => {
-    return () => {
-      if (liveEventsState.isActive) {
-        debugLogger.info('DASHBOARD', 'Stopping live events on unmount');
-        stopLiveEvents();
-      }
-    };
-  }, [liveEventsState.isActive, stopLiveEvents]);
+  // 🚨 REMOVED: All auto-start logic for live events
+  // Kill switch is now in useFantasyDashboardWithLiveEvents hook
 
   // Debounced refresh to prevent spam
   const lastRefreshRef = useRef(0);
@@ -212,13 +175,26 @@ const DashboardContent = () => {
       {/* Network Status */}
       {!isOnline && <OfflineBanner />}
 
-      {/* Live Events Status - using enhanced dashboard state */}
-      {isLiveSystemReady && liveEventsState.isActive && (
-        <div className="bg-primary/10 border border-primary/20 rounded-lg p-3 mb-4">
-          <p className="text-sm text-primary">
-            ✅ Live Events: {liveEventsState.eventCount || 0} events tracked
-            {liveEventsState.lastEventTime && ` • Last: ${liveEventsState.lastEventTime}`}
-          </p>
+      {/* Kill Switch Warning Banner */}
+      {FEATURE_FLAGS.LIVE_EVENTS_DISABLED && (
+        <div className="container mx-auto px-4 pt-4">
+          <div className="bg-yellow-500/10 border border-yellow-500/20 rounded-lg p-3">
+            <p className="text-sm text-yellow-600 dark:text-yellow-400">
+              ⚠️ Live Events System: Disabled by feature flag (check src/config/features.ts)
+            </p>
+          </div>
+        </div>
+      )}
+
+      {/* Live Events Status - only shown when enabled and active */}
+      {!FEATURE_FLAGS.LIVE_EVENTS_DISABLED && isLiveSystemReady && liveEventsState.isActive && (
+        <div className="container mx-auto px-4 pt-4">
+          <div className="bg-primary/10 border border-primary/20 rounded-lg p-3">
+            <p className="text-sm text-primary">
+              ✅ Live Events: {liveEventsState.eventCount || 0} events tracked
+              {liveEventsState.lastEventTime && ` • Last: ${liveEventsState.lastEventTime}`}
+            </p>
+          </div>
         </div>
       )}
 
@@ -239,7 +215,7 @@ const DashboardContent = () => {
             </h1>
             <p className="text-muted-foreground mt-1">
               {displayLeagues.length} league{displayLeagues.length !== 1 ? 's' : ''}
-              {isLiveSystemReady && liveEventsState.isActive && (
+              {!FEATURE_FLAGS.LIVE_EVENTS_DISABLED && isLiveSystemReady && liveEventsState.isActive && (
                 <span className="text-primary ml-1">• Live</span>
               )}
               <span className="ml-1">
