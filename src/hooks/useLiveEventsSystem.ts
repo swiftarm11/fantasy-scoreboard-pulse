@@ -1,6 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { debugLogger } from '../utils/debugLogger';
-import { useESPNData } from './useESPNData';
 import { tank01NFLDataService, NFLScoringEvent } from '../services/Tank01NFLDataService';
 import { eventAttributionService, FantasyEventAttribution } from '../services/EventAttributionService';
 import { eventStorageService, ConfigScoringEvent } from '../services/EventStorageService';
@@ -41,9 +40,6 @@ export const useLiveEventsSystem = ({
   const [recentEvents, setRecentEvents] = useState<ScoringEvent[]>([]);
   const eventCallbacks = useRef<(() => void)[]>([]);
   const isInitialized = useRef(false);
-
-  // Initialize ESPN data polling
-  const { fetchScoreboard, startPolling: startESPNPolling, stopPolling: stopESPNPolling } = useESPNData();
 
   // Initialize system
   const initializeSystem = useCallback(async () => {
@@ -179,9 +175,6 @@ export const useLiveEventsSystem = ({
     try {
       // Start Tank01 NFL data polling
       await tank01NFLDataService.startPolling(pollingInterval);
-      
-      // Start ESPN data polling for scoreboard
-      startESPNPolling();
 
       setLiveState(prev => ({
         ...prev,
@@ -193,13 +186,12 @@ export const useLiveEventsSystem = ({
     } catch (error) {
       debugLogger.error('LIVE_EVENTS', 'Failed to start live events system', error);
     }
-  }, [initializeSystem, pollingInterval, startESPNPolling]);
+  }, [initializeSystem, pollingInterval]);
 
   // Stop live polling
   const stopSystem = useCallback(() => {
     // Stop Tank01 NFL data polling
     tank01NFLDataService.stopPolling();
-    stopESPNPolling();
 
     // Cleanup callbacks
     eventCallbacks.current.forEach(cleanup => cleanup());
@@ -212,7 +204,7 @@ export const useLiveEventsSystem = ({
     }));
 
     debugLogger.info('LIVE_EVENTS', 'Live events system stopped');
-  }, [stopESPNPolling]);
+  }, []);
 
   // Trigger a test event for debugging
   const triggerTestEvent = useCallback(() => {

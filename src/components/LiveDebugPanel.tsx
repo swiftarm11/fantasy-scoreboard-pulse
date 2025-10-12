@@ -10,7 +10,6 @@ import {
   Bug, 
   RefreshCw, 
   Download, 
-  Upload, 
   TestTube, 
   AlertTriangle,
   CheckCircle,
@@ -22,8 +21,6 @@ import { debugLogger } from '../utils/debugLogger';
 import { useYahooData } from '../hooks/useYahooData';
 import { useYahooOAuth } from '../hooks/useYahooOAuth';
 import { tank01NFLDataService } from '../services/Tank01NFLDataService';
-import { espnSimulationService } from '../services/ESPNSimulationService';
-import { useESPNData } from '../hooks/useESPNData';
 import { useConfig } from '../hooks/useConfig';
 
 interface LiveDebugPanelProps {
@@ -36,50 +33,30 @@ export const LiveDebugPanel = ({ open, onOpenChange }: LiveDebugPanelProps) => {
   const [testResults, setTestResults] = useState<string>('');
   const [isRunningTest, setIsRunningTest] = useState(false);
   const [tank01Stats, setTank01Stats] = useState(tank01NFLDataService.getServiceStatus());
-  const [isSimulating, setIsSimulating] = useState(false);
-  const [simulationProgress, setSimulationProgress] = useState('');
 
   const { isConnected: yahooConnected } = useYahooOAuth();
   const yahooData = useYahooData();
   const { config } = useConfig();
-  
-  // Use new ESPN data hook
-  const { 
-    scoreboardData, 
-    loading: espnLoading, 
-    error: espnError,
-    fetchScoreboard,
-    startPolling: startESPNPolling,
-    stopPolling: stopESPNPolling,
-    isPolling: espnIsPolling,
-    lastFetch
-  } = useESPNData();
 
-  // Update ESPN stats and simulation status periodically
+  // Update Tank01 stats periodically
   useEffect(() => {
     const interval = setInterval(() => {
-      setEspnStats(nflDataService.getPollingStats());
-      setIsSimulating(espnSimulationService.isRunning());
+      setTank01Stats(tank01NFLDataService.getServiceStatus());
     }, 2000);
     return () => clearInterval(interval);
   }, []);
 
   // Test API connections
-  const runConnectionTest = async (platform: 'yahoo' | 'sleeper' | 'espn' | 'all') => {
+  const runConnectionTest = async (platform: 'yahoo' | 'sleeper' | 'tank01' | 'all') => {
     setIsRunningTest(true);
     setTestResults('Running connection tests...\n\n');
-    
-    debugLogger.info('DEBUG_PANEL', `Starting connection test for ${platform}`);
 
     try {
       if (platform === 'yahoo' || platform === 'all') {
         setTestResults(prev => prev + '🔍 Testing Yahoo connection...\n');
         
-        if (!yahooConnected) {
-          setTestResults(prev => prev + '❌ Yahoo: Not connected\n');
-        } else {
+        if (yahooConnected) {
           try {
-            // Test Yahoo connection by fetching available leagues
             if (yahooData?.fetchAvailableLeagues) {
               await yahooData.fetchAvailableLeagues();
               setTestResults(prev => prev + '✅ Yahoo: Connection successful\n');
@@ -96,7 +73,6 @@ export const LiveDebugPanel = ({ open, onOpenChange }: LiveDebugPanelProps) => {
         setTestResults(prev => prev + '\n🔍 Testing Sleeper connection...\n');
         
         try {
-          // Test Sleeper API
           const testResult = await debugLogger.testConnection();
           if (testResult.success) {
             setTestResults(prev => prev + `✅ Sleeper: ${testResult.message}\n`);
@@ -108,32 +84,16 @@ export const LiveDebugPanel = ({ open, onOpenChange }: LiveDebugPanelProps) => {
         }
       }
 
-      if (platform === 'espn' || platform === 'all') {
-        setTestResults(prev => prev + '\n🔍 Testing ESPN connection...\n');
+      if (platform === 'tank01' || platform === 'all') {
+        setTestResults(prev => prev + '\n🔍 Testing Tank01 connection...\n');
         
         try {
-          // Test ESPN API using new hook
-          await fetchScoreboard();
-          const games = scoreboardData?.games || [];
-          setTestResults(prev => prev + `✅ ESPN: Connection successful (${games.length} games found)\n`);
-          
-          // Show current week info
-          if (scoreboardData?.week) {
-            setTestResults(prev => prev + `📅 Current NFL Week: ${scoreboardData.week}\n`);
-          }
-          
-          // Show loading and polling status
-          setTestResults(prev => prev + `🔄 Loading: ${espnLoading ? 'YES' : 'NO'}\n`);
-          setTestResults(prev => prev + `📊 Polling Status: ${espnIsPolling ? 'Active' : 'Inactive'}\n`);
-          if (espnError) {
-            setTestResults(prev => prev + `⚠️ Error: ${espnError}\n`);
-          }
-          if (lastFetch) {
-            setTestResults(prev => prev + `🕒 Last Fetch: ${new Date(lastFetch).toLocaleTimeString()}\n`);
-          }
-          
+          const status = tank01NFLDataService.getServiceStatus();
+          setTestResults(prev => prev + `✅ Tank01: Service active (${status.playerCache.size} players cached)\n`);
+          setTestResults(prev => prev + `📊 Polling Status: ${status.isPolling ? 'Active' : 'Inactive'}\n`);
+          setTestResults(prev => prev + `📅 Current NFL Week: ${status.currentWeek || 'Unknown'}\n`);
         } catch (error) {
-          setTestResults(prev => prev + `❌ ESPN: Connection failed - ${error instanceof Error ? error.message : 'Unknown error'}\n`);
+          setTestResults(prev => prev + `❌ Tank01: Connection failed - ${error instanceof Error ? error.message : 'Unknown error'}\n`);
         }
       }
 
@@ -147,7 +107,7 @@ export const LiveDebugPanel = ({ open, onOpenChange }: LiveDebugPanelProps) => {
   };
 
   // View raw API response
-  const viewRawData = (platform: 'yahoo' | 'sleeper' | 'espn') => {
+  const viewRawData = (platform: 'yahoo' | 'sleeper' | 'tank01') => {
     debugLogger.info('DEBUG_PANEL', `Viewing raw data for ${platform}`);
     
     if (platform === 'yahoo' && yahooData) {
@@ -160,11 +120,10 @@ export const LiveDebugPanel = ({ open, onOpenChange }: LiveDebugPanelProps) => {
           error: yahooData.error
         }
       });
-    } else if (platform === 'espn') {
-      const stats = tank01NFLDataService.getServiceStatus();
+    } else if (platform === 'tank01') {
       setRawDataView({
-        platform: 'Tank01',
-        data: stats
+        platform: 'Tank01 (Play-by-Play)',
+        data: tank01NFLDataService.getServiceStatus()
       });
     } else {
       setRawDataView({
@@ -282,59 +241,6 @@ export const LiveDebugPanel = ({ open, onOpenChange }: LiveDebugPanelProps) => {
     });
   };
 
-  // Start ESPN Simulation
-  const startESPNSimulation = async () => {
-    if (isSimulating) {
-      espnSimulationService.stopSimulation();
-      setSimulationProgress('Simulation stopped');
-      toast({
-        title: 'Simulation Stopped',
-        description: 'ESPN play-by-play simulation has been stopped'
-      });
-      return;
-    }
-
-    try {
-      setIsSimulating(true);
-      setSimulationProgress('Starting simulation...');
-      
-      const enabledLeagues = config.leagues.filter(l => l.enabled);
-      if (enabledLeagues.length === 0) {
-        throw new Error('No leagues enabled for simulation');
-      }
-
-      await espnSimulationService.startSimulation(enabledLeagues, 100, 20);
-      
-      setSimulationProgress('Simulation running: 100 events over 20 minutes');
-      toast({
-        title: 'Simulation Started',
-        description: 'ESPN play-by-play simulation is now running (100 events over 20 minutes)'
-      });
-
-      // Monitor simulation progress
-      const progressInterval = setInterval(() => {
-        if (!espnSimulationService.isRunning()) {
-          clearInterval(progressInterval);
-          setIsSimulating(false);
-          setSimulationProgress('Simulation completed');
-          toast({
-            title: 'Simulation Complete',
-            description: 'ESPN play-by-play simulation has finished'
-          });
-        }
-      }, 5000);
-
-    } catch (error) {
-      setIsSimulating(false);
-      setSimulationProgress(`Simulation error: ${error instanceof Error ? error.message : 'Unknown error'}`);
-      toast({
-        title: 'Simulation Error',
-        description: error instanceof Error ? error.message : 'Unknown error',
-        variant: 'destructive'
-      });
-    }
-  };
-
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
@@ -346,12 +252,11 @@ export const LiveDebugPanel = ({ open, onOpenChange }: LiveDebugPanelProps) => {
         </DialogHeader>
 
         <Tabs defaultValue="tests" className="w-full">
-          <TabsList className="grid w-full grid-cols-6">
+          <TabsList className="grid w-full grid-cols-5">
             <TabsTrigger value="tests">Connection Tests</TabsTrigger>
             <TabsTrigger value="data">Raw Data</TabsTrigger>
-            <TabsTrigger value="espn">ESPN Live Data</TabsTrigger>
-            <TabsTrigger value="simulation">ESPN Simulation</TabsTrigger>
-            <TabsTrigger value="emergency">Emergency Controls</TabsTrigger>
+            <TabsTrigger value="tank01">Tank01</TabsTrigger>
+            <TabsTrigger value="emergency">Emergency</TabsTrigger>
             <TabsTrigger value="logs">Debug Logs</TabsTrigger>
           </TabsList>
 
@@ -359,13 +264,13 @@ export const LiveDebugPanel = ({ open, onOpenChange }: LiveDebugPanelProps) => {
           <TabsContent value="tests" className="space-y-4">
             <Card>
               <CardHeader>
-                <CardTitle className="text-base">API Connection Tests</CardTitle>
+                <CardTitle className="text-base">Platform Connection Tests</CardTitle>
                 <CardDescription>
-                  Test connections to fantasy platforms to ensure live data is flowing
+                  Test API connections to Yahoo, Sleeper, and Tank01 services
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
-                <div className="flex gap-2">
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
                   <Button 
                     onClick={() => runConnectionTest('yahoo')}
                     disabled={isRunningTest}
@@ -383,19 +288,19 @@ export const LiveDebugPanel = ({ open, onOpenChange }: LiveDebugPanelProps) => {
                     Test Sleeper
                   </Button>
                   <Button 
-                    onClick={() => runConnectionTest('espn')}
+                    onClick={() => runConnectionTest('tank01')}
                     disabled={isRunningTest}
                     variant="outline"
                   >
                     <TestTube className="w-4 h-4 mr-2" />
-                    Test ESPN
+                    Test Tank01
                   </Button>
                   <Button 
                     onClick={() => runConnectionTest('all')}
                     disabled={isRunningTest}
                   >
                     <TestTube className="w-4 h-4 mr-2" />
-                    Test All Platforms
+                    Test All
                   </Button>
                 </div>
 
@@ -418,7 +323,7 @@ export const LiveDebugPanel = ({ open, onOpenChange }: LiveDebugPanelProps) => {
               <CardHeader>
                 <CardTitle className="text-base">Raw API Responses</CardTitle>
                 <CardDescription>
-                  View actual data received from APIs for debugging
+                  View raw JSON responses from each platform
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
@@ -431,9 +336,9 @@ export const LiveDebugPanel = ({ open, onOpenChange }: LiveDebugPanelProps) => {
                     <Download className="w-4 h-4 mr-2" />
                     View Sleeper Data
                   </Button>
-                  <Button onClick={() => viewRawData('espn')} variant="outline">
+                  <Button onClick={() => viewRawData('tank01')} variant="outline">
                     <Download className="w-4 h-4 mr-2" />
-                    View ESPN Data
+                    View Tank01 Data
                   </Button>
                 </div>
 
@@ -460,17 +365,16 @@ export const LiveDebugPanel = ({ open, onOpenChange }: LiveDebugPanelProps) => {
             </Card>
           </TabsContent>
 
-          {/* ESPN Live Data Tab */}
-          <TabsContent value="espn" className="space-y-4">
+          {/* Tank01 Data Tab */}
+          <TabsContent value="tank01" className="space-y-4">
             <Card>
               <CardHeader>
-                <CardTitle className="text-base">Live Events System Status</CardTitle>
+                <CardTitle className="text-base">Tank01 NFL Data Service</CardTitle>
                 <CardDescription>
-                  Monitor Tank01 + ESPN hybrid data flow and live event processing
+                  Monitor Tank01 play-by-play data polling and player mapping
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
-                {/* Service Status Overview */}
                 <div className="grid grid-cols-3 gap-4">
                   <div className="p-3 rounded-lg bg-muted/50 border">
                     <div className="text-sm font-medium">Live Events Manager</div>
@@ -501,7 +405,6 @@ export const LiveDebugPanel = ({ open, onOpenChange }: LiveDebugPanelProps) => {
                   </div>
                 </div>
 
-                {/* Controls */}
                 <div className="flex gap-2">
                   <Button 
                     onClick={() => {
@@ -539,27 +442,17 @@ export const LiveDebugPanel = ({ open, onOpenChange }: LiveDebugPanelProps) => {
                     <div className="space-y-1 text-sm">
                       <div className="flex items-center justify-between">
                         <span>Status:</span>
-                        <Badge variant={espnStats.isActive ? 'default' : 'secondary'}>
-                          {espnStats.emergencyStop ? 'EMERGENCY STOP' : espnStats.isActive ? 'Active' : 'Inactive'}
+                        <Badge variant={tank01Stats.isPolling ? 'default' : 'secondary'}>
+                          {tank01Stats.emergencyStop ? 'EMERGENCY STOP' : tank01Stats.isPolling ? 'Active' : 'Inactive'}
                         </Badge>
                       </div>
                       <div className="flex items-center justify-between">
-                        <span>Circuit Breaker:</span>
-                        <Badge variant={espnStats.circuitBreaker.isOpen ? 'destructive' : 'default'}>
-                          {espnStats.circuitBreaker.isOpen ? 'OPEN' : 'CLOSED'}
-                        </Badge>
+                        <span>Players Cached:</span>
+                        <span>{tank01Stats.playerCache.size}</span>
                       </div>
                       <div className="flex items-center justify-between">
-                        <span>Interval:</span>
-                        <span>{espnStats.intervalMs / 1000}s</span>
-                      </div>
-                      <div className="flex items-center justify-between">
-                        <span>Games Tracked:</span>
-                        <span>{espnStats.gamesTracked}</span>
-                      </div>
-                      <div className="flex items-center justify-between">
-                        <span>Failure Count:</span>
-                        <span>{espnStats.circuitBreaker.failureCount}/5</span>
+                        <span>Current Week:</span>
+                        <span>{tank01Stats.currentWeek || 'Unknown'}</span>
                       </div>
                     </div>
                   </div>
@@ -569,23 +462,11 @@ export const LiveDebugPanel = ({ open, onOpenChange }: LiveDebugPanelProps) => {
                     <div className="space-y-1 text-sm">
                       <div className="flex items-center justify-between">
                         <span>Total Requests:</span>
-                        <span>{espnStats.requestMetrics.totalRequests}</span>
+                        <span>{tank01Stats.requestMetrics.totalRequests}</span>
                       </div>
                       <div className="flex items-center justify-between">
-                        <span>Success Rate:</span>
-                        <span>
-                          {espnStats.requestMetrics.totalRequests > 0 
-                            ? Math.round((espnStats.requestMetrics.successfulRequests / espnStats.requestMetrics.totalRequests) * 100)
-                            : 0}%
-                        </span>
-                      </div>
-                      <div className="flex items-center justify-between">
-                        <span>This Minute:</span>
-                        <span>{espnStats.requestMetrics.requestsThisMinute}/10</span>
-                      </div>
-                      <div className="flex items-center justify-between">
-                        <span>Last Request:</span>
-                        <span>{espnStats.requestMetrics.lastRequestTime ? new Date(espnStats.requestMetrics.lastRequestTime).toLocaleTimeString() : 'Never'}</span>
+                        <span>Daily Quota:</span>
+                        <span>{tank01Stats.dailyQuota.used} / {tank01Stats.dailyQuota.limit}</span>
                       </div>
                     </div>
                   </div>
@@ -593,11 +474,11 @@ export const LiveDebugPanel = ({ open, onOpenChange }: LiveDebugPanelProps) => {
 
                 <div className="flex gap-2 mb-4">
                   <Button 
-                    onClick={toggleESPNPolling}
-                    variant={espnStats.isActive ? 'destructive' : 'default'}
-                    disabled={espnStats.emergencyStop}
+                    onClick={toggleTank01Polling}
+                    variant={tank01Stats.isPolling ? 'destructive' : 'default'}
+                    disabled={tank01Stats.emergencyStop}
                   >
-                    {espnStats.isActive ? (
+                    {tank01Stats.isPolling ? (
                       <>
                         <AlertTriangle className="w-4 h-4 mr-2" />
                         Stop Polling
@@ -613,13 +494,13 @@ export const LiveDebugPanel = ({ open, onOpenChange }: LiveDebugPanelProps) => {
                   <Button 
                     onClick={emergencyStopPolling}
                     variant="destructive"
-                    disabled={espnStats.emergencyStop}
+                    disabled={tank01Stats.emergencyStop}
                   >
                     <Zap className="w-4 h-4 mr-2" />
                     EMERGENCY STOP
                   </Button>
                   
-                  {espnStats.emergencyStop && (
+                  {tank01Stats.emergencyStop && (
                     <Button 
                       onClick={resetEmergencyStop}
                       variant="outline"
@@ -633,8 +514,8 @@ export const LiveDebugPanel = ({ open, onOpenChange }: LiveDebugPanelProps) => {
                 <div className="p-3 rounded-lg bg-muted/30 border">
                   <h4 className="font-medium text-sm mb-2">Live Game Detection</h4>
                   <p className="text-xs text-muted-foreground mb-2">
-                    ESPN API is polled during game hours to detect scoring events in real-time. 
-                    Events are matched to fantasy rosters using the PlayerMappingService.
+                    Tank01 API is polled during game hours to detect scoring events in real-time. 
+                    Events are matched to fantasy rosters using player ID mappings.
                   </p>
                   <div className="text-xs space-y-1">
                     <div>• Scoring plays (TDs, FGs, safeties)</div>
@@ -643,83 +524,6 @@ export const LiveDebugPanel = ({ open, onOpenChange }: LiveDebugPanelProps) => {
                     <div>• Statistical milestones</div>
                   </div>
                 </div>
-              </CardContent>
-            </Card>
-          </TabsContent>
-
-          {/* ESPN Simulation Tab */}
-          <TabsContent value="simulation" className="space-y-4">
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-base">ESPN Play-by-Play Simulation</CardTitle>
-                <CardDescription>
-                  Simulate realistic ESPN scoring events for testing the live events system
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="p-3 rounded-lg bg-muted/50 border">
-                  <h4 className="font-medium text-sm mb-2">Simulation Configuration</h4>
-                  <div className="space-y-1 text-sm">
-                    <div>• 100 events over 20 minutes</div>
-                    <div>• Events for all roster players across leagues</div>
-                    <div>• Realistic ESPN API format</div>
-                    <div>• Covers TDs, big plays, field goals, turnovers</div>
-                    <div>• Processed through normal live events flow</div>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="p-3 rounded-lg bg-muted/50 border">
-                    <h4 className="font-medium text-sm mb-2">Current Status</h4>
-                    <div className="space-y-1 text-sm">
-                      <div className="flex items-center justify-between">
-                        <span>Simulation:</span>
-                        <Badge variant={isSimulating ? 'default' : 'secondary'}>
-                          {isSimulating ? 'Running' : 'Stopped'}
-                        </Badge>
-                      </div>
-                      <div className="flex items-center justify-between">
-                        <span>Enabled Leagues:</span>
-                        <span>{config.leagues.filter(l => l.enabled).length}</span>
-                      </div>
-                    </div>
-                  </div>
-                  
-                  <div className="p-3 rounded-lg bg-muted/50 border">
-                    <h4 className="font-medium text-sm mb-2">Event Types</h4>
-                    <div className="text-xs space-y-1">
-                      <div>• Rushing/Passing/Receiving TDs</div>
-                      <div>• Long yardage plays (20+ yards)</div>
-                      <div>• Field goals and extra points</div>
-                      <div>• Turnovers (INTs, fumbles)</div>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="space-y-2">
-                  <Button 
-                    onClick={startESPNSimulation}
-                    variant={isSimulating ? 'destructive' : 'default'}
-                    className="w-full"
-                    disabled={config.leagues.filter(l => l.enabled).length === 0}
-                  >
-                    <Zap className="w-4 h-4 mr-2" />
-                    {isSimulating ? 'Stop ESPN Simulation' : 'Start ESPN Simulation'}
-                  </Button>
-                  
-                  {config.leagues.filter(l => l.enabled).length === 0 && (
-                    <p className="text-xs text-muted-foreground text-center">
-                      Enable at least one league to run simulation
-                    </p>
-                  )}
-                </div>
-
-                {simulationProgress && (
-                  <div className="p-3 rounded-lg bg-muted/30 border">
-                    <h4 className="font-medium text-sm mb-1">Progress</h4>
-                    <p className="text-sm text-muted-foreground">{simulationProgress}</p>
-                  </div>
-                )}
               </CardContent>
             </Card>
           </TabsContent>
@@ -771,12 +575,12 @@ export const LiveDebugPanel = ({ open, onOpenChange }: LiveDebugPanelProps) => {
                       <span>Sleeper: Available (public API)</span>
                     </div>
                     <div className="flex items-center gap-2">
-                      {espnStats.isActive ? (
+                      {tank01Stats.isPolling ? (
                         <CheckCircle className="w-4 h-4 text-success" />
                       ) : (
                         <AlertTriangle className="w-4 h-4 text-warning" />
                       )}
-                      <span>ESPN: {espnStats.isActive ? `Polling (${espnStats.gamesTracked} games)` : 'Not polling'}</span>
+                      <span>Tank01: {tank01Stats.isPolling ? `Polling (${tank01Stats.playerCache.size} players)` : 'Not polling'}</span>
                     </div>
                   </div>
                 </div>
