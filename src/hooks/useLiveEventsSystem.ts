@@ -1,10 +1,10 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
-import { debugLogger } from '../utils/debugLogger';
-import { tank01NFLDataService, NFLScoringEvent } from '../services/Tank01NFLDataService';
-import { eventAttributionService, FantasyEventAttribution } from '../services/EventAttributionService';
-import { eventStorageService, ConfigScoringEvent } from '../services/EventStorageService';
-import { LeagueConfig } from '../types/config';
-import { ScoringEvent, ScoringEventForDisplay, LeagueData } from '../types/fantasy';
+import { useState, useEffect, useCallback, useRef } from "react";
+import { debugLogger } from "../utils/debugLogger";
+import { tank01NFLDataService } from "../services/Tank01NFLDataService";
+import { eventAttributionService } from "../services/EventAttributionService";
+import { eventStorageService } from "../services/EventStorageService";
+import { LeagueConfig } from "../types/config";
+import { ScoringEvent } from "../types/fantasy";
 
 export interface LiveEventsState {
   isActive: boolean;
@@ -22,11 +22,7 @@ interface UseLiveEventsOptions {
   pollingInterval?: number;
 }
 
-export const useLiveEventsSystem = ({
-  leagues,
-  enabled,
-  pollingInterval = 30000
-}: UseLiveEventsOptions) => {
+export const useLiveEventsSystem = ({ leagues, enabled, pollingInterval = 300000 }: UseLiveEventsOptions) => {
   const [liveState, setLiveState] = useState<LiveEventsState>({
     isActive: false,
     isPolling: false,
@@ -38,13 +34,14 @@ export const useLiveEventsSystem = ({
   });
 
   const [recentEvents, setRecentEvents] = useState<ScoringEvent[]>([]);
-  const eventCallbacks = useRef<(() => void)[]>([]);
   const isInitialized = useRef(false);
+  const isInitializing = useRef(false);
 
-  // Initialize system
+  // Initialize the system
   const initializeSystem = useCallback(async () => {
-    if (!enabled || leagues.length === 0 || isInitialized.current) {
-      debugLogger.info('LIVE_EVENTS', 'Skipping initialization', {
+    if (isInitializing.current || !enabled || leagues.length === 0 || isInitialized.current) {
+      debugLogger.info('LIVEEVENTS', 'Skipping initialization', {
+        isInitializing: isInitializing.current,
         enabled,
         leagueCount: leagues.length,
         alreadyInitialized: isInitialized.current
@@ -52,8 +49,10 @@ export const useLiveEventsSystem = ({
       return;
     }
 
+    isInitializing.current = true;
+
     try {
-      debugLogger.info('LIVE_EVENTS', 'Initializing live events system', {
+      debugLogger.info('LIVEEVENTS', 'Initializing live events system', {
         leagueCount: leagues.length,
         enabled
       });
@@ -64,74 +63,90 @@ export const useLiveEventsSystem = ({
         await eventAttributionService.loadRosters(enabledLeagues);
       }
 
-      // Set up NFL scoring event callbacks using Tank01 service
-      const unsubscribeNFL = tank01NFLDataService.onScoringEvent((nflEvent: NFLScoringEvent) => {
-        debugLogger.info('LIVE_EVENTS', 'Processing NFL scoring event from Tank01', {
-          player: nflEvent.player.name,
-          eventType: nflEvent.eventType
-        });
+      // REMOVED: Event callback registration
+      // The Tank01 service doesn't emit events via callbacks anymore
+      // Events are polled and stored directly
 
-        // Attribute event to fantasy teams
-        const attribution = eventAttributionService.attributeEvent(nflEvent);
-        if (attribution) {
-          // Store events for each affected league
-          attribution.fantasyEvents.forEach(impact => {
-            const eventToStore: ConfigScoringEvent = {
-              id: `${nflEvent.id}-${impact.leagueId}`,
-              playerId: impact.player.platformPlayerId,
-              playerName: impact.player.name,
-              teamAbbr: impact.player.team,
-              eventType: impact.eventType,
-              description: impact.description,
-              fantasyPoints: impact.pointsScored,
-              timestamp: attribution.timestamp,
-              week: tank01NFLDataService.getServiceStatus().currentWeek || 1,
-              leagueId: impact.leagueId
-            };
-            
-            eventStorageService.addEvent(impact.leagueId, eventToStore);
-          });
+      // Get cache stats
+      const cacheStats = eventAttributionService.getCacheStats();
 
-          // Update state
-          setLiveState(prev => ({
-            ...prev,
-            lastEventTime: new Date().toISOString(),
-            eventCount: prev.eventCount + attribution.fantasyEvents.length
-          }));
-
-          // Update recent events
-          updateRecentEvents();
-        }
-      });
-
-      eventCallbacks.current.push(unsubscribeNFL);
       isInitialized.current = true;
 
-      // Update state
-      const cacheStats = eventAttributionService.getCacheStats();
       setLiveState(prev => ({
         ...prev,
-        connectedLeagues: cacheStats.rostersCount,
-        nflWeek: tank01NFLDataService.getServiceStatus().currentWeek || 1
+        connectedLeagues: cacheStats.rostersCount
       }));
 
-      debugLogger.success('LIVE_EVENTS', 'Live events system initialized', {
-        connectedLeagues: cacheStats.rostersCount
+      debugLogger.success('LIVEEVENTS', 'System initialized successfully', {
+        rostersLoaded: cacheStats.rostersCount,
+        playersCount: cacheStats.playersCount
       });
 
     } catch (error) {
-      debugLogger.error('LIVE_EVENTS', 'Failed to initialize live events system', error);
+      debugLogger.error('LIVEEVENTS', 'Failed to initialize system', error);
+      throw error;
+    } finally {
+      isInitializing.current = false;
     }
   }, [enabled, leagues]);
+
+  // Start the live events system
+  const startSystem = useCallback(async () => {
+    if (!isInitialized.current) {
+      await initializeSystem();
+    }
+
+    if (liveState.isActive) {
+      debugLogger.warning('LIVEEVENTS', 'System already active');
+      return;
+    }
+
+    try {
+      debugLogger.info('LIVEEVENTS', 'Starting Tank01 polling', { pollingInterval });
+
+      // Start Tank01 NFL data polling
+      await tank01NFLDataService.startPolling(pollingInterval);
+
+      setLiveState(prev => ({
+        ...prev,
+        isActive: true,
+        isPolling: true
+      }));
+
+      debugLogger.success('LIVEEVENTS', 'Live events system started');
+
+    } catch (error) {
+      debugLogger.error('LIVEEVENTS', 'Failed to start live events system', error);
+      throw error;
+    }
+  }, [initializeSystem, pollingInterval, liveState.isActive]);
+
+  // Stop the live events system
+  const stopSystem = useCallback(() => {
+    if (!liveState.isActive) {
+      return;
+    }
+
+    // Stop Tank01 polling
+    tank01NFLDataService.stopPolling();
+
+    setLiveState(prev => ({
+      ...prev,
+      isActive: false,
+      isPolling: false
+    }));
+
+    debugLogger.info('LIVEEVENTS', 'Live events system stopped');
+  }, [liveState.isActive]);
 
   // Update recent events from storage
   const updateRecentEvents = useCallback(() => {
     const allEvents: ScoringEvent[] = [];
-    
+
     for (const league of leagues.filter(l => l.enabled)) {
       const leagueEvents = eventStorageService.getEvents(league.leagueId);
       const recentLeagueEvents = leagueEvents
-        .slice(-5) // Last 5 events per league
+        .slice(-10) // Last 10 events per league
         .map(event => ({
           id: event.id,
           playerName: event.playerName,
@@ -140,20 +155,20 @@ export const useLiveEventsSystem = ({
           action: event.description,
           scoreImpact: event.fantasyPoints,
           timestamp: event.timestamp.toISOString(),
-          isRecent: Date.now() - event.timestamp.getTime() < 300000
+          isRecent: Date.now() - event.timestamp.getTime() < 300000 // 5 minutes
         }));
-      
+
       allEvents.push(...recentLeagueEvents);
     }
 
-    // Sort by timestamp and take most recent 10
+    // Sort by timestamp and take most recent 20
     allEvents.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
-    setRecentEvents(allEvents.slice(0, 10));
+    setRecentEvents(allEvents.slice(0, 20));
   }, [leagues]);
 
-  // Get live events for a specific league
-  const getLiveEventsForLeague = useCallback((league: LeagueData): ScoringEvent[] => {
-    const events = eventStorageService.getEvents(league.id);
+  // Get events for a specific league
+  const getLeagueEvents = useCallback((leagueId: string): ScoringEvent[] => {
+    const events = eventStorageService.getEvents(leagueId);
     return events.map(event => ({
       id: event.id,
       playerName: event.playerName,
@@ -166,76 +181,45 @@ export const useLiveEventsSystem = ({
     }));
   }, []);
 
-  // Start live polling
-  const startSystem = useCallback(async () => {
-    if (!isInitialized.current) {
-      await initializeSystem();
+  // Refresh rosters manually
+  const refreshRosters = useCallback(async () => {
+    if (!enabled || leagues.length === 0) {
+      return;
     }
 
     try {
-      // Start Tank01 NFL data polling
-      await tank01NFLDataService.startPolling(pollingInterval);
+      await eventAttributionService.refreshRosters(leagues.filter(l => l.enabled));
+      const cacheStats = eventAttributionService.getCacheStats();
 
       setLiveState(prev => ({
         ...prev,
-        isActive: true,
-        isPolling: true
+        connectedLeagues: cacheStats.rostersCount
       }));
 
-      debugLogger.success('LIVE_EVENTS', 'Live events system started');
+      debugLogger.success('LIVEEVENTS', 'Rosters refreshed successfully');
     } catch (error) {
-      debugLogger.error('LIVE_EVENTS', 'Failed to start live events system', error);
+      debugLogger.error('LIVEEVENTS', 'Failed to refresh rosters', error);
     }
-  }, [initializeSystem, pollingInterval]);
+  }, [enabled, leagues]);
 
-  // Stop live polling
-  const stopSystem = useCallback(() => {
-    // Stop Tank01 NFL data polling
-    tank01NFLDataService.stopPolling();
-
-    // Cleanup callbacks
-    eventCallbacks.current.forEach(cleanup => cleanup());
-    eventCallbacks.current = [];
-
-    setLiveState(prev => ({
-      ...prev,
-      isActive: false,
-      isPolling: false
-    }));
-
-    debugLogger.info('LIVE_EVENTS', 'Live events system stopped');
-  }, []);
-
-  // Trigger a test event for debugging
+  // Trigger test event for debugging
   const triggerTestEvent = useCallback(() => {
-    const testEvent: ConfigScoringEvent = {
-      id: `test-${Date.now()}`,
-      playerId: 'test-player',
-      playerName: 'Test Player',
-      teamAbbr: 'TEST',
-      eventType: 'rushing_td',
-      description: 'Test Player 5 yard touchdown run',
-      fantasyPoints: 6,
-      timestamp: new Date(),
-      week: tank01NFLDataService.getServiceStatus().currentWeek || 1,
-      leagueId: 'test-league'
-    };
-
-    eventStorageService.addEvent('test-league', testEvent);
+    debugLogger.info('LIVEEVENTS', 'Test event triggered (manual mode - no automatic event emission)');
+    
+    // Manual test event flow (for future implementation)
     updateRecentEvents();
-    debugLogger.info('LIVE_EVENTS', 'Test event triggered manually');
   }, [updateRecentEvents]);
 
-  // Initialize on mount if enabled - with debouncing
+  // Initialize on mount if enabled
   useEffect(() => {
     const timeoutId = setTimeout(() => {
       if (enabled && leagues.length > 0 && !isInitialized.current) {
         initializeSystem();
       }
-    }, 1000); // Delay initialization to prevent conflicts
+    }, 1000);
 
     return () => clearTimeout(timeoutId);
-  }, [enabled, leagues.length]); // Only depend on primitive values
+  }, [enabled, leagues.length, initializeSystem]);
 
   // Cleanup on unmount
   useEffect(() => {
@@ -243,6 +227,22 @@ export const useLiveEventsSystem = ({
       stopSystem();
     };
   }, [stopSystem]);
+
+  // Periodically update Tank01 stats
+  useEffect(() => {
+    if (!liveState.isActive) return;
+
+    const interval = setInterval(() => {
+      const status = tank01NFLDataService.getServiceStatus();
+      setLiveState(prev => ({
+        ...prev,
+        isPolling: status.isPolling,
+        activeGames: status.activeGames
+      }));
+    }, 5000); // Check every 5 seconds
+
+    return () => clearInterval(interval);
+  }, [liveState.isActive]);
 
   // Get debugging statistics
   const getCacheStats = useCallback(() => {
@@ -253,14 +253,20 @@ export const useLiveEventsSystem = ({
     };
   }, []);
 
+  const getState = useCallback(() => liveState, [liveState]);
+  const getRecentEvents = useCallback(() => recentEvents, [recentEvents]);
+
   return {
     liveState,
     recentEvents,
     isSystemReady: isInitialized.current,
-    getLiveEventsForLeague,
     startSystem,
     stopSystem,
+    refreshRosters,
+    getLeagueEvents,
     triggerTestEvent,
-    getCacheStats
+    getCacheStats,
+    getState,
+    getRecentEvents
   };
 };
