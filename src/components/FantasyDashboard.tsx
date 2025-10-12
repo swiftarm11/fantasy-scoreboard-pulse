@@ -29,6 +29,7 @@ import { MobileSettingsModal } from "./MobileSettingsModal";
 import { LeagueData } from "../types/fantasy";
 import { debugLogger } from "../utils/debugLogger";
 
+const DISABLE_AUTO_START = true;
 const DashboardContent = () => {
   const config = useConfig();
   const location = useLocation();
