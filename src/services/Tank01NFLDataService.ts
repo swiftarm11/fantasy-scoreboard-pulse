@@ -109,12 +109,13 @@ export class Tank01NFLDataService {
     lastReset: new Date()
   };
   
+  // DEVELOPMENT MODE - 500 req/day limit (change to 1000 for production)
   private readonly CIRCUIT_BREAKER_THRESHOLD = 3; // Lower threshold for paid API
   private readonly CIRCUIT_BREAKER_TIMEOUT = 120000; // 2 minutes
-  private readonly MAX_REQUESTS_PER_MINUTE = 16; // Pro plan: 1000/day ≈ 16/min safe
-  private readonly MAX_DAILY_REQUESTS = 1000; // Pro plan limit
-  private readonly DAILY_QUOTA_WARNING_THRESHOLD = 0.8; // Warn at 80% (800 requests)
-  private readonly DAILY_QUOTA_CIRCUIT_BREAKER = 0.9; // Stop at 90% (900 requests)
+  private readonly MAX_REQUESTS_PER_MINUTE = 8; // Dev mode: 500/day ≈ 8/min safe
+  private readonly MAX_DAILY_REQUESTS = 500; // Dev mode limit (change to 1000 for production)
+  private readonly DAILY_QUOTA_WARNING_THRESHOLD = 0.7; // Warn at 70% (350 requests)
+  private readonly DAILY_QUOTA_CIRCUIT_BREAKER = 0.85; // Stop at 85% (425 requests)
 
   private constructor() {}
 
@@ -127,8 +128,9 @@ export class Tank01NFLDataService {
 
   /**
    * Start polling for active NFL games using Tank01
+   * DEVELOPMENT MODE - 180s polling (change to 90s for production)
    */
-  public async startPolling(intervalMs: number = 90000): Promise<void> {
+  public async startPolling(intervalMs: number = 180000): Promise<void> {
     if (this.isPolling) {
       debugLogger.warning('TANK01_DATA', 'Polling already active, skipping start request');
       return;
@@ -151,7 +153,7 @@ export class Tank01NFLDataService {
       }
     }
 
-    this.pollingIntervalMs = Math.max(intervalMs, 90000); // Minimum 90 seconds for Pro plan
+    this.pollingIntervalMs = Math.max(intervalMs, 180000); // Minimum 180 seconds for dev mode (90s for production)
     this.isPolling = true;
     
     debugLogger.info('TANK01_DATA', 'Starting Tank01 NFL game polling', { 
