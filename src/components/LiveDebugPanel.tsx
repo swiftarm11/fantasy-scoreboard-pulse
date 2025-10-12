@@ -21,7 +21,7 @@ import { toast } from './ui/use-toast';
 import { debugLogger } from '../utils/debugLogger';
 import { useYahooData } from '../hooks/useYahooData';
 import { useYahooOAuth } from '../hooks/useYahooOAuth';
-import { nflDataService } from '../services/NFLDataService';
+import { tank01NFLDataService } from '../services/Tank01NFLDataService';
 import { espnSimulationService } from '../services/ESPNSimulationService';
 import { useESPNData } from '../hooks/useESPNData';
 import { useConfig } from '../hooks/useConfig';
@@ -35,7 +35,7 @@ export const LiveDebugPanel = ({ open, onOpenChange }: LiveDebugPanelProps) => {
   const [rawDataView, setRawDataView] = useState<any>(null);
   const [testResults, setTestResults] = useState<string>('');
   const [isRunningTest, setIsRunningTest] = useState(false);
-  const [espnStats, setEspnStats] = useState(nflDataService.getPollingStats());
+  const [tank01Stats, setTank01Stats] = useState(tank01NFLDataService.getServiceStatus());
   const [isSimulating, setIsSimulating] = useState(false);
   const [simulationProgress, setSimulationProgress] = useState('');
 
@@ -161,15 +161,10 @@ export const LiveDebugPanel = ({ open, onOpenChange }: LiveDebugPanelProps) => {
         }
       });
     } else if (platform === 'espn') {
-      const stats = nflDataService.getPollingStats();
+      const stats = tank01NFLDataService.getServiceStatus();
       setRawDataView({
-        platform: 'ESPN',
-        data: {
-          pollingStats: stats,
-          currentWeek: nflDataService.getCurrentWeek(),
-          isPolling: nflDataService.isCurrentlyPolling(),
-          timestamp: new Date().toISOString()
-        }
+        platform: 'Tank01',
+        data: stats
       });
     } else {
       setRawDataView({
@@ -192,11 +187,7 @@ export const LiveDebugPanel = ({ open, onOpenChange }: LiveDebugPanelProps) => {
         lastUpdated: yahooData.lastUpdated,
         error: yahooData.error
       } : null,
-      espnData: {
-        pollingStats: nflDataService.getPollingStats(),
-        currentWeek: nflDataService.getCurrentWeek(),
-        isPolling: nflDataService.isCurrentlyPolling()
-      },
+      tank01Data: tank01NFLDataService.getServiceStatus(),
       logs: debugLogger.getLogs().slice(0, 10) // Last 10 logs
     };
 
@@ -224,11 +215,11 @@ export const LiveDebugPanel = ({ open, onOpenChange }: LiveDebugPanelProps) => {
         await yahooData.fetchAvailableLeagues();
       }
       
-      // Refresh ESPN data by polling active games
+      // Refresh Tank01 data
       try {
-        await nflDataService.pollActiveGames();
-      } catch (espnError) {
-        debugLogger.error('DEBUG_PANEL', 'ESPN refresh failed during emergency refresh', espnError);
+        await tank01NFLDataService.manualPoll();
+      } catch (error) {
+        debugLogger.error('DEBUG_PANEL', 'Tank01 refresh failed', error);
       }
       
       toast({
@@ -244,26 +235,26 @@ export const LiveDebugPanel = ({ open, onOpenChange }: LiveDebugPanelProps) => {
     }
   };
 
-  // Start/Stop ESPN polling
-  const toggleESPNPolling = async () => {
+  // Start/Stop Tank01 polling
+  const toggleTank01Polling = async () => {
     try {
-      if (nflDataService.isCurrentlyPolling()) {
-        nflDataService.stopPolling();
+      if (tank01NFLDataService.getServiceStatus().isPolling) {
+        tank01NFLDataService.stopPolling();
         toast({
-          title: 'ESPN Polling Stopped',
+          title: 'Tank01 Polling Stopped',
           description: 'NFL game monitoring has been stopped'
         });
       } else {
-        await nflDataService.startPolling();
+        await tank01NFLDataService.startPolling();
         toast({
-          title: 'ESPN Polling Started',
+          title: 'Tank01 Polling Started',
           description: 'Now monitoring NFL games for live scoring events'
         });
       }
-      setEspnStats(nflDataService.getPollingStats());
+      setTank01Stats(tank01NFLDataService.getServiceStatus());
     } catch (error) {
       toast({
-        title: 'ESPN Polling Error',
+        title: 'Tank01 Polling Error',
         description: error instanceof Error ? error.message : 'Unknown error',
         variant: 'destructive'
       });
@@ -272,8 +263,8 @@ export const LiveDebugPanel = ({ open, onOpenChange }: LiveDebugPanelProps) => {
 
   // Emergency stop all polling
   const emergencyStopPolling = () => {
-    nflDataService.emergencyStopPolling();
-    setEspnStats(nflDataService.getPollingStats());
+    tank01NFLDataService.emergencyStopPolling();
+    setTank01Stats(tank01NFLDataService.getServiceStatus());
     toast({
       title: 'EMERGENCY STOP ACTIVATED',
       description: 'All API polling has been immediately halted',
@@ -283,8 +274,8 @@ export const LiveDebugPanel = ({ open, onOpenChange }: LiveDebugPanelProps) => {
 
   // Reset emergency stop
   const resetEmergencyStop = () => {
-    nflDataService.resetEmergencyStop();
-    setEspnStats(nflDataService.getPollingStats());
+    tank01NFLDataService.resetEmergencyStop();
+    setTank01Stats(tank01NFLDataService.getServiceStatus());
     toast({
       title: 'Emergency Stop Reset',
       description: 'Polling can now be restarted',
@@ -491,9 +482,9 @@ export const LiveDebugPanel = ({ open, onOpenChange }: LiveDebugPanelProps) => {
                     </div>
                   </div>
                   <div className="p-3 rounded-lg bg-muted/50 border">
-                    <div className="text-sm font-medium">Hybrid NFL Service</div>
+                    <div className="text-sm font-medium">Tank01 NFL Service</div>
                     <div className="text-xs text-muted-foreground mt-1">
-                      Status: {(window as any).hybridNFLDataService ? 
+                      Status: {(window as any).tank01NFLDataService ? 
                         <Badge variant="secondary">Ready</Badge> : 
                         <Badge variant="destructive">Not Initialized</Badge>
                       }
@@ -514,11 +505,11 @@ export const LiveDebugPanel = ({ open, onOpenChange }: LiveDebugPanelProps) => {
                 <div className="flex gap-2">
                   <Button 
                     onClick={() => {
-                      if ((window as any).hybridNFLDataService?.manualPoll) {
-                        (window as any).hybridNFLDataService.manualPoll();
+                      if ((window as any).tank01NFLDataService?.manualPoll) {
+                        (window as any).tank01NFLDataService.manualPoll();
                         toast({ title: 'Manual Poll Triggered', description: 'Fetching latest NFL data...' });
                       } else {
-                        toast({ title: 'Service Not Ready', description: 'Hybrid service not initialized', variant: 'destructive' });
+                        toast({ title: 'Service Not Ready', description: 'Tank01 service not initialized', variant: 'destructive' });
                       }
                     }}
                     variant="outline"

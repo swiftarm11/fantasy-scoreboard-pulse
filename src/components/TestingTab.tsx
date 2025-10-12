@@ -8,7 +8,7 @@ import { toast } from './ui/use-toast';
 import { LeagueConfig } from '../types/config';
 import { generateMockScoringEvent } from '../utils/mockEventGenerator';
 import { Tank01TestPanel } from './Tank01TestPanel';
-import { ESPNTestPanel } from './ESPNTestPanel';
+
 
 interface TestingTabProps {
   leagues: LeagueConfig[];
@@ -96,7 +96,6 @@ export const TestingTab = ({ leagues, onMockEvent }: TestingTabProps) => {
   return (
     <div className="space-y-4">
       <Tank01TestPanel />
-      <ESPNTestPanel />
       
       <Card>
         <CardHeader>

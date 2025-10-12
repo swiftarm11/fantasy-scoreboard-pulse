@@ -1,6 +1,6 @@
 import { useEffect } from 'react';
 import { debugLogger } from '../utils/debugLogger';
-import { hybridNFLDataService } from '../services/HybridNFLDataService';
+import { tank01NFLDataService } from '../services/Tank01NFLDataService';
 import { eventAttributionService } from '../services/EventAttributionService';
 import { eventStorageService } from '../services/EventStorageService';
 
@@ -13,7 +13,7 @@ export const useWindowServiceExposure = () => {
     // 🔍 [DEBUG] Expose all live events services to window for debugging
     try {
       // Core services
-      (window as any).hybridNFLDataService = hybridNFLDataService;
+      (window as any).tank01NFLDataService = tank01NFLDataService;
       (window as any).eventAttributionService = eventAttributionService;
       (window as any).eventStorageService = eventStorageService;
       (window as any).debugLogger = debugLogger;
@@ -22,7 +22,7 @@ export const useWindowServiceExposure = () => {
       (window as any).liveEventsDebug = {
         // Quick status check
         getStatus: () => ({
-          hybridNFL: hybridNFLDataService.getServiceStatus(),
+          tank01NFL: tank01NFLDataService.getServiceStatus(),
           attribution: eventAttributionService.getCacheStats(),
           storage: eventStorageService.getCacheStats(),
           liveManager: (window as any).liveEventsManager?.state || 'Not initialized'
@@ -31,7 +31,7 @@ export const useWindowServiceExposure = () => {
         // Force manual data refresh
         manualPoll: () => {
           debugLogger.info('DEBUG', 'Manual poll triggered from window');
-          return hybridNFLDataService.manualPoll?.();
+          return tank01NFLDataService.manualPoll?.();
         },
 
         // Trigger test event for debugging
@@ -54,7 +54,7 @@ export const useWindowServiceExposure = () => {
 
       debugLogger.success('DEBUG', '🪟 All live events services exposed to window for debugging', {
         services: [
-          'window.hybridNFLDataService',
+          'window.tank01NFLDataService',
           'window.eventAttributionService', 
           'window.eventStorageService',
           'window.debugLogger',
@@ -82,7 +82,7 @@ export const useWindowServiceExposure = () => {
     // Cleanup on unmount
     return () => {
       try {
-        delete (window as any).hybridNFLDataService;
+        delete (window as any).tank01NFLDataService;
         delete (window as any).eventAttributionService;
         delete (window as any).eventStorageService;
         delete (window as any).liveEventsDebug;

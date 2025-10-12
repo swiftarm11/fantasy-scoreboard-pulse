@@ -2,10 +2,9 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { debugLogger } from '../utils/debugLogger';
 import { LeagueConfig } from '../types/config';
 import { ScoringEvent, ScoringEventForDisplay, LeagueData } from '../types/fantasy';
-import { hybridNFLDataService } from '../services/HybridNFLDataService';
+import { tank01NFLDataService, NFLScoringEvent } from '../services/Tank01NFLDataService';
 import { eventAttributionService, FantasyEventAttribution } from '../services/EventAttributionService';
 import { eventStorageService } from '../services/EventStorageService';
-import { NFLScoringEvent } from '../services/NFLDataService';
 
 interface LiveEventsManagerState {
   isActive: boolean;
@@ -149,14 +148,13 @@ export const useLiveEventsManager = ({
 
       setState(prev => ({ ...prev, pollingStatus: 'starting' }));
 
-      // Step 1: Set up hybrid NFL event callbacks (Tank01 primary + ESPN fallback)
-      debugLogger.info('LIVE_EVENTS', '🔗 Step 2: Setting up NFL scoring event callbacks');
-      const unsubscribeNFL = hybridNFLDataService.onScoringEvent((event: NFLScoringEvent) => {
-        debugLogger.info('LIVE_EVENTS', '🏈 Received NFL scoring event from hybrid service', {
+      // Step 1: Set up Tank01 NFL event callbacks
+      debugLogger.info('LIVE_EVENTS', '🔗 Step 2: Setting up NFL scoring event callbacks (Tank01 only)');
+      const unsubscribeNFL = tank01NFLDataService.onScoringEvent((event: NFLScoringEvent) => {
+        debugLogger.info('LIVE_EVENTS', '🏈 Received NFL scoring event from Tank01', {
           player: event.player.name,
           eventType: event.eventType,
           gameId: event.gameId,
-          source: (event as any).source || 'unknown',
           timestamp: event.timestamp
         });
 
@@ -223,14 +221,13 @@ export const useLiveEventsManager = ({
 
       eventCallbackRefs.current.push(unsubscribeAttribution);
 
-      // Step 3: Start hybrid NFL data polling (Tank01 primary + ESPN fallback)
-      debugLogger.info('LIVE_EVENTS', '🎮 Step 4: Starting hybrid NFL data polling (Tank01 + ESPN)', {
+      // Step 3: Start Tank01 NFL data polling
+      debugLogger.info('LIVE_EVENTS', '🎮 Step 4: Starting Tank01 NFL data polling', {
         pollingInterval,
-        primarySource: 'Tank01',
-        fallbackSource: 'ESPN'
+        source: 'Tank01'
       });
       
-      await hybridNFLDataService.startPolling(pollingInterval);
+      await tank01NFLDataService.startPolling(pollingInterval);
 
       setState(prev => ({
         ...prev,
@@ -264,8 +261,8 @@ export const useLiveEventsManager = ({
       return;
     }
 
-    // Cleanup hybrid NFL polling
-    hybridNFLDataService.stopPolling();
+    // Cleanup Tank01 NFL polling
+    tank01NFLDataService.stopPolling();
 
     // Cleanup event callbacks
     eventCallbackRefs.current.forEach(cleanup => cleanup());
@@ -374,7 +371,7 @@ export const useLiveEventsManager = ({
     return {
       attribution: eventAttributionService.getCacheStats(),
       storage: eventStorageService.getCacheStats(),
-      hybrid: hybridNFLDataService.getServiceStatus()
+      tank01: tank01NFLDataService.getServiceStatus()
     };
   }, []);
 

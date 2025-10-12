@@ -1,8 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { debugLogger } from '../utils/debugLogger';
 import { useESPNData } from './useESPNData';
-import { NFLScoringEvent } from '../services/NFLDataService';
-import { hybridNFLDataService } from '../services/HybridNFLDataService';
+import { tank01NFLDataService, NFLScoringEvent } from '../services/Tank01NFLDataService';
 import { eventAttributionService, FantasyEventAttribution } from '../services/EventAttributionService';
 import { eventStorageService, ConfigScoringEvent } from '../services/EventStorageService';
 import { LeagueConfig } from '../types/config';
@@ -69,9 +68,9 @@ export const useLiveEventsSystem = ({
         await eventAttributionService.loadRosters(enabledLeagues);
       }
 
-      // Set up NFL scoring event callbacks using hybrid service
-      const unsubscribeNFL = hybridNFLDataService.onScoringEvent((nflEvent: NFLScoringEvent) => {
-        debugLogger.info('LIVE_EVENTS', 'Processing NFL scoring event', {
+      // Set up NFL scoring event callbacks using Tank01 service
+      const unsubscribeNFL = tank01NFLDataService.onScoringEvent((nflEvent: NFLScoringEvent) => {
+        debugLogger.info('LIVE_EVENTS', 'Processing NFL scoring event from Tank01', {
           player: nflEvent.player.name,
           eventType: nflEvent.eventType
         });
@@ -90,7 +89,7 @@ export const useLiveEventsSystem = ({
               description: impact.description,
               fantasyPoints: impact.pointsScored,
               timestamp: attribution.timestamp,
-              week: hybridNFLDataService.getServiceStatus().tank01Status?.currentWeek || 1,
+              week: tank01NFLDataService.getServiceStatus().currentWeek || 1,
               leagueId: impact.leagueId
             };
             
@@ -117,7 +116,7 @@ export const useLiveEventsSystem = ({
       setLiveState(prev => ({
         ...prev,
         connectedLeagues: cacheStats.rostersCount,
-        nflWeek: hybridNFLDataService.getServiceStatus().tank01Status?.currentWeek || 1
+        nflWeek: tank01NFLDataService.getServiceStatus().currentWeek || 1
       }));
 
       debugLogger.success('LIVE_EVENTS', 'Live events system initialized', {
@@ -178,8 +177,8 @@ export const useLiveEventsSystem = ({
     }
 
     try {
-      // Start hybrid NFL data polling (Tank01 + ESPN)
-      await hybridNFLDataService.startPolling(pollingInterval);
+      // Start Tank01 NFL data polling
+      await tank01NFLDataService.startPolling(pollingInterval);
       
       // Start ESPN data polling for scoreboard
       startESPNPolling();
@@ -198,8 +197,8 @@ export const useLiveEventsSystem = ({
 
   // Stop live polling
   const stopSystem = useCallback(() => {
-    // Stop hybrid NFL data polling
-    hybridNFLDataService.stopPolling();
+    // Stop Tank01 NFL data polling
+    tank01NFLDataService.stopPolling();
     stopESPNPolling();
 
     // Cleanup callbacks
@@ -226,7 +225,7 @@ export const useLiveEventsSystem = ({
       description: 'Test Player 5 yard touchdown run',
       fantasyPoints: 6,
       timestamp: new Date(),
-      week: hybridNFLDataService.getServiceStatus().tank01Status?.currentWeek || 1,
+      week: tank01NFLDataService.getServiceStatus().currentWeek || 1,
       leagueId: 'test-league'
     };
 
@@ -258,7 +257,7 @@ export const useLiveEventsSystem = ({
     return {
       storage: eventStorageService.getCacheStats(),
       attribution: eventAttributionService.getCacheStats(),
-      hybridData: hybridNFLDataService.getServiceStatus()
+      tank01Data: tank01NFLDataService.getServiceStatus()
     };
   }, []);
 

@@ -1,8 +1,7 @@
 import { debugLogger } from '../utils/debugLogger';
 import { safeLower } from '../utils/strings';
 import { playerMappingService, RosterPlayer } from './PlayerMappingService';
-import { NFLScoringEvent } from './NFLDataService';
-import { hybridNFLDataService } from './HybridNFLDataService';
+import { tank01NFLDataService, NFLScoringEvent } from './Tank01NFLDataService';
 import { yahooFantasyAPI } from './YahooFantasyAPI';
 import { sleeperAPIEnhanced } from './SleeperAPIEnhanced';
 import { sleeperService } from './SleeperService';
@@ -307,17 +306,18 @@ export class EventAttributionService {
         }
         break;
       case 'field_goal':
-        points = scoringSettings.pointsPerFieldGoal;
+        points = scoringSettings.pointsPerFieldGoal || 0;
         // Some leagues have distance bonuses - check custom rules
         if (stats.fieldGoalYards && scoringSettings.customRules[`fg_${stats.fieldGoalYards}_plus`]) {
           points += scoringSettings.customRules[`fg_${stats.fieldGoalYards}_plus`];
         }
         break;
       case 'safety':
-        points = scoringSettings.pointsPerSafety;
+        points = scoringSettings.pointsPerSafety || 0;
         break;
       case 'fumble':
-        points = scoringSettings.pointsPerFumble; // Usually negative
+      case 'fumble_lost':
+        points = scoringSettings.pointsPerFumble || 0; // Usually negative
         break;
       case 'interception':
         // This could be thrown (negative) or caught (positive for defense)
@@ -665,6 +665,7 @@ export class EventAttributionService {
       'field_goal': null, // Kickers not typically tracked in basic fantasy
       'safety': null,
       'fumble': null,
+      'fumble_lost': null,
       'interception': null
     };
 

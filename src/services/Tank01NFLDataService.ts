@@ -1,6 +1,25 @@
 import { debugLogger } from '../utils/debugLogger';
 import { supabase } from '../integrations/supabase/client';
-import { NFLScoringEvent } from './NFLDataService';
+
+// NFL Scoring Event - shared type for all NFL data sources
+export interface NFLScoringEvent {
+  id: string;
+  player: {
+    id: string;
+    name: string;
+    position: string;
+    team: string;
+  };
+  team: string;
+  eventType: 'passing_td' | 'rushing_td' | 'receiving_td' | 'passing_yards' | 'rushing_yards' | 'receiving_yards' | 'fumble_lost' | 'fumble' | 'interception' | 'field_goal' | 'safety';
+  description: string;
+  timestamp: Date;
+  stats: Record<string, number>;
+  gameId: string;
+  period: number;
+  clock: string;
+  scoringPlay: boolean;
+}
 
 // Tank01 API Data Structures
 export interface Tank01Player {

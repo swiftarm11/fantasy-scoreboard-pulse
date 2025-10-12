@@ -12,7 +12,7 @@ declare global {
     debugYahoo?: any;
     
     // Live Events services for debugging
-    hybridNFLDataService?: any;
+    tank01NFLDataService?: any;
     eventAttributionService?: any;
     eventStorageService?: any;
     debugLogger?: any;
