@@ -681,7 +681,7 @@ export class EventAttributionService {
           const player = roster.players.find(p => p.platformPlayerId === mapping.sleeper_id);
           if (player) {
             fantasyPlayers.push({
-              id: player.platformPlayerId,
+              id: `${roster.leagueId}-${player.platformPlayerId}`,
               name: player.name,
               team: mapping.team || player.team,
               position: mapping.position || player.position,
