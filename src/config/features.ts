@@ -4,11 +4,10 @@
  */
 
 export const FEATURE_FLAGS = {
-  // KILL SWITCH: Completely disables live events system
-  // Set to false when you're ready to enable live events again
-  LIVE_EVENTS_DISABLED: true,
+  // ✅ ENABLED - Live events system is ready to go
+  LIVE_EVENTS_DISABLED: false, // Changed from true
   
-  // Additional feature flags for future use
+  // Additional feature flags
   DEMO_MODE_ENABLED: false,
   YAHOO_OAUTH_ENABLED: true,
   SLEEPER_ENABLED: true,
