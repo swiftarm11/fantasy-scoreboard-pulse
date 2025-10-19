@@ -206,7 +206,10 @@ export class EventAttributionService {
         const roster = this.cache.rosters.get(fantasyPlayer.platform + '-' + fantasyPlayer.id.split('-')[0]); // Extract league ID
         if (!roster) continue;
 
-        const rosterPlayer = roster.players.find(p => p.platformPlayerId === fantasyPlayer.id);
+        // Extract just the player ID from composite ID format (leagueId-playerId)
+      const playerIdOnly = fantasyPlayer.id.includes('-') ? fantasyPlayer.id.split('-')[1] : fantasyPlayer.id;
+      const rosterPlayer = roster.players.find(p => p.platformPlayerId === playerIdOnly);
+
         if (!rosterPlayer) continue;
 
         const points = this.calculateFantasyImpact(nflEvent, roster.leagueId);
