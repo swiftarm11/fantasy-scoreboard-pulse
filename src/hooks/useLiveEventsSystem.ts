@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { debugLogger } from "../utils/debugLogger";
-import { tank01NFLDataService } from "../services/Tank01NFLDataService";
+import { tank01NFLDataService, NFLScoringEvent } from "../services/Tank01NFLDataService";
 import { eventAttributionService } from "../services/EventAttributionService";
 import { eventStorageService } from "../services/EventStorageService";
 import { LeagueConfig } from "../types/config";
@@ -36,16 +36,11 @@ export const useLiveEventsSystem = ({ leagues, enabled, pollingInterval = 300000
   const [recentEvents, setRecentEvents] = useState<ScoringEvent[]>([]);
   const isInitialized = useRef(false);
   const isInitializing = useRef(false);
+  const unsubscribeRef = useRef<(() => void) | null>(null);
 
   // Initialize the system
   const initializeSystem = useCallback(async () => {
     if (isInitializing.current || !enabled || leagues.length === 0 || isInitialized.current) {
-      debugLogger.info('LIVEEVENTS', 'Skipping initialization', {
-        isInitializing: isInitializing.current,
-        enabled,
-        leagueCount: leagues.length,
-        alreadyInitialized: isInitialized.current
-      });
       return;
     }
 
@@ -63,13 +58,36 @@ export const useLiveEventsSystem = ({ leagues, enabled, pollingInterval = 300000
         await eventAttributionService.loadRosters(enabledLeagues);
       }
 
-      // REMOVED: Event callback registration
-      // The Tank01 service doesn't emit events via callbacks anymore
-      // Events are polled and stored directly
+      // ✅ Subscribe to Tank01 scoring events
+      unsubscribeRef.current = tank01NFLDataService.onScoringEvent((nflEvent: NFLScoringEvent) => {
+        debugLogger.info('LIVEEVENTS', 'Received NFL scoring event', {
+          player: nflEvent.player.name,
+          type: nflEvent.eventType,
+          gameId: nflEvent.gameId
+        });
 
-      // Get cache stats
+        // Try to attribute to leagues
+        const attributedEvents = eventAttributionService.attributeEvent(nflEvent);
+        
+        debugLogger.info('LIVEEVENTS', `Event attributed to ${attributedEvents.length} leagues`);
+
+        // Store in each league
+        for (const event of attributedEvents) {
+          eventStorageService.addEvent(event.leagueId, event);
+        }
+
+        // Update state
+        setLiveState(prev => ({
+          ...prev,
+          eventCount: prev.eventCount + attributedEvents.length,
+          lastEventTime: new Date().toISOString()
+        }));
+
+        // Update recent events display
+        updateRecentEvents();
+      });
+
       const cacheStats = eventAttributionService.getCacheStats();
-
       isInitialized.current = true;
 
       setLiveState(prev => ({
@@ -78,8 +96,7 @@ export const useLiveEventsSystem = ({ leagues, enabled, pollingInterval = 300000
       }));
 
       debugLogger.success('LIVEEVENTS', 'System initialized successfully', {
-        rostersLoaded: cacheStats.rostersCount,
-        playersCount: cacheStats.playersCount
+        rostersLoaded: cacheStats.rostersCount
       });
 
     } catch (error) {
@@ -130,6 +147,12 @@ export const useLiveEventsSystem = ({ leagues, enabled, pollingInterval = 300000
     // Stop Tank01 polling
     tank01NFLDataService.stopPolling();
 
+    // Unsubscribe from events
+    if (unsubscribeRef.current) {
+      unsubscribeRef.current();
+      unsubscribeRef.current = null;
+    }
+
     setLiveState(prev => ({
       ...prev,
       isActive: false,
@@ -146,7 +169,7 @@ export const useLiveEventsSystem = ({ leagues, enabled, pollingInterval = 300000
     for (const league of leagues.filter(l => l.enabled)) {
       const leagueEvents = eventStorageService.getEvents(league.leagueId);
       const recentLeagueEvents = leagueEvents
-        .slice(-10) // Last 10 events per league
+        .slice(-10)
         .map(event => ({
           id: event.id,
           playerName: event.playerName,
@@ -155,13 +178,12 @@ export const useLiveEventsSystem = ({ leagues, enabled, pollingInterval = 300000
           action: event.description,
           scoreImpact: event.fantasyPoints,
           timestamp: event.timestamp.toISOString(),
-          isRecent: Date.now() - event.timestamp.getTime() < 300000 // 5 minutes
+          isRecent: Date.now() - event.timestamp.getTime() < 300000
         }));
 
       allEvents.push(...recentLeagueEvents);
     }
 
-    // Sort by timestamp and take most recent 20
     allEvents.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
     setRecentEvents(allEvents.slice(0, 20));
   }, [leagues]);
@@ -204,13 +226,40 @@ export const useLiveEventsSystem = ({ leagues, enabled, pollingInterval = 300000
 
   // Trigger test event for debugging
   const triggerTestEvent = useCallback(() => {
-    debugLogger.info('LIVEEVENTS', 'Test event triggered (manual mode - no automatic event emission)');
+    debugLogger.info('LIVEEVENTS', 'Triggering test event');
     
-    // Manual test event flow (for future implementation)
-    updateRecentEvents();
+    // Create a fake test event
+    const testEvent: NFLScoringEvent = {
+      id: `test-${Date.now()}`,
+      player: {
+        id: '4696981',
+        name: 'Test Player',
+        position: 'RB',
+        team: 'TEST'
+      },
+      team: 'TEST',
+      eventType: 'rushingtd',
+      description: 'Test rushing touchdown',
+      timestamp: new Date(),
+      stats: { rushingTouchdowns: 1, rushingYards: 5 },
+      gameId: 'test-game',
+      period: 1,
+      clock: '10:00',
+      scoringPlay: true
+    };
+
+    // Emit it through the system
+    if (unsubscribeRef.current) {
+      // Event will be processed by our callback
+      const attributedEvents = eventAttributionService.attributeEvent(testEvent);
+      for (const event of attributedEvents) {
+        eventStorageService.addEvent(event.leagueId, event);
+      }
+      updateRecentEvents();
+    }
   }, [updateRecentEvents]);
 
-  // Initialize on mount if enabled
+  // Initialize on mount if enabled (with 1 second delay for safety)
   useEffect(() => {
     const timeoutId = setTimeout(() => {
       if (enabled && leagues.length > 0 && !isInitialized.current) {
@@ -224,6 +273,9 @@ export const useLiveEventsSystem = ({ leagues, enabled, pollingInterval = 300000
   // Cleanup on unmount
   useEffect(() => {
     return () => {
+      if (unsubscribeRef.current) {
+        unsubscribeRef.current();
+      }
       stopSystem();
     };
   }, [stopSystem]);
@@ -239,7 +291,7 @@ export const useLiveEventsSystem = ({ leagues, enabled, pollingInterval = 300000
         isPolling: status.isPolling,
         activeGames: status.activeGames
       }));
-    }, 5000); // Check every 5 seconds
+    }, 5000);
 
     return () => clearInterval(interval);
   }, [liveState.isActive]);
