@@ -7,6 +7,7 @@ import { sleeperAPIEnhanced } from './SleeperAPIEnhanced';
 import { sleeperService } from './SleeperService';
 import { Platform, LeagueData, ScoringEvent } from '../types/fantasy';
 import { LeagueConfig } from '../types/config';
+import { supabase } from '../integrations/supabase/client';
 
 // Configuration interfaces for scoring events
 export interface ConfigScoringEvent {
@@ -100,7 +101,7 @@ interface RosterCache {
   rosters: Map<string, FantasyRoster>; // leagueId -> roster
   scoringSettings: Map<string, LeagueScoringSettings>; // leagueId -> settings
   lastUpdated: Date;
-  playerMappings: Map<string, RosterPlayer[]>; // ESPN player ID -> fantasy players
+  playerMappings: Map<string, RosterPlayer[]>; // Tank01 player ID -> fantasy players
 }
 
 export class EventAttributionService {
@@ -171,8 +172,8 @@ export class EventAttributionService {
       playerMappingService.buildPlayerIndex(rosterPlayers);
     }
 
-    // Build player mapping cache for quick lookups
-    this.buildPlayerMappingCache();
+    // Build player mapping cache for quick lookups (NOW WITH AWAIT!)
+    await this.buildPlayerMappingCache();
 
     this.cache.lastUpdated = now;
     this.saveCachedData();
@@ -275,48 +276,48 @@ export class EventAttributionService {
     const stats = nflEvent.stats;
 
     switch (nflEvent.eventType) {
-      case 'passing_td':
+      case 'passingtd':
         points = scoringSettings.pointsPerPassingTd;
         break;
-      case 'rushing_td':
+      case 'rushingtd':
         points = scoringSettings.pointsPerRushingTd;
         break;
-      case 'receiving_td':
+      case 'receivingtd':
         points = scoringSettings.pointsPerReceivingTd;
         if (scoringSettings.pointsPerReception > 0) {
           points += scoringSettings.pointsPerReception; // PPR bonus for TD reception
         }
         break;
-      case 'passing_yards':
-        if (stats.yards) {
-          points = stats.yards * scoringSettings.pointsPerPassingYard;
+      case 'passingyards':
+        if (stats.passingYards) {
+          points = stats.passingYards * scoringSettings.pointsPerPassingYard;
         }
         break;
-      case 'rushing_yards':
-        if (stats.yards) {
-          points = stats.yards * scoringSettings.pointsPerRushingYard;
+      case 'rushingyards':
+        if (stats.rushingYards) {
+          points = stats.rushingYards * scoringSettings.pointsPerRushingYard;
         }
         break;
-      case 'receiving_yards':
-        if (stats.yards) {
-          points = stats.yards * scoringSettings.pointsPerReceivingYard;
+      case 'receivingyards':
+        if (stats.receivingYards) {
+          points = stats.receivingYards * scoringSettings.pointsPerReceivingYard;
           if (scoringSettings.pointsPerReception > 0) {
             points += scoringSettings.pointsPerReception; // PPR bonus
           }
         }
         break;
-      case 'field_goal':
+      case 'fieldgoal':
         points = scoringSettings.pointsPerFieldGoal || 0;
         // Some leagues have distance bonuses - check custom rules
-        if (stats.fieldGoalYards && scoringSettings.customRules[`fg_${stats.fieldGoalYards}_plus`]) {
-          points += scoringSettings.customRules[`fg_${stats.fieldGoalYards}_plus`];
+        if (stats.fieldGoalDistance && scoringSettings.customRules[`fg_${stats.fieldGoalDistance}_plus`]) {
+          points += scoringSettings.customRules[`fg_${stats.fieldGoalDistance}_plus`];
         }
         break;
       case 'safety':
         points = scoringSettings.pointsPerSafety || 0;
         break;
       case 'fumble':
-      case 'fumble_lost':
+      case 'fumblelost':
         points = scoringSettings.pointsPerFumble || 0; // Usually negative
         break;
       case 'interception':
@@ -619,53 +620,104 @@ export class EventAttributionService {
         this.cache.scoringSettings.set(leagueConfig.leagueId, defaultScoring);
       }
 
+      debugLogger.success('EVENT_ATTRIBUTION', 'Sleeper roster loaded successfully', {
+        leagueId: leagueConfig.leagueId,
+        playerCount: fantasyPlayers.length
+      });
+
     } catch (error) {
       debugLogger.error('EVENT_ATTRIBUTION', 'Failed to load Sleeper roster', error);
       throw error;
     }
   }
 
-  private buildPlayerMappingCache(): void {
+  private async buildPlayerMappingCache(): Promise<void> {
     this.cache.playerMappings.clear();
 
-    for (const roster of this.cache.rosters.values()) {
-      for (const player of roster.players) {
-        // Try to find ESPN mapping for this fantasy player
-        const mapping = playerMappingService.findPlayer(player.name, player.team, player.position);
-        if (mapping && mapping.platforms.espn) {
-          const espnId = mapping.platforms.espn;
-          const existing = this.cache.playerMappings.get(espnId) || [];
-          
-          existing.push({
-            id: player.platformPlayerId,
-            name: player.name,
-            team: player.team,
-            position: player.position,
-            platform: roster.platform
-          });
+    debugLogger.info('EVENT_ATTRIBUTION', 'Building player mapping cache from database');
 
-          this.cache.playerMappings.set(espnId, existing);
+    // Collect all Sleeper player IDs from rosters
+    const sleeperPlayerIds: string[] = [];
+    for (const roster of this.cache.rosters.values()) {
+      if (roster.platform === 'Sleeper') {
+        for (const player of roster.players) {
+          sleeperPlayerIds.push(player.platformPlayerId);
         }
       }
     }
 
-    debugLogger.info('EVENT_ATTRIBUTION', 'Player mapping cache built', {
-      mappings: this.cache.playerMappings.size
-    });
+    if (sleeperPlayerIds.length === 0) {
+      debugLogger.warning('EVENT_ATTRIBUTION', 'No Sleeper players to map');
+      return;
+    }
+
+    try {
+      // Query player_mappings table to get Tank01 IDs for Sleeper players
+      const { data: mappings, error } = await supabase
+        .from('player_mappings')
+        .select('tank01_id, sleeper_id, name, team, position')
+        .in('sleeper_id', sleeperPlayerIds);
+
+      if (error) {
+        debugLogger.error('EVENT_ATTRIBUTION', 'Failed to query player mappings', error);
+        return;
+      }
+
+      if (!mappings || mappings.length === 0) {
+        debugLogger.warning('EVENT_ATTRIBUTION', 'No player mappings found in database');
+        return;
+      }
+
+      // Build Tank01 ID -> Fantasy Players mapping
+      for (const mapping of mappings) {
+        if (!mapping.tank01_id || !mapping.sleeper_id) continue;
+
+        // Find all fantasy teams that have this Sleeper player
+        const fantasyPlayers: RosterPlayer[] = [];
+
+        for (const roster of this.cache.rosters.values()) {
+          if (roster.platform !== 'Sleeper') continue;
+
+          const player = roster.players.find(p => p.platformPlayerId === mapping.sleeper_id);
+          if (player) {
+            fantasyPlayers.push({
+              id: player.platformPlayerId,
+              name: player.name,
+              team: mapping.team || player.team,
+              position: mapping.position || player.position,
+              platform: 'Sleeper'
+            });
+          }
+        }
+
+        if (fantasyPlayers.length > 0) {
+          this.cache.playerMappings.set(mapping.tank01_id, fantasyPlayers);
+        }
+      }
+
+      debugLogger.success('EVENT_ATTRIBUTION', 'Player mapping cache built from database', {
+        sleeperPlayers: sleeperPlayerIds.length,
+        mappingsFound: mappings.length,
+        tank01MappingsCreated: this.cache.playerMappings.size
+      });
+
+    } catch (error) {
+      debugLogger.error('EVENT_ATTRIBUTION', 'Failed to build player mapping cache', error);
+    }
   }
 
   private mapNFLEventToFantasyEvent(nflEventType: NFLScoringEvent['eventType']): ConfigScoringEvent['eventType'] | null {
     const mapping: Record<NFLScoringEvent['eventType'], ConfigScoringEvent['eventType'] | null> = {
-      'passing_td': 'passing_td',
-      'rushing_td': 'rushing_td',
-      'receiving_td': 'receiving_td',
-      'passing_yards': 'passing_yards',
-      'rushing_yards': 'rushing_yards',
-      'receiving_yards': 'receiving_yards',
-      'field_goal': null, // Kickers not typically tracked in basic fantasy
+      'passingtd': 'passing_td',
+      'rushingtd': 'rushing_td',
+      'receivingtd': 'receiving_td',
+      'passingyards': 'passing_yards',
+      'rushingyards': 'rushing_yards',
+      'receivingyards': 'receiving_yards',
+      'fieldgoal': null, // Kickers not typically tracked in basic fantasy
       'safety': null,
       'fumble': null,
-      'fumble_lost': null,
+      'fumblelost': null,
       'interception': null
     };
 
@@ -715,3 +767,8 @@ export class EventAttributionService {
 
 // Export singleton instance
 export const eventAttributionService = EventAttributionService.getInstance();
+
+// Expose to window for debugging
+if (typeof window !== 'undefined') {
+  (window as any).eventAttributionService = eventAttributionService;
+}
