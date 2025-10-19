@@ -391,56 +391,75 @@ export class Tank01NFLDataService {
   }
 
   /**
-   * Create NFLScoringEvent from Tank01 scoring play
-   */
-  private async createScoringEvent(play: Tank01ScoringPlay, gameId: string): Promise<NFLScoringEvent | null> {
-    // Get primary player ID (first in array)
-    const primaryPlayerId = play.playerIDs?.[0];
-    if (!primaryPlayerId) {
-      debugLogger.warning('TANK01', 'Scoring play has no player IDs', play);
-      return null;
-    }
+  /**
+ * Create NFLScoringEvent from Tank01 scoring play
+ */
+private async createScoringEvent(play: Tank01ScoringPlay, gameId: string): Promise<NFLScoringEvent | null> {
+  // Get primary player ID (usually first in array, or second for passing TDs)
+  let primaryPlayerId: string | undefined;
+  
+  // For passing TDs, the passer is usually second (receiver is first)
+  // For rushing TDs, rusher is first
+  // For FGs, kicker is first
+  if (play.scoreType === 'TD' && play.score.toLowerCase().includes('pass')) {
+    // Passing TD: [receiver, passer, kicker]
+    primaryPlayerId = play.playerIDs[1] || play.playerIDs[0];
+  } else {
+    // Rushing TD, FG, Safety: primary player is first
+    primaryPlayerId = play.playerIDs[0];
+  }
+  
+  if (!primaryPlayerId) {
+    debugLogger.warning('TANK01', 'Scoring play has no player IDs', play);
+    return null;
+  }
 
-    // Look up player info from Supabase
-    const { data: playerData, error } = await supabase
-      .from('player_mappings')
-      .select('*')
-      .eq('tank01_id', primaryPlayerId)
-      .single();
+  // Look up player info from Supabase
+  const { data: playerData, error } = await supabase
+    .from('player_mappings')
+    .select('*')
+    .eq('tank01_id', primaryPlayerId)
+    .single();
 
-    if (error || !playerData) {
-      debugLogger.warning('TANK01', `Player ${primaryPlayerId} not found in mappings`);
-      return null;
-    }
+  if (error || !playerData) {
+    debugLogger.warning('TANK01', `Player ${primaryPlayerId} not found in mappings`, {
+      playerId: primaryPlayerId,
+      playDescription: play.score
+    });
+    // Don't fail - continue without mapping
+    return null;
+  }
 
-    const eventType = this.mapScoreTypeToEventType(play.scoreType);
-    if (!eventType) {
-      return null;
-    }
+  const eventType = this.mapScoreTypeToEventType(play.scoreType, play.score);
+  if (!eventType) {
+    return null;
+  }
 
-    // Calculate stats based on score type
-    const stats = this.extractStats(play);
+  // Extract yards from description
+  const yards = this.extractYardsFromDescription(play.score);
 
-    const event: NFLScoringEvent = {
-      id: `tank01-${gameId}-${play.scorePeriod}-${play.scoreTime}-${primaryPlayerId}`,
-      player: {
-        id: primaryPlayerId,
-        name: playerData.name,
-        position: playerData.position,
-        team: playerData.team
-      },
-      team: playerData.team,
-      eventType,
-      description: play.scoreDescription || `${play.scoreType} in ${play.scorePeriod}`,
-      timestamp: new Date(),
-      stats,
-      gameId,
-      period: this.parsePeriod(play.scorePeriod),
-      clock: play.scoreTime,
-      scoringPlay: true
-    };
+  const event: NFLScoringEvent = {
+    id: `tank01-${gameId}-${play.scorePeriod}-${play.scoreTime}-${primaryPlayerId}`,
+    player: {
+      id: primaryPlayerId,
+      name: playerData.name,
+      position: playerData.position,
+      team: playerData.team
+    },
+    team: play.team,
+    eventType,
+    description: play.score,
+    timestamp: new Date(),
+    stats: this.calculateStats(eventType, yards),
+    gameId,
+    period: this.parsePeriod(play.scorePeriod),
+    clock: play.scoreTime,
+    scoringPlay: true
+  };
 
-    return event;
+  return event;
+}
+
   }
 
   /**
