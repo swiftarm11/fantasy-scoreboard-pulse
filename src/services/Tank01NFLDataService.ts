@@ -463,25 +463,36 @@ private async createScoringEvent(play: Tank01ScoringPlay, gameId: string): Promi
   }
 
   /**
-   * Map Tank01 scoreType to your event types
-   */
-  private mapScoreTypeToEventType(scoreType: string): NFLScoringEvent['eventType'] | null {
-    const lower = scoreType.toLowerCase();
-    
-    if (lower.includes('td') || lower.includes('touchdown')) {
-      if (lower.includes('pass')) return 'passingtd';
-      if (lower.includes('rush')) return 'rushingtd';
-      if (lower.includes('rec')) return 'receivingtd';
-      return 'rushingtd'; // Default TD
+  /**
+ * Map Tank01 scoreType to your event types
+ */
+private mapScoreTypeToEventType(scoreType: string, description: string): NFLScoringEvent['eventType'] | null {
+  if (scoreType === 'TD') {
+    const lowerDesc = description.toLowerCase();
+    if (lowerDesc.includes('pass from')) {
+      // Receiving TD
+      return 'receivingtd';
+    } else if (lowerDesc.includes('pass')) {
+      // Could be passing or receiving
+      return lowerDesc.includes('rush') ? 'rushingtd' : 'receivingtd';
+    } else if (lowerDesc.includes('rush')) {
+      return 'rushingtd';
     }
-    
-    if (lower.includes('fg') || lower.includes('field goal')) return 'fieldgoal';
-    if (lower.includes('int')) return 'interception';
-    if (lower.includes('fum')) return 'fumble';
-    if (lower.includes('safety')) return 'safety';
-    
-    return null;
+    // Default TD type
+    return 'rushingtd';
   }
+  
+  if (scoreType === 'FG') {
+    return 'fieldgoal';
+  }
+  
+  if (scoreType === 'SF') {
+    return 'safety';
+  }
+  
+  return null;
+}
+
 
   /**
    * Extract stats from scoring play
