@@ -67,21 +67,21 @@ export const useLiveEventsSystem = ({ leagues, enabled, pollingInterval = 300000
         });
 
         // Try to attribute to leagues
-        const attributedEvents = eventAttributionService.attributeEvent(nflEvent);
+      const attribution = eventAttributionService.attributeEvent(nflEvent);
+      
+      if (attribution) {
+        debugLogger.info('LIVEEVENTS', `Event attributed to ${attribution.fantasyEvents.length} fantasy impacts`);
         
-        debugLogger.info('LIVEEVENTS', `Event attributed to ${attributedEvents.length} leagues`);
+        // Note: Events are now handled by the attribution system
+        // Storage updated via callbacks in EventAttributionService
+      }
 
-        // Store in each league
-        for (const event of attributedEvents) {
-          eventStorageService.addEvent(event.leagueId, event);
-        }
-
-        // Update state
-        setLiveState(prev => ({
-          ...prev,
-          eventCount: prev.eventCount + attributedEvents.length,
-          lastEventTime: new Date().toISOString()
-        }));
+      // Update state
+      setLiveState(prev => ({
+        ...prev,
+        eventCount: prev.eventCount + (attribution?.fantasyEvents.length || 0),
+        lastEventTime: new Date().toISOString()
+      }));
 
         // Update recent events display
         updateRecentEvents();
@@ -251,9 +251,9 @@ export const useLiveEventsSystem = ({ leagues, enabled, pollingInterval = 300000
     // Emit it through the system
     if (unsubscribeRef.current) {
       // Event will be processed by our callback
-      const attributedEvents = eventAttributionService.attributeEvent(testEvent);
-      for (const event of attributedEvents) {
-        eventStorageService.addEvent(event.leagueId, event);
+      const attribution = eventAttributionService.attributeEvent(testEvent);
+      if (attribution) {
+        debugLogger.info('LIVEEVENTS', `Test event generated ${attribution.fantasyEvents.length} impacts`);
       }
       updateRecentEvents();
     }

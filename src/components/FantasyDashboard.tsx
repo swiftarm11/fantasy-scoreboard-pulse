@@ -51,8 +51,8 @@ const DashboardContent = () => {
   // Network status and demo league hooks with safe config access
   const isOnline = useNetworkStatus();
   const { demoLeague, triggerManualEvent } = useDemoLeague({
-    enabled: config?.demoMode?.enabled ?? false,
-    updateInterval: config?.demoMode?.updateInterval ?? 15,
+    enabled: config?.config?.demoMode?.enabled ?? false,
+    updateInterval: config?.config?.demoMode?.updateInterval ?? 15,
   });
 
   // UI State
@@ -292,7 +292,7 @@ const DashboardContent = () => {
         )}
 
         {/* Performance Dashboard (Debug Mode) */}
-        {config?.debug?.enabled && (
+        {config?.config?.debug?.enabled && (
           <div className="mt-4 p-4 bg-muted rounded-lg">
             <p className="text-sm text-muted-foreground">Debug Mode Active</p>
           </div>

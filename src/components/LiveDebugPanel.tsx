@@ -89,9 +89,9 @@ export const LiveDebugPanel = ({ open, onOpenChange }: LiveDebugPanelProps) => {
         
         try {
           const status = tank01NFLDataService.getServiceStatus();
-          setTestResults(prev => prev + `✅ Tank01: Service active (${status.playerCache.size} players cached)\n`);
+          setTestResults(prev => prev + `✅ Tank01: Service active (${status.requestMetrics.totalRequests} requests)\n`);
           setTestResults(prev => prev + `📊 Polling Status: ${status.isPolling ? 'Active' : 'Inactive'}\n`);
-          setTestResults(prev => prev + `📅 Current NFL Week: ${status.currentWeek || 'Unknown'}\n`);
+          setTestResults(prev => prev + `📊 Active Games: ${status.activeGames}\n`);
         } catch (error) {
           setTestResults(prev => prev + `❌ Tank01: Connection failed - ${error instanceof Error ? error.message : 'Unknown error'}\n`);
         }
@@ -176,7 +176,7 @@ export const LiveDebugPanel = ({ open, onOpenChange }: LiveDebugPanelProps) => {
       
       // Refresh Tank01 data
       try {
-        await tank01NFLDataService.manualPoll();
+        await tank01NFLDataService.pollActiveGames();
       } catch (error) {
         debugLogger.error('DEBUG_PANEL', 'Tank01 refresh failed', error);
       }
@@ -447,12 +447,12 @@ export const LiveDebugPanel = ({ open, onOpenChange }: LiveDebugPanelProps) => {
                         </Badge>
                       </div>
                       <div className="flex items-center justify-between">
-                        <span>Players Cached:</span>
-                        <span>{tank01Stats.playerCache.size}</span>
+                        <span>Active Games:</span>
+                        <span>{tank01Stats.activeGames}</span>
                       </div>
                       <div className="flex items-center justify-between">
-                        <span>Current Week:</span>
-                        <span>{tank01Stats.currentWeek || 'Unknown'}</span>
+                        <span>Requests:</span>
+                        <span>{tank01Stats.requestMetrics.totalRequests}</span>
                       </div>
                     </div>
                   </div>
@@ -580,7 +580,7 @@ export const LiveDebugPanel = ({ open, onOpenChange }: LiveDebugPanelProps) => {
                       ) : (
                         <AlertTriangle className="w-4 h-4 text-warning" />
                       )}
-                      <span>Tank01: {tank01Stats.isPolling ? `Polling (${tank01Stats.playerCache.size} players)` : 'Not polling'}</span>
+                      <span>Tank01: {tank01Stats.isPolling ? `Polling (${tank01Stats.activeGames} games)` : 'Not polling'}</span>
                     </div>
                   </div>
                 </div>

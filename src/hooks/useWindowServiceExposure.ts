@@ -31,7 +31,7 @@ export const useWindowServiceExposure = () => {
         // Force manual data refresh
         manualPoll: () => {
           debugLogger.info('DEBUG', 'Manual poll triggered from window');
-          return tank01NFLDataService.manualPoll?.();
+          return tank01NFLDataService.pollActiveGames();
         },
 
         // Trigger test event for debugging
