@@ -61,14 +61,18 @@ interface Tank01Game {
   };
 }
 
-// Tank01 Scoring Play from play-by-play
+// Tank01 Scoring Play from play-by-play - ACTUAL API STRUCTURE
 interface Tank01ScoringPlay {
-  playerIDs?: string[];
-  scoreType: string;
+  score: string;              // "CeeDee Lamb 74 Yd pass from Dak Prescott (Brandon Aubrey Kick)"
+  scorePeriod: string;        // "Q1", "Q2", etc.
+  homeScore: string;
+  awayScore: string;
   teamID: string;
-  scorePeriod: string;
+  scoreDetails: string;
+  scoreType: string;          // "TD", "FG", "SF"
   scoreTime: string;
-  scoreDescription?: string;
+  team: string;               // "DAL", "WSH"
+  playerIDs: string[];        // Array of player IDs involved
 }
 
 // Tank01 Play-by-Play Response
