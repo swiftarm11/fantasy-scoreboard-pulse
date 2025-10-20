@@ -58,6 +58,35 @@ export const useLiveEventsSystem = ({ leagues, enabled, pollingInterval = 300000
         await eventAttributionService.loadRosters(enabledLeagues);
       }
 
+      // ✅ Register callback to save attributed events to storage
+      eventAttributionService.onEventAttribution((attribution) => {
+        debugLogger.info('LIVEEVENTS', 'Attribution callback: Saving to storage', {
+          player: attribution.nflEvent.player.name,
+          impacts: attribution.fantasyEvents.length
+        });
+
+        // Save each fantasy impact to storage
+        for (const impact of attribution.fantasyEvents) {
+          const storageEvent = {
+            id: `${attribution.nflEvent.id}-${impact.leagueId}-${impact.teamId}`,
+            playerId: attribution.nflEvent.player.id,
+            playerName: impact.player.name,
+            teamAbbr: attribution.nflEvent.team,
+            eventType: impact.eventType,
+            description: impact.description,
+            fantasyPoints: impact.pointsScored,
+            timestamp: attribution.timestamp,
+            week: liveState.nflWeek,
+            leagueId: impact.leagueId
+          };
+
+          eventStorageService.addEvent(impact.leagueId, storageEvent);
+        }
+
+        // Update recent events display
+        updateRecentEvents();
+      });
+
       // ✅ Subscribe to Tank01 scoring events
       unsubscribeRef.current = tank01NFLDataService.onScoringEvent((nflEvent: NFLScoringEvent) => {
         debugLogger.info('LIVEEVENTS', 'Received NFL scoring event', {
@@ -67,21 +96,18 @@ export const useLiveEventsSystem = ({ leagues, enabled, pollingInterval = 300000
         });
 
         // Try to attribute to leagues
-      const attribution = eventAttributionService.attributeEvent(nflEvent);
-      
-      if (attribution) {
-        debugLogger.info('LIVEEVENTS', `Event attributed to ${attribution.fantasyEvents.length} fantasy impacts`);
+        const attribution = eventAttributionService.attributeEvent(nflEvent);
         
-        // Note: Events are now handled by the attribution system
-        // Storage updated via callbacks in EventAttributionService
-      }
+        if (attribution) {
+          debugLogger.info('LIVEEVENTS', `Event attributed to ${attribution.fantasyEvents.length} fantasy impacts`);
+        }
 
-      // Update state
-      setLiveState(prev => ({
-        ...prev,
-        eventCount: prev.eventCount + (attribution?.fantasyEvents.length || 0),
-        lastEventTime: new Date().toISOString()
-      }));
+        // Update state
+        setLiveState(prev => ({
+          ...prev,
+          eventCount: prev.eventCount + (attribution?.fantasyEvents.length || 0),
+          lastEventTime: new Date().toISOString()
+        }));
 
         // Update recent events display
         updateRecentEvents();
@@ -105,7 +131,7 @@ export const useLiveEventsSystem = ({ leagues, enabled, pollingInterval = 300000
     } finally {
       isInitializing.current = false;
     }
-  }, [enabled, leagues]);
+  }, [enabled, leagues, liveState.nflWeek]);
 
   // Start the live events system
   const startSystem = useCallback(async () => {
