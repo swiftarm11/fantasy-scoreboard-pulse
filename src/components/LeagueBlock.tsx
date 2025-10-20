@@ -31,6 +31,9 @@ export const LeagueBlock = React.memo(({ league, onClick }: LeagueBlockProps) =>
 
   // Memoized sorted events to prevent sorting on every render
   const sortedEvents = useMemo(() => {
+    if (!league.scoringEvents || !Array.isArray(league.scoringEvents)) {
+      return [];
+    }
     return [...league.scoringEvents]
       .sort((a, b) => {
         // Recent events first

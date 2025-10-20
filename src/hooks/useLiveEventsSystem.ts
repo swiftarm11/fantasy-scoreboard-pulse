@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { debugLogger } from "../utils/debugLogger";
 import { tank01NFLDataService, NFLScoringEvent } from "../services/Tank01NFLDataService";
 import { eventAttributionService } from "../services/EventAttributionService";
-import { eventStorageService } from "../services/EventStorageService";
+import { eventStorageService, ConfigScoringEvent } from "../services/EventStorageService";
 import { LeagueConfig } from "../types/config";
 import { ScoringEvent } from "../types/fantasy";
 
@@ -67,12 +67,34 @@ export const useLiveEventsSystem = ({ leagues, enabled, pollingInterval = 300000
 
         // Save each fantasy impact to storage
         for (const impact of attribution.fantasyEvents) {
-          const storageEvent = {
+          // Map NFL event types to ConfigScoringEvent types
+          const eventTypeMap: Record<string, ConfigScoringEvent['eventType']> = {
+            'passingtd': 'passing_td',
+            'passing_td': 'passing_td',
+            'rushingtd': 'rushing_td',
+            'rushing_td': 'rushing_td',
+            'receivingtd': 'receiving_td',
+            'receiving_td': 'receiving_td',
+            'passingyards': 'passing_yards',
+            'rushingyards': 'rushing_yards',
+            'receivingyards': 'receiving_yards',
+            'reception': 'reception',
+            'interception': 'interception',
+            'fumble': 'fumble',
+            'fumble_lost': 'fumble_lost',
+            'field_goal': 'field_goal',
+            'safety': 'safety',
+            'two_point_conversion': 'two_point_conversion'
+          };
+
+          const configEventType = eventTypeMap[impact.eventType.toLowerCase()] || 'rushing_td';
+
+          const storageEvent: ConfigScoringEvent = {
             id: `${attribution.nflEvent.id}-${impact.leagueId}-${impact.teamId}`,
             playerId: attribution.nflEvent.player.id,
             playerName: impact.player.name,
             teamAbbr: attribution.nflEvent.team,
-            eventType: impact.eventType,
+            eventType: configEventType,
             description: impact.description,
             fantasyPoints: impact.pointsScored,
             timestamp: attribution.timestamp,

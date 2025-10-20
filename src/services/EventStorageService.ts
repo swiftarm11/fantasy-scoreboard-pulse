@@ -6,7 +6,7 @@ export interface ConfigScoringEvent {
   playerId: string;
   playerName: string;
   teamAbbr: string;
-  eventType: 'rushing_td' | 'passing_td' | 'receiving_td' | 'rushing_yards' | 'passing_yards' | 'receiving_yards';
+  eventType: 'rushing_td' | 'passing_td' | 'receiving_td' | 'rushing_yards' | 'passing_yards' | 'receiving_yards' | 'reception' | 'interception' | 'fumble' | 'fumble_lost' | 'field_goal' | 'safety' | 'two_point_conversion';
   description: string;
   fantasyPoints: number;
   timestamp: Date;
