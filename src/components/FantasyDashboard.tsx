@@ -84,16 +84,18 @@ useEffect(() => {
   const breakpoint = useResponsiveBreakpoint();
   const { hasHaptics, isTouch } = useDeviceCapabilities();
 
- const displayLeagues = useMemo(() => {
+const displayLeagues = useMemo(() => {
   const allLeagues: LeagueData[] = [];
   
+  // Add demo league if enabled
   if (demoLeague) {
     allLeagues.push(demoLeague);
   }
   
+  // Add enhanced leagues (contains both Yahoo and Sleeper with live events)
   allLeagues.push(...enhancedLeagues);
   
-  // ✅ INJECT LIVE EVENTS FROM STORAGE
+  // ✅ ENRICH WITH LIVE EVENTS FROM STORAGE
   return allLeagues.map(league => {
     const storageEvents = eventStorageService.getEvents(league.id);
     
@@ -111,7 +113,7 @@ useEffect(() => {
     const existingEvents = league.scoringEvents || [];
     const allEvents = [...liveEvents, ...existingEvents];
     
-    // Remove duplicates and sort
+    // Remove duplicates and sort by timestamp
     const uniqueEvents = allEvents
       .filter((event, index, arr) => 
         arr.findIndex(e => e.id === event.id) === index
@@ -125,7 +127,8 @@ useEffect(() => {
       scoringEvents: uniqueEvents.slice(0, 10)
     };
   });
-}, [demoLeague, enhancedLeagues]);
+}, [demoLeague, enhancedLeagues, storageVersion]);
+
 
   // Loading and error states from enhanced dashboard
   const isLoading = dashboardLoading;
