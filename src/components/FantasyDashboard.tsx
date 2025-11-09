@@ -4,6 +4,7 @@ import { AlertCircle, Settings, Share2, RotateCcw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { eventStorageService } from "../services/EventStorageService";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useConfig } from "../hooks/useConfig";
@@ -66,20 +67,48 @@ const DashboardContent = () => {
   const breakpoint = useResponsiveBreakpoint();
   const { hasHaptics, isTouch } = useDeviceCapabilities();
 
-  // Use enhanced leagues from the new hook
-  const displayLeagues = useMemo(() => {
-    const allLeagues: LeagueData[] = [];
+ const displayLeagues = useMemo(() => {
+  const allLeagues: LeagueData[] = [];
+  
+  if (demoLeague) {
+    allLeagues.push(demoLeague);
+  }
+  
+  allLeagues.push(...enhancedLeagues);
+  
+  // ✅ INJECT LIVE EVENTS FROM STORAGE
+  return allLeagues.map(league => {
+    const storageEvents = eventStorageService.getEvents(league.id);
     
-    // Add demo league if enabled
-    if (demoLeague) {
-      allLeagues.push(demoLeague);
-    }
+    const liveEvents = storageEvents.map(event => ({
+      id: event.id,
+      playerName: event.playerName,
+      position: event.teamAbbr,
+      weeklyPoints: event.fantasyPoints,
+      action: event.description,
+      scoreImpact: event.fantasyPoints,
+      timestamp: event.timestamp.toISOString(),
+      isRecent: Date.now() - event.timestamp.getTime() < 300000
+    }));
     
-    // Add enhanced leagues (contains both Yahoo and Sleeper with live events)
-    allLeagues.push(...enhancedLeagues);
+    const existingEvents = league.scoringEvents || [];
+    const allEvents = [...liveEvents, ...existingEvents];
     
-    return allLeagues;
-  }, [demoLeague, enhancedLeagues]);
+    // Remove duplicates and sort
+    const uniqueEvents = allEvents
+      .filter((event, index, arr) => 
+        arr.findIndex(e => e.id === event.id) === index
+      )
+      .sort((a, b) => 
+        new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
+      );
+    
+    return {
+      ...league,
+      scoringEvents: uniqueEvents.slice(0, 10)
+    };
+  });
+}, [demoLeague, enhancedLeagues]);
 
   // Loading and error states from enhanced dashboard
   const isLoading = dashboardLoading;
