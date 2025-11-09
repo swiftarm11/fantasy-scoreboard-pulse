@@ -165,6 +165,35 @@ export const useFantasyDashboardWithLiveEvents = (): UseFantasyDashboardReturn =
       setIsLoading(false);
     }
   }, [refreshYahooData, refreshSleeperData]);
+  // ✅ AUTO-START LIVE EVENTS SYSTEM
+  useEffect(() => {
+    if (!FEATURE_FLAGS.LIVE_EVENTS_DISABLED && allLeagueConfigs.length > 0 && !isLiveSystemReady) {
+      debugLogger.info('DASHBOARD', 'Auto-starting live events system');
+      
+      // Small delay to ensure rosters are loaded
+      const timer = setTimeout(() => {
+        startLiveEvents().catch(error => {
+          debugLogger.error('DASHBOARD', 'Failed to auto-start live events', error);
+        });
+      }, 2000);
+      
+      return () => clearTimeout(timer);
+    }
+  }, [allLeagueConfigs.length, isLiveSystemReady, startLiveEvents]);
+
+  return {
+    leagues: combinedLeagues,
+    isLoading,
+    error,
+    lastUpdated,
+    liveEventsState,
+    isLiveSystemReady,
+    startLiveEvents,
+    stopLiveEvents,
+    refreshData,
+    refreshRosters
+  };
+};
 
   return {
     leagues: combinedLeagues,
