@@ -84,50 +84,18 @@ useEffect(() => {
   const breakpoint = useResponsiveBreakpoint();
   const { hasHaptics, isTouch } = useDeviceCapabilities();
 
-const displayLeagues = useMemo(() => {
-  const allLeagues: LeagueData[] = [];
-  
-  // Add demo league if enabled
-  if (demoLeague) {
-    allLeagues.push(demoLeague);
-  }
-  
-  // Add enhanced leagues (contains both Yahoo and Sleeper with live events)
-  allLeagues.push(...enhancedLeagues);
-  
-  // ✅ ENRICH WITH LIVE EVENTS FROM STORAGE
-  return allLeagues.map(league => {
-    const storageEvents = eventStorageService.getEvents(league.id);
+  // ✅ Simple pass-through - enrichment already happens in useFantasyDashboardWithLiveEvents
+  const displayLeagues = useMemo(() => {
+    const allLeagues: LeagueData[] = [];
     
-    const liveEvents = storageEvents.map(event => ({
-      id: event.id,
-      playerName: event.playerName,
-      position: event.teamAbbr,
-      weeklyPoints: event.fantasyPoints,
-      action: event.description,
-      scoreImpact: event.fantasyPoints,
-      timestamp: event.timestamp.toISOString(),
-      isRecent: Date.now() - event.timestamp.getTime() < 300000
-    }));
+    if (demoLeague) {
+      allLeagues.push(demoLeague);
+    }
     
-    const existingEvents = league.scoringEvents || [];
-    const allEvents = [...liveEvents, ...existingEvents];
+    allLeagues.push(...enhancedLeagues); // Already enriched with live events!
     
-    // Remove duplicates and sort by timestamp
-    const uniqueEvents = allEvents
-      .filter((event, index, arr) => 
-        arr.findIndex(e => e.id === event.id) === index
-      )
-      .sort((a, b) => 
-        new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
-      );
-    
-    return {
-      ...league,
-      scoringEvents: uniqueEvents.slice(0, 10)
-    };
-  });
-}, [demoLeague, enhancedLeagues, storageVersion]);
+    return allLeagues;
+  }, [demoLeague, enhancedLeagues]);
 
 
   // Loading and error states from enhanced dashboard
