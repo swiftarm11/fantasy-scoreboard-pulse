@@ -146,41 +146,19 @@ export class SleeperAPIEnhanced {
   async getPlayers(): Promise<Record<string, SleeperPlayer>> {
     const now = Date.now();
     
-    // Check if cache is still valid
+    // Check if in-memory cache is still valid (5 minutes)
     if (this.playersCache && (now - this.playersCacheTimestamp) < this.CACHE_DURATION) {
       return this.playersCache;
     }
 
-    // Try to load from IndexedDB first
-    try {
-      const cachedData = localStorage.getItem('sleeper_players_cache');
-      const cacheTimestamp = localStorage.getItem('sleeper_players_timestamp');
-      
-      if (cachedData && cacheTimestamp) {
-        const timestamp = parseInt(cacheTimestamp);
-        if ((now - timestamp) < this.CACHE_DURATION) {
-          this.playersCache = JSON.parse(cachedData);
-          this.playersCacheTimestamp = timestamp;
-          return this.playersCache;
-        }
-      }
-    } catch (e) {
-      console.warn('Failed to load players from cache:', e);
-    }
-
-    // Fetch fresh data
+    // Fetch fresh data from API
+    // Note: localStorage caching removed to prevent QuotaExceededError
+    // In-memory cache is sufficient for a single session
     const players = await this.callAPI('players');
     
-    // Cache the data
+    // Cache in memory only
     this.playersCache = players;
     this.playersCacheTimestamp = now;
-    
-    try {
-      localStorage.setItem('sleeper_players_cache', JSON.stringify(players));
-      localStorage.setItem('sleeper_players_timestamp', now.toString());
-    } catch (e) {
-      console.warn('Failed to cache players data:', e);
-    }
 
     return players;
   }
