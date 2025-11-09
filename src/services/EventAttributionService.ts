@@ -729,7 +729,53 @@ export class EventAttributionService {
 
   private generateFantasyDescription(nflEvent: NFLScoringEvent, points: number): string {
     const sign = points >= 0 ? '+' : '';
-    return `${nflEvent.description} (${sign}${points} pts)`;
+    const pts = `(${sign}${points} pts)`;
+    const stats = nflEvent.stats;
+
+    // Generate delta-based descriptions showing the specific play
+    switch (nflEvent.eventType) {
+      case 'passingtd':
+        const passYards = stats.passingYards || 0;
+        return `${passYards}-yard TD pass ${pts}`;
+      
+      case 'rushingtd':
+        const rushYards = stats.rushingYards || 0;
+        return `${rushYards}-yard rushing TD ${pts}`;
+      
+      case 'receivingtd':
+        const recYards = stats.receivingYards || 0;
+        return `${recYards}-yard TD reception ${pts}`;
+      
+      case 'receivingyards':
+        const yards = stats.receivingYards || 0;
+        return `${yards}-yard reception ${pts}`;
+      
+      case 'rushingyards':
+        const rushYd = stats.rushingYards || 0;
+        return `${rushYd}-yard rush ${pts}`;
+      
+      case 'passingyards':
+        const passYd = stats.passingYards || 0;
+        return `${passYd}-yard pass ${pts}`;
+      
+      case 'fieldgoal':
+        const fgDistance = stats.fieldGoalDistance || 0;
+        return `${fgDistance}-yard FG ${pts}`;
+      
+      case 'interception':
+        return `Interception thrown ${pts}`;
+      
+      case 'fumble':
+      case 'fumblelost':
+        return `Fumble lost ${pts}`;
+      
+      case 'safety':
+        return `Safety ${pts}`;
+      
+      default:
+        // Fallback to original description if event type is unknown
+        return `${nflEvent.description} ${pts}`;
+    }
   }
 
   private loadCachedData(): void {
