@@ -77,11 +77,7 @@ useEffect(() => {
     updateInterval: config?.config?.demoMode?.updateInterval ?? 15,
   });
 
-  // UI State
-  const [settingsOpen, setSettingsOpen] = useState(false);
-  const [exportShareOpen, setExportShareOpen] = useState(false);
-  const [isRefreshing, setIsRefreshing] = useState(false);
-  const [currentLeagueIndex, setCurrentLeagueIndex] = useState(0);
+  // UI State (declarations moved up to line 51-54)
 
   // Mobile and responsive hooks
   const isMobile = useIsMobile();
