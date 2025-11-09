@@ -48,6 +48,27 @@ const DashboardContent = () => {
     refreshData: refreshAllData,
     refreshRosters,
   } = useFantasyDashboardWithLiveEvents();
+const [settingsOpen, setSettingsOpen] = useState(false);
+const [exportShareOpen, setExportShareOpen] = useState(false);
+const [isRefreshing, setIsRefreshing] = useState(false);
+const [currentLeagueIndex, setCurrentLeagueIndex] = useState(0);
+
+// ✅ ADD THESE LINES FOR STORAGE SYNC
+const [storageVersion, setStorageVersion] = useState(0);
+
+useEffect(() => {
+  const handleStorageChange = () => {
+    setStorageVersion(v => v + 1);
+  };
+  
+  const interval = setInterval(handleStorageChange, 2000);
+  window.addEventListener('fantasy-storage-update', handleStorageChange);
+  
+  return () => {
+    clearInterval(interval);
+    window.removeEventListener('fantasy-storage-update', handleStorageChange);
+  };
+}, []);
 
   // Network status and demo league hooks with safe config access
   const isOnline = useNetworkStatus();
