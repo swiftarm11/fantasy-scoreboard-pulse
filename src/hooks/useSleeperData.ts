@@ -103,7 +103,7 @@ export const useSleeperData = (leagueConfigs: LeagueConfig[]): UseSleeperDataRet
                             `${opponentUser?.display_name || opponentUser?.username || 'Unknown'}'s Team`;
 
     return {
-      id: config.id,
+      id: config.leagueId,  // ✅ Use platform ID for consistency with event storage
       leagueName: config.customTeamName || league.name,
       platform: 'Sleeper',
       teamName: config.customTeamName || userTeamName,
