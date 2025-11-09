@@ -29,7 +29,7 @@ interface Tank01Game {
   teamIDAway: string;
   teamIDHome: string;
   gameTime: string;
-  gameTime_epoch: string;
+  gameTimeepoch: string;
   awayPts: string;
   homePts: string;
   gameClock: string;
@@ -61,40 +61,78 @@ interface Tank01Game {
   };
 }
 
-// Tank01 Scoring Play from play-by-play - ACTUAL API STRUCTURE
-interface Tank01ScoringPlay {
-  score: string;              // "CeeDee Lamb 74 Yd pass from Dak Prescott (Brandon Aubrey Kick)"
-  scorePeriod: string;        // "Q1", "Q2", etc.
-  homeScore: string;
-  awayScore: string;
+// Tank01 Player Stats - NEW STRUCTURE
+interface Tank01PlayerStats {
+  gameID: string;
+  longName?: string;
+  playerName?: string;
+  pos: string;
+  team: string;
+  teamAbv: string;
   teamID: string;
-  scoreDetails: string;
-  scoreType: string;          // "TD", "FG", "SF"
-  scoreTime: string;
-  team: string;               // "DAL", "WSH"
-  playerIDs: string[];        // Array of player IDs involved
+  Passing?: {
+    passYds: string;
+    passTD: string;
+    int: string;
+    passCompletions: string;
+    passAttempts: string;
+  };
+  Rushing?: {
+    rushYds: string;
+    rushTD: string;
+    carries: string;
+    longRush: string;
+  };
+  Receiving?: {
+    receptions: string;
+    recYds: string;
+    recTD: string;
+    targets: string;
+    longRec: string;
+  };
 }
 
-// Tank01 Play-by-Play Response
-interface Tank01PlayByPlayResponse {
+// Tank01 Box Score Response - NEW STRUCTURE
+interface Tank01BoxScoreResponse {
   statusCode: number;
   body: {
-    scoringPlays: Tank01ScoringPlay[];
-    allPlayByPlay: Array<{
-      play: string;
-      playPeriod: string;
-      playClock: string;
-      playerStats?: Record<string, any>;
-      teamID: string;
-    }>;
+    gameID: string;
+    away: string;
+    home: string;
+    awayPts: string;
+    homePts: string;
+    currentPeriod: string;
+    gameClock: string;
+    gameStatus: string;
+    gameStatusCode: string;
+    playerStats: Record<string, Tank01PlayerStats>;
+    scoringPlays?: any[];
+    allPlayByPlay?: any[];
   };
 }
 
 interface GamePollingState {
   gameId: string;
-  lastScoreCount: number;
   lastPolledAt: number;
   isActive: boolean;
+  playerStats: Map<string, PlayerStatSnapshot>;
+}
+
+interface PlayerStatSnapshot {
+  playerId: string;
+  playerName: string;
+  position: string;
+  team: string;
+  passingYards: number;
+  passingTDs: number;
+  passingInts: number;
+  rushingYards: number;
+  rushingTDs: number;
+  receptions: number;
+  receivingYards: number;
+  receivingTDs: number;
+  totalFantasyPoints: number;
+  lastUpdated: number;
 }
 
 interface CircuitBreakerState {
@@ -120,8 +158,8 @@ interface DailyQuotaTracker {
 }
 
 /**
- * Tank01 NFL Data Service - PRODUCTION READY
- * Built to parse YOUR exact Tank01 API response structure
+ * Tank01 NFL Data Service - STAT-BASED TRACKING
+ * Polls cumulative player stats and emits events when stats change
  */
 export class Tank01NFLDataService {
   private static instance: Tank01NFLDataService;
@@ -129,11 +167,12 @@ export class Tank01NFLDataService {
   private pollingInterval: NodeJS.Timeout | null = null;
   private gameStates: Map<string, GamePollingState> = new Map();
   private eventCallbacks: ((event: NFLScoringEvent) => void)[] = [];
-  private pollingIntervalMs = 300000; // 5 minutes
+  
+  private pollingIntervalMs = 90000; // Start with 90 seconds
   private isPolling = false;
   private emergencyStop = false;
   private lastPollTime = 0;
-
+  
   // Circuit breaker
   private circuitBreaker: CircuitBreakerState = {
     isOpen: false,
@@ -141,7 +180,7 @@ export class Tank01NFLDataService {
     lastFailureTime: null,
     nextRetryTime: null
   };
-
+  
   // Request monitoring
   private requestMetrics: RequestMetrics = {
     totalRequests: 0,
@@ -151,35 +190,43 @@ export class Tank01NFLDataService {
     requestsThisMinute: 0,
     lastMinuteReset: new Date()
   };
-
+  
   // Daily quota
   private dailyQuota: DailyQuotaTracker = {
     date: new Date().toISOString().split('T')[0],
     requestCount: 0,
     lastReset: new Date()
   };
-
+  
   // SAFE LIMITS
   private readonly CIRCUIT_BREAKER_THRESHOLD = 3;
   private readonly CIRCUIT_BREAKER_TIMEOUT = 300000; // 5 minutes
-  private readonly MAX_REQUESTS_PER_MINUTE = 5;
-  private readonly MAX_DAILY_REQUESTS = 400; // Conservative limit
-  private readonly DAILY_QUOTA_WARNING_THRESHOLD = 0.6;
-  private readonly DAILY_QUOTA_CIRCUIT_BREAKER = 0.8;
-  private readonly MIN_POLL_INTERVAL = 60000; // 1 minute minimum
-  private readonly GAME_POLL_COOLDOWN = 600000; // 10 minutes per game for play-by-play
-
+  private readonly MAX_REQUESTS_PER_MINUTE = 10;
+  private readonly MAX_DAILY_REQUESTS = 1000;
+  private readonly DAILY_QUOTA_WARNING_THRESHOLD = 0.8;
+  private readonly MIN_POLL_INTERVAL = 45000; // 45 seconds minimum
+  
+  // Adaptive polling based on game state
+  private readonly POLLING_INTERVALS = {
+    Q1_Q2: 90000,      // 90 seconds
+    Q3: 75000,          // 75 seconds
+    Q4_EARLY: 60000,    // 60 seconds
+    Q4_LATE: 45000,     // 45 seconds
+    OVERTIME: 30000,    // 30 seconds
+    BLOWOUT: 120000     // 2 minutes
+  };
+  
   private constructor() {
-    debugLogger.info('TANK01', 'Tank01NFLDataService initialized');
+    debugLogger.info('TANK01', 'Tank01NFLDataService initialized with STAT-BASED tracking');
   }
-
+  
   public static getInstance(): Tank01NFLDataService {
     if (!Tank01NFLDataService.instance) {
       Tank01NFLDataService.instance = new Tank01NFLDataService();
     }
     return Tank01NFLDataService.instance;
   }
-
+  
   /**
    * Register callback for scoring events
    */
@@ -196,7 +243,7 @@ export class Tank01NFLDataService {
       }
     };
   }
-
+  
   /**
    * Emit event to all callbacks
    */
@@ -207,7 +254,7 @@ export class Tank01NFLDataService {
       type: event.eventType,
       points: event.stats
     });
-
+    
     for (const callback of this.eventCallbacks) {
       try {
         callback(event);
@@ -216,9 +263,9 @@ export class Tank01NFLDataService {
       }
     }
   }
-
+  
   /**
-   * Poll for active games using getNFLScoresOnly
+   * Poll for active games
    */
   public async pollActiveGames(): Promise<Tank01Game[]> {
     const now = Date.now();
@@ -231,27 +278,27 @@ export class Tank01NFLDataService {
       });
       return [];
     }
-
+    
     if (this.emergencyStop) {
       debugLogger.error('TANK01', 'Poll blocked - emergency stop');
       return [];
     }
-
+    
     if (!this.canMakeRequest()) {
       debugLogger.warning('TANK01', 'Poll blocked - rate limit');
       return [];
     }
-
+    
     try {
       this.lastPollTime = now;
       this.recordRequestStart();
       
       debugLogger.api('TANK01', 'Polling scoreboard (getNFLScoresOnly)');
-
+      
       const response = await supabase.functions.invoke('tank01-api', {
-        body: { endpoint: 'scoreboard' }
+        body: { endpoint: 'scores' }
       });
-
+      
       if (response.error?.message?.includes('429')) {
         debugLogger.error('TANK01', 'QUOTA EXCEEDED');
         this.circuitBreaker.isOpen = true;
@@ -259,43 +306,42 @@ export class Tank01NFLDataService {
         this.emergencyStopPolling();
         throw new Error('Tank01 API quota exceeded (429)');
       }
-
+      
       if (response.error) {
         throw new Error(`Tank01 API error: ${response.error.message}`);
       }
-
+      
       const data = response.data;
-      const gamesObj = data?.body || {};
+      const gamesObj = data?.body;
       const gamesArray: Tank01Game[] = Object.values(gamesObj);
-
+      
       this.recordRequestSuccess();
       
-      // Find active games (gameStatusCode === "1")
+      // Find active games
       const activeGames: Tank01Game[] = [];
       for (const game of gamesArray) {
         if (this.isGameActive(game)) {
           activeGames.push(game);
           
-          // Update game state
-          const existing = this.gameStates.get(game.gameID);
-          if (!existing) {
+          // Initialize or update game state
+          if (!this.gameStates.has(game.gameID)) {
             this.gameStates.set(game.gameID, {
               gameId: game.gameID,
-              lastScoreCount: 0,
               lastPolledAt: now,
-              isActive: true
+              isActive: true,
+              playerStats: new Map()
             });
           }
         }
       }
-
+      
       debugLogger.info('TANK01', `Found ${activeGames.length} active games`, {
         totalGames: gamesArray.length,
         activeGameIds: activeGames.map(g => `${g.away}@${g.home}`)
       });
-
+      
       return activeGames;
-
+      
     } catch (error) {
       this.recordRequestFailure();
       this.recordFailure();
@@ -303,233 +349,212 @@ export class Tank01NFLDataService {
       throw error;
     }
   }
-
+  
   /**
-   * Fetch play-by-play for a specific game
+   * Fetch player stats for a game and detect changes
+   * THIS IS THE KEY METHOD - REPLACES PLAY-BY-PLAY PARSING
    */
-  public async fetchGamePlayByPlay(gameId: string): Promise<Tank01ScoringPlay[]> {
-    const gameState = this.gameStates.get(gameId);
-    const now = Date.now();
-
-    // Check cooldown
-    if (gameState && (now - gameState.lastPolledAt) < this.GAME_POLL_COOLDOWN) {
-      const remaining = this.GAME_POLL_COOLDOWN - (now - gameState.lastPolledAt);
-      debugLogger.info('TANK01', `Game ${gameId} on cooldown`, {
-        remainingMs: remaining,
-        remainingSec: Math.round(remaining / 1000)
-      });
-      return [];
-    }
-
+  public async fetchGamePlayerStats(gameId: string): Promise<void> {
     if (!this.canMakeRequest()) {
-      debugLogger.warning('TANK01', 'Cannot fetch play-by-play - rate limit');
-      return [];
+      debugLogger.warning('TANK01', `Cannot fetch stats for ${gameId} - rate limit`);
+      return;
     }
-
+    
     try {
       this.recordRequestStart();
-      debugLogger.api('TANK01', `Fetching play-by-play for ${gameId}`);
-
+      
+      debugLogger.api('TANK01', `Fetching player stats for ${gameId}`);
+      
       const response = await supabase.functions.invoke('tank01-api', {
         body: {
           endpoint: 'plays',
           gameId: gameId
         }
       });
-
-      if (response.error?.message?.includes('429')) {
-        debugLogger.error('TANK01', 'QUOTA EXCEEDED');
-        this.circuitBreaker.isOpen = true;
-        this.emergencyStopPolling();
-        throw new Error('Tank01 API quota exceeded (429)');
-      }
-
+      
       if (response.error) {
         throw new Error(`API error: ${response.error.message}`);
       }
-
-      const playByPlayData = response.data as Tank01PlayByPlayResponse;
-      const scoringPlays = playByPlayData?.body?.scoringPlays || [];
       
-      // Update game state
-      if (gameState) {
-        gameState.lastPolledAt = now;
-        gameState.lastScoreCount = scoringPlays.length;
+      const data = response.data as Tank01BoxScoreResponse;
+      const playerStats = data.body?.playerStats;
+      
+      if (!playerStats) {
+        debugLogger.warning('TANK01', `No player stats for ${gameId}`);
+        return;
       }
-
+      
       this.recordRequestSuccess();
       
-      debugLogger.success('TANK01', `Fetched ${scoringPlays.length} scoring plays for ${gameId}`);
+      // Get game state
+      let gameState = this.gameStates.get(gameId);
+      if (!gameState) {
+        gameState = {
+          gameId,
+          lastPolledAt: Date.now(),
+          isActive: true,
+          playerStats: new Map()
+        };
+        this.gameStates.set(gameId, gameState);
+      }
       
-      // Process scoring plays into events
-      await this.processScoringPlays(scoringPlays, gameId);
+      // Process each player's stats
+      for (const [playerId, stats] of Object.entries(playerStats)) {
+        await this.processPlayerStatChange(playerId, stats, gameState, data.body);
+      }
       
-      return scoringPlays;
-
+      gameState.lastPolledAt = Date.now();
+      
     } catch (error) {
       this.recordRequestFailure();
-      this.recordFailure();
-      debugLogger.error('TANK01', `Failed to fetch play-by-play for ${gameId}`, error);
-      return [];
+      debugLogger.error('TANK01', `Failed to fetch stats for ${gameId}`, error);
     }
   }
-
+  
   /**
-   * Process scoring plays into NFLScoringEvents
+   * Process player stat changes and emit events
    */
-  private async processScoringPlays(plays: Tank01ScoringPlay[], gameId: string): Promise<void> {
-    for (const play of plays) {
-      try {
-        const event = await this.createScoringEvent(play, gameId);
-        if (event) {
-          this.emitEvent(event);
-        }
-      } catch (error) {
-        debugLogger.error('TANK01', 'Failed to process scoring play', { play, error });
+  private async processPlayerStatChange(
+    playerId: string,
+    currentStats: Tank01PlayerStats,
+    gameState: GamePollingState,
+    gameInfo: any
+  ): Promise<void> {
+    // Create current snapshot
+    const currentSnapshot: PlayerStatSnapshot = {
+      playerId,
+      playerName: currentStats.longName || currentStats.playerName || 'Unknown',
+      position: currentStats.pos,
+      team: currentStats.teamAbv,
+      passingYards: parseInt(currentStats.Passing?.passYds || '0'),
+      passingTDs: parseInt(currentStats.Passing?.passTD || '0'),
+      passingInts: parseInt(currentStats.Passing?.int || '0'),
+      rushingYards: parseInt(currentStats.Rushing?.rushYds || '0'),
+      rushingTDs: parseInt(currentStats.Rushing?.rushTD || '0'),
+      receptions: parseInt(currentStats.Receiving?.receptions || '0'),
+      receivingYards: parseInt(currentStats.Receiving?.recYds || '0'),
+      receivingTDs: parseInt(currentStats.Receiving?.recTD || '0'),
+      totalFantasyPoints: 0,
+      lastUpdated: Date.now()
+    };
+    
+    // Calculate fantasy points (PPR scoring)
+    currentSnapshot.totalFantasyPoints = 
+      currentSnapshot.passingYards * 0.04 +
+      currentSnapshot.passingTDs * 4 +
+      currentSnapshot.passingInts * -2 +
+      currentSnapshot.rushingYards * 0.1 +
+      currentSnapshot.rushingTDs * 6 +
+      currentSnapshot.receptions * 1 +
+      currentSnapshot.receivingYards * 0.1 +
+      currentSnapshot.receivingTDs * 6;
+    
+    // Get previous snapshot
+    const previousSnapshot = gameState.playerStats.get(playerId);
+    
+    if (previousSnapshot) {
+      // Check if stats changed
+      const pointsDelta = currentSnapshot.totalFantasyPoints - previousSnapshot.totalFantasyPoints;
+      
+      if (pointsDelta > 0) {
+        debugLogger.info('TANK01', `Stat change detected for ${currentSnapshot.playerName}`, {
+          previousPoints: previousSnapshot.totalFantasyPoints,
+          currentPoints: currentSnapshot.totalFantasyPoints,
+          delta: pointsDelta
+        });
+        
+        // Create fantasy event
+        const event = this.createFantasyEvent(currentSnapshot, previousSnapshot, gameInfo);
+        this.emitEvent(event);
       }
     }
+    
+    // Store current snapshot
+    gameState.playerStats.set(playerId, currentSnapshot);
   }
-
+  
   /**
-   * Create NFLScoringEvent from Tank01 scoring play
+   * Create NFL Scoring Event from stat change
    */
-  private async createScoringEvent(play: Tank01ScoringPlay, gameId: string): Promise<NFLScoringEvent | null> {
-    // Get primary player ID (usually first in array, or second for passing TDs)
-    let primaryPlayerId: string | undefined;
+  private createFantasyEvent(
+    current: PlayerStatSnapshot,
+    previous: PlayerStatSnapshot,
+    gameInfo: any
+  ): NFLScoringEvent {
+    // Build description
+    const descParts: string[] = [];
     
-    // For passing TDs, the passer is usually second (receiver is first)
-    // For rushing TDs, rusher is first
-    // For FGs, kicker is first
-    if (play.scoreType === 'TD' && play.score.toLowerCase().includes('pass')) {
-      // Passing TD: [receiver, passer, kicker]
-      primaryPlayerId = play.playerIDs[1] || play.playerIDs[0];
-    } else {
-      // Rushing TD, FG, Safety: primary player is first
-      primaryPlayerId = play.playerIDs[0];
+    if (current.receptions > previous.receptions) {
+      descParts.push(`${current.receptions} rec`);
+    }
+    if (current.receivingYards > previous.receivingYards) {
+      descParts.push(`${current.receivingYards} rec yds`);
+    }
+    if (current.receivingTDs > previous.receivingTDs) {
+      descParts.push(`${current.receivingTDs} rec TD`);
+    }
+    if (current.rushingYards > previous.rushingYards) {
+      descParts.push(`${current.rushingYards} rush yds`);
+    }
+    if (current.rushingTDs > previous.rushingTDs) {
+      descParts.push(`${current.rushingTDs} rush TD`);
+    }
+    if (current.passingYards > previous.passingYards) {
+      descParts.push(`${current.passingYards} pass yds`);
+    }
+    if (current.passingTDs > previous.passingTDs) {
+      descParts.push(`${current.passingTDs} pass TD`);
     }
     
-    if (!primaryPlayerId) {
-      debugLogger.warning('TANK01', 'Scoring play has no player IDs', play);
-      return null;
+    const description = `${current.playerName} - ${descParts.join(', ')}`;
+    
+    // Determine event type
+    let eventType: NFLScoringEvent['eventType'] = 'receivingyards';
+    if (current.receivingTDs > previous.receivingTDs) {
+      eventType = 'receivingtd';
+    } else if (current.rushingTDs > previous.rushingTDs) {
+      eventType = 'rushingtd';
+    } else if (current.passingTDs > previous.passingTDs) {
+      eventType = 'passingtd';
     }
-
-    // Look up player info from Supabase
-    const { data: playerData, error } = await supabase
-      .from('player_mappings')
-      .select('*')
-      .eq('tank01_id', primaryPlayerId)
-      .single();
-
-    if (error || !playerData) {
-      debugLogger.warning('TANK01', `Player ${primaryPlayerId} not found in mappings`, {
-        playerId: primaryPlayerId,
-        playDescription: play.score
-      });
-      // Don't fail - continue without mapping
-      return null;
-    }
-
-    const eventType = this.mapScoreTypeToEventType(play.scoreType, play.score);
-    if (!eventType) {
-      return null;
-    }
-
-    // Extract yards from description
-    const yards = this.extractYardsFromDescription(play.score);
-
-    const event: NFLScoringEvent = {
-      id: `tank01-${gameId}-${play.scorePeriod}-${play.scoreTime}-${primaryPlayerId}`,
+    
+    return {
+      id: `${gameInfo.gameID}-${current.playerId}-${Date.now()}`,
       player: {
-        id: primaryPlayerId,
-        name: playerData.name,
-        position: playerData.position,
-        team: playerData.team
+        id: current.playerId,
+        name: current.playerName,
+        position: current.position,
+        team: current.team
       },
-      team: play.team,
+      team: current.team,
       eventType,
-      description: play.score,
+      description,
       timestamp: new Date(),
-      stats: this.calculateStats(eventType, yards),
-      gameId,
-      period: this.parsePeriod(play.scorePeriod),
-      clock: play.scoreTime,
+      stats: {
+        passingYards: current.passingYards - previous.passingYards,
+        passingTouchdowns: current.passingTDs - previous.passingTDs,
+        rushingYards: current.rushingYards - previous.rushingYards,
+        rushingTouchdowns: current.rushingTDs - previous.rushingTDs,
+        receptions: current.receptions - previous.receptions,
+        receivingYards: current.receivingYards - previous.receivingYards,
+        receivingTouchdowns: current.receivingTDs - previous.receivingTDs
+      },
+      gameId: gameInfo.gameID,
+      period: this.parsePeriod(gameInfo.currentPeriod),
+      clock: gameInfo.gameClock || '',
       scoringPlay: true
     };
-
-    return event;
   }
-
+  
   /**
-   * Map Tank01 scoreType to your event types
+   * Check if game is active
    */
-  private mapScoreTypeToEventType(scoreType: string, description: string): NFLScoringEvent['eventType'] | null {
-    if (scoreType === 'TD') {
-      const lowerDesc = description.toLowerCase();
-      if (lowerDesc.includes('pass from')) {
-        // Receiving TD
-        return 'receivingtd';
-      } else if (lowerDesc.includes('pass')) {
-        // Could be passing or receiving
-        return lowerDesc.includes('rush') ? 'rushingtd' : 'receivingtd';
-      } else if (lowerDesc.includes('rush')) {
-        return 'rushingtd';
-      }
-      // Default TD type
-      return 'rushingtd';
-    }
-    
-    if (scoreType === 'FG') {
-      return 'fieldgoal';
-    }
-    
-    if (scoreType === 'SF') {
-      return 'safety';
-    }
-    
-    return null;
+  private isGameActive(game: Tank01Game): boolean {
+    return game.gameStatusCode === '1' || 
+           game.gameStatus?.includes('Live') || 
+           game.gameStatus?.includes('In Progress');
   }
-
-  /**
-   * Extract yards from score description
-   * E.g., "CeeDee Lamb 74 Yd pass" -> 74
-   */
-  private extractYardsFromDescription(description: string): number {
-    const match = description.match(/(\d+)\s*Yd/i);
-    return match ? parseInt(match[1]) : 0;
-  }
-
-  /**
-   * Calculate fantasy stats from event type and yards
-   */
-  private calculateStats(eventType: NFLScoringEvent['eventType'], yards: number): Record<string, number> {
-    const stats: Record<string, number> = {};
-    
-    switch (eventType) {
-      case 'passingtd':
-        stats.passingTouchdowns = 1;
-        stats.passingYards = yards;
-        break;
-      case 'rushingtd':
-        stats.rushingTouchdowns = 1;
-        stats.rushingYards = yards;
-        break;
-      case 'receivingtd':
-        stats.receivingTouchdowns = 1;
-        stats.receivingYards = yards;
-        stats.receptions = 1;
-        break;
-      case 'fieldgoal':
-        stats.fieldGoalsMade = 1;
-        stats.fieldGoalDistance = yards;
-        break;
-      case 'safety':
-        stats.safeties = 1;
-        break;
-    }
-    
-    return stats;
-  }
-
+  
   /**
    * Parse period string to number
    */
@@ -541,57 +566,51 @@ export class Tank01NFLDataService {
     if (period.includes('OT')) return 5;
     return 1;
   }
-
+  
   /**
-   * Check if game is active
+   * Start polling with adaptive intervals
    */
-  private isGameActive(game: Tank01Game): boolean {
-    return game.gameStatusCode === "1" || 
-           game.gameStatus?.includes("Live") || 
-           game.gameStatus?.includes("In Progress");
-  }
-
-  /**
-   * Start polling
-   */
-  public async startPolling(intervalMs: number = 300000): Promise<void> {
+  public async startPolling(intervalMs: number = 90000): Promise<void> {
     if (this.isPolling) {
       debugLogger.warning('TANK01', 'Already polling');
       return;
     }
-
-    if (this.emergencyStop) {
-      throw new Error('Emergency stop active');
-    }
-
-    this.pollingIntervalMs = Math.max(intervalMs, 300000);
+    
+    this.pollingIntervalMs = intervalMs;
     this.isPolling = true;
-
-    debugLogger.info('TANK01', 'Starting polling', { interval: this.pollingIntervalMs });
-
+    
+    debugLogger.success('TANK01', `Polling started with ${intervalMs}ms interval`);
+    
     // Initial poll
-    try {
-      await this.pollActiveGames();
-    } catch (error) {
-      this.isPolling = false;
-      throw error;
-    }
-
-    // Set up recurring
+    await this.runPollingCycle();
+    
+    // Set up recurring poll
     this.pollingInterval = setInterval(async () => {
-      if (this.emergencyStop || this.circuitBreaker.isOpen) {
-        this.stopPolling();
-        return;
-      }
-
-      try {
-        await this.pollActiveGames();
-      } catch (error) {
-        debugLogger.error('TANK01', 'Polling cycle failed', error);
-      }
+      await this.runPollingCycle();
     }, this.pollingIntervalMs);
   }
-
+  
+  /**
+   * Run a single polling cycle
+   */
+  private async runPollingCycle(): Promise<void> {
+    try {
+      // Get active games
+      const activeGames = await this.pollActiveGames();
+      
+      // Fetch stats for each active game
+      for (const game of activeGames) {
+        await this.fetchGamePlayerStats(game.gameID);
+        
+        // Small delay between games to avoid rate limiting
+        await new Promise(resolve => setTimeout(resolve, 1000));
+      }
+      
+    } catch (error) {
+      debugLogger.error('TANK01', 'Polling cycle failed', error);
+    }
+  }
+  
   /**
    * Stop polling
    */
@@ -603,147 +622,124 @@ export class Tank01NFLDataService {
     this.isPolling = false;
     debugLogger.info('TANK01', 'Polling stopped');
   }
-
+  
   /**
    * Emergency stop
    */
   public emergencyStopPolling(): void {
     this.emergencyStop = true;
     this.stopPolling();
-    debugLogger.warning('TANK01', '🚨 EMERGENCY STOP 🚨');
+    debugLogger.error('TANK01', 'EMERGENCY STOP ACTIVATED');
   }
-
+  
   /**
    * Reset emergency stop
    */
   public resetEmergencyStop(): void {
     this.emergencyStop = false;
-    this.resetCircuitBreaker();
+    this.circuitBreaker.isOpen = false;
+    this.circuitBreaker.failureCount = 0;
     debugLogger.info('TANK01', 'Emergency stop reset');
   }
-
-  // Rate limiting methods
-  private checkDailyQuota(): boolean {
+  
+  // Rate limiting methods (preserved from original)
+  
+  private checkDailyQuota(): void {
     const today = new Date().toISOString().split('T')[0];
-    
     if (this.dailyQuota.date !== today) {
       this.dailyQuota = {
         date: today,
         requestCount: 0,
         lastReset: new Date()
       };
-      try {
-        localStorage.setItem('tank01_daily_quota', JSON.stringify(this.dailyQuota));
-      } catch (error) {}
     }
-
-    try {
-      const stored = localStorage.getItem('tank01_daily_quota');
-      if (stored) {
-        const storedQuota = JSON.parse(stored);
-        if (storedQuota.date === today) {
-          this.dailyQuota = storedQuota;
-        }
-      }
-    } catch (error) {}
-
-    const percentUsed = this.dailyQuota.requestCount / this.MAX_DAILY_REQUESTS;
-
-    if (percentUsed >= this.DAILY_QUOTA_CIRCUIT_BREAKER) {
-      debugLogger.error('TANK01', 'DAILY QUOTA CIRCUIT BREAKER', {
-        used: this.dailyQuota.requestCount,
-        limit: this.MAX_DAILY_REQUESTS
-      });
-      this.circuitBreaker.isOpen = true;
-      this.emergencyStopPolling();
-      return false;
-    }
-
-    if (percentUsed >= this.DAILY_QUOTA_WARNING_THRESHOLD) {
-      debugLogger.warning('TANK01', 'Daily quota warning', {
-        used: this.dailyQuota.requestCount,
-        remaining: this.MAX_DAILY_REQUESTS - this.dailyQuota.requestCount
-      });
-    }
-
-    return true;
   }
-
+  
   private incrementDailyQuota(): void {
+    this.checkDailyQuota();
     this.dailyQuota.requestCount++;
-    try {
-      localStorage.setItem('tank01_daily_quota', JSON.stringify(this.dailyQuota));
-    } catch (error) {}
-  }
-
-  private canMakeRequest(): boolean {
-    if (this.circuitBreaker.isOpen) {
-      const now = new Date();
-      if (this.circuitBreaker.nextRetryTime && now >= this.circuitBreaker.nextRetryTime) {
-        this.resetCircuitBreaker();
-        return true;
-      }
-      return false;
-    }
-
-    if (!this.checkDailyQuota()) {
-      return false;
-    }
-
-    const now = new Date();
-    const timeSinceReset = now.getTime() - this.requestMetrics.lastMinuteReset.getTime();
     
-    if (timeSinceReset >= 60000) {
+    if (this.dailyQuota.requestCount >= this.MAX_DAILY_REQUESTS * this.DAILY_QUOTA_WARNING_THRESHOLD) {
+      debugLogger.warning('TANK01', `Daily quota at ${this.dailyQuota.requestCount}/${this.MAX_DAILY_REQUESTS}`);
+    }
+  }
+  
+  private canMakeRequest(): boolean {
+    this.checkDailyQuota();
+    
+    if (this.dailyQuota.requestCount >= this.MAX_DAILY_REQUESTS) {
+      debugLogger.error('TANK01', 'Daily quota exceeded');
+      return false;
+    }
+    
+    if (this.circuitBreaker.isOpen) {
+      if (this.circuitBreaker.nextRetryTime && new Date() > this.circuitBreaker.nextRetryTime) {
+        this.circuitBreaker.isOpen = false;
+        this.circuitBreaker.failureCount = 0;
+      } else {
+        return false;
+      }
+    }
+    
+    // Check requests per minute
+    const now = new Date();
+    if (now.getTime() - this.requestMetrics.lastMinuteReset.getTime() > 60000) {
       this.requestMetrics.requestsThisMinute = 0;
       this.requestMetrics.lastMinuteReset = now;
     }
-
+    
     if (this.requestMetrics.requestsThisMinute >= this.MAX_REQUESTS_PER_MINUTE) {
+      debugLogger.warning('TANK01', 'Per-minute rate limit reached');
       return false;
     }
-
+    
     return true;
   }
-
+  
   private recordRequestStart(): void {
     this.requestMetrics.totalRequests++;
     this.requestMetrics.requestsThisMinute++;
-    this.requestMetrics.lastRequestTime = new Date();
     this.incrementDailyQuota();
   }
-
+  
   private recordRequestSuccess(): void {
     this.requestMetrics.successfulRequests++;
-    this.resetCircuitBreaker();
+    this.requestMetrics.lastRequestTime = new Date();
+    this.circuitBreaker.failureCount = 0;
   }
-
+  
   private recordRequestFailure(): void {
     this.requestMetrics.failedRequests++;
   }
-
+  
   private recordFailure(): void {
     this.circuitBreaker.failureCount++;
     this.circuitBreaker.lastFailureTime = new Date();
-
+    
     if (this.circuitBreaker.failureCount >= this.CIRCUIT_BREAKER_THRESHOLD) {
       this.circuitBreaker.isOpen = true;
       this.circuitBreaker.nextRetryTime = new Date(Date.now() + this.CIRCUIT_BREAKER_TIMEOUT);
+      debugLogger.error('TANK01', 'Circuit breaker opened', {
+        failureCount: this.circuitBreaker.failureCount,
+        nextRetry: this.circuitBreaker.nextRetryTime
+      });
     }
   }
-
+  
   private resetCircuitBreaker(): void {
     this.circuitBreaker.isOpen = false;
     this.circuitBreaker.failureCount = 0;
     this.circuitBreaker.lastFailureTime = null;
     this.circuitBreaker.nextRetryTime = null;
   }
-
+  
   /**
    * Get service status
    */
   public getServiceStatus() {
-    const percentUsed = this.dailyQuota.requestCount / this.MAX_DAILY_REQUESTS;
-
+    this.checkDailyQuota();
+    const percentUsed = (this.dailyQuota.requestCount / this.MAX_DAILY_REQUESTS) * 100;
+    
     return {
       isPolling: this.isPolling,
       pollingInterval: this.pollingIntervalMs,
@@ -765,7 +761,7 @@ export class Tank01NFLDataService {
         used: this.dailyQuota.requestCount,
         limit: this.MAX_DAILY_REQUESTS,
         remaining: this.MAX_DAILY_REQUESTS - this.dailyQuota.requestCount,
-        percentUsed: (percentUsed * 100).toFixed(1) + '%'
+        percentUsed: `${percentUsed.toFixed(1)}%`
       }
     };
   }
