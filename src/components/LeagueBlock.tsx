@@ -103,23 +103,15 @@ export const LeagueBlock = React.memo(({ league, onClick }: LeagueBlockProps) =>
         </div>
 
         {/* Scores */}
-        <div className="flex items-center justify-between mb-4 bg-black/30 rounded-lg p-4 backdrop-blur-sm border border-white/10">
-          <div className="text-center flex-1">
-            <div className="text-sm text-white/90 mb-1">My Team</div>
-            <div className="inline-block px-3 py-1 rounded-md bg-black/40 border border-white/20">
-              <div className="text-2xl font-bold text-white drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)]">
-                {league.myScore.toFixed(1)}
-              </div>
-            </div>
+        <div className="flex items-center justify-between mb-4 bg-white/10 rounded-lg p-4 backdrop-blur-sm">
+          <div className="text-center">
+            <div className="text-sm text-white/80">My Team</div>
+            <div className="text-2xl font-bold text-white">{league.myScore.toFixed(1)}</div>
           </div>
-          <div className="text-white/70 font-bold text-lg px-2">VS</div>
-          <div className="text-center flex-1">
-            <div className="text-sm text-white/90 mb-1">{league.opponentName}</div>
-            <div className="inline-block px-3 py-1 rounded-md bg-black/40 border border-white/20">
-              <div className="text-2xl font-bold text-white drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)]">
-                {league.opponentScore.toFixed(1)}
-              </div>
-            </div>
+          <div className="text-white/60 font-bold text-lg">VS</div>
+          <div className="text-center">
+            <div className="text-sm text-white/80">{league.opponentName}</div>
+            <div className="text-2xl font-bold text-white">{league.opponentScore.toFixed(1)}</div>
           </div>
         </div>
 

@@ -147,22 +147,18 @@ export const MobileLeagueCard = ({ league, onClick, onRemove, onLongPress }: Mob
           </div>
 
           {/* Score Section - Compact */}
-          <div className="flex items-center justify-center gap-3 mb-3 bg-black/30 rounded-lg p-3 border border-white/10">
+          <div className="flex items-center justify-center gap-4 mb-3">
             <div className="text-center">
-              <div className="inline-block px-2.5 py-1 rounded bg-black/40 border border-white/20">
-                <div className="text-2xl font-bold text-white drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)]">
-                  {league.myScore}
-                </div>
+              <div className="text-2xl font-bold text-white">
+                {league.myScore}
               </div>
             </div>
-            <div className="text-center px-2">
-              <div className="text-xs text-white/80 font-semibold">VS</div>
+            <div className="text-center">
+              <div className="text-xs text-white/70">VS</div>
             </div>
             <div className="text-center">
-              <div className="inline-block px-2.5 py-1 rounded bg-black/40 border border-white/20">
-                <div className="text-2xl font-bold text-white drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)]">
-                  {league.opponentScore}
-                </div>
+              <div className="text-2xl font-bold text-white">
+                {league.opponentScore}
               </div>
             </div>
           </div>
