@@ -180,21 +180,7 @@ export const useFantasyDashboardWithLiveEvents = (): UseFantasyDashboardReturn =
       return () => clearTimeout(timer);
     }
   }, [allLeagueConfigs.length, isLiveSystemReady, startLiveEvents]);
-
-  return {
-    leagues: combinedLeagues,
-    isLoading,
-    error,
-    lastUpdated,
-    liveEventsState,
-    isLiveSystemReady,
-    startLiveEvents,
-    stopLiveEvents,
-    refreshData,
-    refreshRosters
-  };
-};
-
+  
   return {
     leagues: combinedLeagues,
     isLoading,
