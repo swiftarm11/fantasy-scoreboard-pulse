@@ -14,7 +14,18 @@ export const EnhancedScoringEvent = ({ event, isRecent = false, compact = false 
   const position = 'position' in event ? event.position : 'N/A';
   const action = 'action' in event ? event.action : event.description || 'Scoring event';
   const weeklyPoints = 'weeklyPoints' in event ? event.weeklyPoints : event.points || 0;
-  const timestamp = typeof event.timestamp === 'string' ? event.timestamp : event.timestamp.toLocaleTimeString();
+  
+  // Format timestamp as game time (e.g., "12:31 - Q4") if available
+  const formatTimestamp = () => {
+    if ('time_remaining' in event && 'quarter' in event && event.time_remaining && event.quarter) {
+      return `${event.time_remaining} - Q${event.quarter}`;
+    }
+    // Fallback to simple time format
+    const date = typeof event.timestamp === 'string' ? new Date(event.timestamp) : event.timestamp;
+    return date.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+  };
+  
+  const timestamp = formatTimestamp();
 
   const getImpactBadgeStyle = () => {
     if (scoreImpact > 0) {
