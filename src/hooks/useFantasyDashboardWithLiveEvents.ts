@@ -108,15 +108,6 @@ export const useFantasyDashboardWithLiveEvents = (): UseFantasyDashboardReturn =
     return leagues.map(league => {
       const liveEvents = getLeagueEvents(league.id);
       
-      // 🔍 DEBUG: Log enrichment details
-      console.log('🔍 Enriching league:', {
-        leagueId: league.id,
-        leagueName: league.leagueName,
-        liveEventsFound: liveEvents.length,
-        existingEvents: league.scoringEvents?.length || 0,
-        liveEventSample: liveEvents.slice(0, 2)
-      });
-      
       const allEvents = [...liveEvents, ...league.scoringEvents];
       const uniqueEvents = allEvents
         .filter((event, index, arr) => arr.findIndex(e => e.id === event.id) === index)
