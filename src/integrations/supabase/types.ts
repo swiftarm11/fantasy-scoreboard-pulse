@@ -128,10 +128,7 @@ export type Database = {
           yahoo_id: string
         }[]
       }
-      handle_tank01_player_list: {
-        Args: Record<PropertyKey, never>
-        Returns: undefined
-      }
+      handle_tank01_player_list: { Args: never; Returns: undefined }
       secure_player_sync: {
         Args: { players_data: Json }
         Returns: {
