@@ -65,6 +65,63 @@ export type Database = {
         }
         Relationships: []
       }
+      scoring_events: {
+        Row: {
+          created_at: string
+          description: string
+          event_type: string
+          fantasy_points: number
+          id: string
+          league_id: string
+          nfl_game_id: string | null
+          nfl_week: number
+          player_id: string
+          player_name: string
+          quarter: number | null
+          season: number
+          team_abbr: string
+          team_id: string | null
+          time_remaining: string | null
+          timestamp: string
+        }
+        Insert: {
+          created_at?: string
+          description: string
+          event_type: string
+          fantasy_points: number
+          id?: string
+          league_id: string
+          nfl_game_id?: string | null
+          nfl_week: number
+          player_id: string
+          player_name: string
+          quarter?: number | null
+          season?: number
+          team_abbr: string
+          team_id?: string | null
+          time_remaining?: string | null
+          timestamp: string
+        }
+        Update: {
+          created_at?: string
+          description?: string
+          event_type?: string
+          fantasy_points?: number
+          id?: string
+          league_id?: string
+          nfl_game_id?: string | null
+          nfl_week?: number
+          player_id?: string
+          player_name?: string
+          quarter?: number | null
+          season?: number
+          team_abbr?: string
+          team_id?: string | null
+          time_remaining?: string | null
+          timestamp?: string
+        }
+        Relationships: []
+      }
       sync_metadata: {
         Row: {
           active_players: number | null

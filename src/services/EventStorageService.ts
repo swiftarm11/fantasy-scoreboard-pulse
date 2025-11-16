@@ -1,4 +1,5 @@
 import { debugLogger } from '../utils/debugLogger';
+import { supabaseScoringEventService } from './SupabaseScoringEventService';
 
 // Configuration interfaces for scoring events
 export interface ConfigScoringEvent {
@@ -46,10 +47,11 @@ export class EventStorageService {
   }
 
   /**
-   * Add a new fantasy scoring event
+   * Add a new fantasy scoring event (dual-write to localStorage + Supabase)
    */
   addEvent(leagueId: string, event: ConfigScoringEvent): void {
     try {
+      // 1. Immediate localStorage write (for fast UI updates)
       const events = this.getAllEvents();
       events.push(event);
       
@@ -58,11 +60,16 @@ export class EventStorageService {
       
       localStorage.setItem(this.storageKey, JSON.stringify(trimmedEvents));
       
-      debugLogger.info('EVENT_STORAGE', 'Event stored successfully', {
+      debugLogger.info('EVENT_STORAGE', 'Event stored to localStorage', {
         eventId: event.id,
         player: event.playerName,
         points: event.fantasyPoints,
         leagueId
+      });
+
+      // 2. Background Supabase write (fire-and-forget for persistence)
+      supabaseScoringEventService.saveEvent(event).catch(err => {
+        debugLogger.error('EVENT_STORAGE', 'Background Supabase save failed', err);
       });
       
     } catch (error) {

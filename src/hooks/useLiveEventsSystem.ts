@@ -3,6 +3,7 @@ import { debugLogger } from "../utils/debugLogger";
 import { tank01NFLDataService, NFLScoringEvent } from "../services/Tank01NFLDataService";
 import { eventAttributionService } from "../services/EventAttributionService";
 import { eventStorageService, ConfigScoringEvent } from "../services/EventStorageService";
+import { supabaseScoringEventService } from "../services/SupabaseScoringEventService";
 import { LeagueConfig } from "../types/config";
 import { ScoringEvent } from "../types/fantasy";
 
@@ -56,6 +57,30 @@ export const useLiveEventsSystem = ({ leagues, enabled, pollingInterval = 300000
       const enabledLeagues = leagues.filter(l => l.enabled);
       if (enabledLeagues.length > 0) {
         await eventAttributionService.loadRosters(enabledLeagues);
+      }
+
+      // Hydrate from Supabase if localStorage is empty (current week only)
+      const localStorageEvents = eventStorageService.getAllEvents();
+      if (localStorageEvents.length === 0 && enabledLeagues.length > 0) {
+        debugLogger.info('LIVEEVENTS', 'Hydrating from Supabase (localStorage empty)');
+        
+        const leagueIds = enabledLeagues.map(l => l.leagueId);
+        const supabaseEvents = await supabaseScoringEventService.getCurrentWeekEvents(
+          leagueIds,
+          liveState.nflWeek
+        );
+
+        debugLogger.info('LIVEEVENTS', 'Loaded events from Supabase', {
+          count: supabaseEvents.length,
+          week: liveState.nflWeek
+        });
+
+        // Populate localStorage with Supabase events (no dual-write needed)
+        for (const event of supabaseEvents) {
+          localStorage.setItem('fantasy_scoring_events', JSON.stringify(supabaseEvents));
+        }
+
+        updateRecentEvents();
       }
 
       // ✅ Register callback to save attributed events to storage
