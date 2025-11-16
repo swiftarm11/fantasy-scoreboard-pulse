@@ -76,7 +76,7 @@ export const useLiveEventsSystem = ({ leagues, enabled, pollingInterval = 300000
         });
 
         // Populate localStorage with Supabase events (no dual-write needed)
-        for (const event of supabaseEvents) {
+        if (supabaseEvents.length > 0) {
           localStorage.setItem('fantasy_scoring_events', JSON.stringify(supabaseEvents));
         }
 
