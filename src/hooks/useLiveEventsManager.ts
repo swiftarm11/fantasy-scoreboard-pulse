@@ -85,14 +85,22 @@ export const useLiveEventsManager = () => {
       triggerTestEvent: () => {
         debugLogger.info('LIVEMANAGER', 'Test event triggered');
         const testEvent = {
-          playerId: '4040715', // Lamar Jackson
-          playerName: 'Lamar Jackson',
+          id: `test-${Date.now()}`,
+          player: {
+            id: '4040715',
+            name: 'Lamar Jackson',
+            position: 'QB',
+            team: 'BAL'
+          },
           team: 'BAL',
-          eventType: 'passing_td' as const,
-          fantasyPoints: 4,
-          timestamp: new Date().toISOString(),
+          eventType: 'passingtd' as const,
+          description: 'TEST: 25-yard touchdown pass',
+          timestamp: new Date(),
+          stats: { passingTouchdowns: 1, passingYards: 25 },
           gameId: 'TEST_GAME',
-          description: 'TEST: 25-yard touchdown pass'
+          period: 1,
+          clock: '10:00',
+          scoringPlay: true
         };
         
         eventAttributionService.attributeEvent(testEvent);

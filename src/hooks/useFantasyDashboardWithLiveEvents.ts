@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { useYahooData } from "./useYahooData";
 import { useSleeperData } from "./useSleeperData";
-import { useLiveEventsManager } from "./useLiveEventsManager";
+import { useLiveEventsSystem } from "./useLiveEventsSystem";
 import { useConfig } from "./useConfig";
 import { useWindowServiceExposure } from "./useWindowServiceExposure";
 import { LeagueData } from "../types/fantasy";
@@ -91,14 +91,14 @@ export const useFantasyDashboardWithLiveEvents = (): UseFantasyDashboardReturn =
   ];
 
   const {
-    state: liveEventsState,
+    liveState: liveEventsState,
     recentEvents,
-    isReady: isLiveSystemReady,
+    isSystemReady: isLiveSystemReady,
     startSystem: startLiveEvents,
     stopSystem: stopLiveEvents,
     refreshRosters,
     getLeagueEvents
-  } = useLiveEventsManager({
+  } = useLiveEventsSystem({
     enabled: allLeagueConfigs.length > 0,
     leagues: allLeagueConfigs,
     pollingInterval: 300000 // 5 minutes
