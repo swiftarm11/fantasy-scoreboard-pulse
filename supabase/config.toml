@@ -46,3 +46,6 @@ verify_jwt = false
 
 [functions.player-sync]
 verify_jwt = false
+
+[functions.cleanup-scoring-events]
+verify_jwt = false
